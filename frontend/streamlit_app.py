@@ -31,13 +31,12 @@ from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine
 from investbot.services.dashboard_service import DashboardService
 from investbot.services.decision_support import DecisionSupportService
+from investbot.services.event_risk_service import EventRiskService
 from investbot.services.market_overview_service import MarketOverviewService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
 from investbot.services.universe_builder import UniverseBuilder
 from investbot.services.user_settings_service import UserSettingsService
-from investbot.services.event_risk_service import EventRiskService
-
 
 st.set_page_config(page_title="Smart Swing Agent", layout="wide", initial_sidebar_state="expanded")
 
@@ -290,13 +289,10 @@ def localize_value(value: object) -> str:
         return mapping[text_value]
     if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
         prefix, label = text_value.split(":", 1)
-        prefix_label = mapping.get(prefix.replace(":",""), prefix)
         if prefix == "macro_event_imminent":
-            prefix_label = "Macro imminent"
-        elif prefix == "macro_event_near":
-            prefix_label = "Macro near"
-        if LANG == "zh-TW":
-            prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" else "總經事件接近"
+            prefix_label = "總經事件臨近" if LANG == "zh-TW" else "Macro imminent"
+        else:
+            prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
         return f"{prefix_label}: {label.replace('_', ' ')}"
     return text_value
 
@@ -311,7 +307,9 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        .block-container { max-width: 1450px; padding-top: 0.9rem; padding-bottom: 1.8rem; }
+        .block-container { max-width: 1450px; padding-top: 1.35rem; padding-bottom: 1.8rem; }
+        section[data-testid="stSidebar"] { min-width: 340px !important; max-width: 340px !important; }
+        .page-title { font-size: 1.9rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #243047; }
         .section-label { font-size: 0.78rem; font-weight: 700; color: #616c7c; margin: 0.85rem 0 0.45rem; text-transform: uppercase; }
         .terminal-card, .summary-band, .decision-card { border: 1px solid rgba(118,128,145,.22); border-radius: 8px; background: #ffffff; }
         .terminal-card { padding: 14px; min-height: 174px; }
@@ -333,6 +331,10 @@ def inject_styles() -> None:
         .decision-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
         div[data-testid="stMetric"] { background:#f7f9fc; border:1px solid rgba(118,128,145,.18); border-radius:8px; padding:10px 12px; }
         div[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
+        @media (max-width: 1200px) {
+            section[data-testid="stSidebar"] { min-width: 290px !important; max-width: 290px !important; }
+            .page-title { font-size: 1.55rem; }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -392,13 +394,21 @@ def render_run_controls() -> None:
 def render_runtime_settings_panel() -> None:
     with st.sidebar.expander(t("settings_panel")):
         with st.form("runtime_settings_form"):
-            app_language = st.selectbox(t("language"), options=["zh-TW", "en"], index=0 if runtime_settings.app_language == "zh-TW" else 1)
+            app_language = st.selectbox(
+                t("language"),
+                options=["zh-TW", "en"],
+                index=0 if runtime_settings.app_language == "zh-TW" else 1,
+            )
             tw_core_tickers = st.text_area("TW Core", value=str(runtime_settings.tw_core_tickers), height=90)
             us_core_tickers = st.text_area("US Core", value=str(runtime_settings.us_core_tickers), height=80)
             tw_explore_tickers = st.text_area("TW Explore", value=str(runtime_settings.tw_explore_tickers), height=70)
             us_explore_tickers = st.text_area("US Explore", value=str(runtime_settings.us_explore_tickers), height=70)
-            tw_explore_limit = st.number_input("TW Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.tw_explore_limit), step=1)
-            us_explore_limit = st.number_input("US Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.us_explore_limit), step=1)
+            tw_explore_limit = st.number_input(
+                "TW Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.tw_explore_limit), step=1
+            )
+            us_explore_limit = st.number_input(
+                "US Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.us_explore_limit), step=1
+            )
             st.caption("FMP economic calendar is used first. This field is only for manual fallback or custom override dates.")
             high_risk_event_dates = st.text_input(t("high_risk_dates"), value=str(runtime_settings.high_risk_event_dates))
             submitted = st.form_submit_button(t("save_settings"), use_container_width=True)
@@ -424,6 +434,7 @@ def render_market_state() -> None:
     overview = overview_service.build()
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
     momentum_items = "".join(f"<li>{item}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
+    macro_items = "".join(f"<li>{item}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
     caution_items = "".join(f"<li>{item}</li>" for item in overview.caution_items)
     st.markdown(
         f"""
@@ -449,7 +460,7 @@ def render_market_state() -> None:
             <div class="decision-label">{t("momentum_zones")}</div>
             <ul class="mini-list">{momentum_items}</ul>
             <div class="decision-label">{t("macro_calendar")}</div>
-            <ul class="mini-list">{"".join(f"<li>{item}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"}</ul>
+            <ul class="mini-list">{macro_items}</ul>
             <div class="decision-label">{t("cautions")}</div>
             <ul class="mini-list">{caution_items}</ul>
         </div>
@@ -613,7 +624,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
 
 
 def render_portfolio() -> None:
-    st.subheader(t("portfolio"))
+    st.markdown(f'<div class="page-title">{t("portfolio")}</div>', unsafe_allow_html=True)
     positions, _ = portfolio_service.get_open_positions_summary()
     if not positions:
         st.info(t("no_positions"))
@@ -624,7 +635,7 @@ def render_portfolio() -> None:
 
 
 def render_screener(candidate_frame: pd.DataFrame) -> None:
-    st.subheader(t("screener"))
+    st.markdown(f'<div class="page-title">{t("screener")}</div>', unsafe_allow_html=True)
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -686,7 +697,14 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                 px.line(
                     history,
                     x="date",
-                    y=["market_regime_score", "breadth_score", "relative_strength_score", "institutional_conviction_score", "entry_quality_score", "composite_signal_score"],
+                    y=[
+                        "market_regime_score",
+                        "breadth_score",
+                        "relative_strength_score",
+                        "institutional_conviction_score",
+                        "entry_quality_score",
+                        "composite_signal_score",
+                    ],
                     markers=True,
                     title=t("funnel_scores"),
                 ),
@@ -704,7 +722,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 
 inject_styles()
 
-language_options = {"蝜?銝剜?": "zh-TW", "English": "en"}
+language_options = {"繁體中文": "zh-TW", "English": "en"}
 selected_label = st.sidebar.selectbox(
     f'Language / {COPY["zh-TW"]["language"]}',
     options=list(language_options.keys()),
