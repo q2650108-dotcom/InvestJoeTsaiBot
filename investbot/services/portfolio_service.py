@@ -17,6 +17,12 @@ class PortfolioService:
 
     def create_paper_trade(self, ticker: str, stop_loss_price: float) -> dict[str, object]:
         latest_price = self.market_data.get_latest_price(ticker)
+        existing_trade = self.repository.find_open_trade_by_ticker(ticker)
+        if existing_trade is not None:
+            raise ValueError(f"An OPEN trade already exists for {ticker.upper()}")
+        if stop_loss_price >= latest_price:
+            raise ValueError("stop_loss_price must be below the latest price for a defensive trade.")
+
         payload = {
             "ticker": ticker.upper(),
             "buy_date": date.today().isoformat(),

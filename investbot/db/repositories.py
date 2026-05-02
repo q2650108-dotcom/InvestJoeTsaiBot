@@ -63,6 +63,17 @@ class PaperTradeRepository:
         response = self.client.table("paper_trades").insert(payload).execute()
         return response.data[0]
 
+    def list_closed_trades(self, limit: int = 50) -> list[dict[str, Any]]:
+        response = (
+            self.client.table("paper_trades")
+            .select("*")
+            .eq("status", "CLOSED")
+            .order("sell_date", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
+
     def find_open_trade_by_ticker(self, ticker: str) -> dict[str, Any] | None:
         response = (
             self.client.table("paper_trades")

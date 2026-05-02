@@ -39,6 +39,36 @@ class FakeMarketDataClient:
 
 
 class PortfolioAndMonitorTests(TestCase):
+    def test_create_paper_trade_rejects_duplicate_open_trade(self) -> None:
+        repository = FakePaperTradeRepository(
+            trades=[
+                {
+                    "id": "1",
+                    "ticker": "2330.TW",
+                    "buy_price": 100.0,
+                    "stop_loss_price": 90.0,
+                    "status": "OPEN",
+                }
+            ]
+        )
+        service = PortfolioService(
+            repository=repository,
+            market_data=FakeMarketDataClient({"2330.TW": 110.0}),
+        )
+
+        with self.assertRaisesRegex(ValueError, "OPEN trade already exists"):
+            service.create_paper_trade("2330.TW", 90.0)
+
+    def test_create_paper_trade_rejects_invalid_stop_loss(self) -> None:
+        repository = FakePaperTradeRepository(trades=[])
+        service = PortfolioService(
+            repository=repository,
+            market_data=FakeMarketDataClient({"2330.TW": 110.0}),
+        )
+
+        with self.assertRaisesRegex(ValueError, "below the latest price"):
+            service.create_paper_trade("2330.TW", 120.0)
+
     def test_get_open_positions_summary_computes_live_pnl_and_stop_buffer(self) -> None:
         repository = FakePaperTradeRepository(
             trades=[

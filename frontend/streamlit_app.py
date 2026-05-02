@@ -6,6 +6,7 @@ import streamlit as st
 
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
+from investbot.services.dashboard_service import DashboardService
 from investbot.services.portfolio_service import PortfolioService
 
 
@@ -14,38 +15,41 @@ st.set_page_config(page_title="Smart Swing Agent", layout="wide")
 daily_analysis_repo = DailyAnalysisRepository()
 portfolio_service = PortfolioService()
 market_data = YahooMarketDataClient()
-
-
-def load_dashboard_metrics() -> tuple[float | None, float, pd.DataFrame]:
-    vix = market_data.get_vix_value()
-    open_positions, total_pnl = portfolio_service.get_open_positions_summary()
-    frame = pd.DataFrame(open_positions)
-    return vix, total_pnl, frame
-
+dashboard_service = DashboardService(portfolio_service=portfolio_service, market_data=market_data)
 
 def render_dashboard() -> None:
     st.subheader("Dashboard")
-    vix, total_pnl, positions = load_dashboard_metrics()
+    snapshot = dashboard_service.build_snapshot()
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("VIX", f"{vix:.2f}" if vix is not None else "N/A")
-    col2.metric("Open PnL", f"{total_pnl:.2f}%")
-    col3.metric("Open Trades", len(positions))
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A")
+    col2.metric("Sentiment", snapshot.market_sentiment)
+    col3.metric("Open PnL", f"{snapshot.total_open_pnl:.2f}%")
+    col4.metric("Win Rate", f"{snapshot.win_rate:.2f}%")
 
-    if positions.empty:
-        st.info("No open paper trades yet.")
-        return
-
-    equity_curve = positions[["ticker", "live_pnl_percent"]].copy()
-    equity_curve["sequence"] = range(1, len(equity_curve) + 1)
-    fig = px.line(
-        equity_curve,
-        x="sequence",
-        y="live_pnl_percent",
-        markers=True,
-        title="Live PnL Curve",
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    left, right = st.columns((2, 1))
+    with left:
+        if snapshot.equity_curve.empty:
+            st.info("No closed trades yet. Equity curve will appear after exits.")
+        else:
+            fig = px.line(
+                snapshot.equity_curve,
+                x="sequence",
+                y="equity_pnl",
+                markers=True,
+                title="Closed Trade Equity Curve",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    with right:
+        st.caption("Open Positions Overview")
+        if snapshot.open_positions.empty:
+            st.info("No open positions.")
+        else:
+            st.dataframe(
+                snapshot.open_positions[["ticker", "latest_price", "live_pnl_percent", "stop_buffer_percent"]],
+                use_container_width=True,
+                hide_index=True,
+            )
 
 
 def render_portfolio() -> None:
@@ -66,6 +70,15 @@ def render_portfolio() -> None:
         "stop_buffer_percent",
     ]
     st.dataframe(frame[display_columns], use_container_width=True, hide_index=True)
+    frame["risk_flag"] = frame["stop_buffer_percent"].apply(lambda value: "Tight" if value < 3 else "Healthy")
+    fig = px.bar(
+        frame,
+        x="ticker",
+        y="stop_buffer_percent",
+        color="risk_flag",
+        title="Stop Buffer by Ticker",
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def render_screener() -> None:
@@ -77,14 +90,16 @@ def render_screener() -> None:
         return
 
     frame = pd.DataFrame(history)
-    fig = px.line(
+    fig = px.line(frame, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
+    st.plotly_chart(fig, use_container_width=True)
+    flow_fig = px.bar(
         frame,
         x="date",
-        y=["close_price", "institutional_net_buy"],
-        markers=True,
-        title=f"{ticker.upper()} institutional flow vs price",
+        y="institutional_net_buy",
+        color="signal_type",
+        title=f"{ticker.upper()} institutional flow",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(flow_fig, use_container_width=True)
     st.dataframe(frame, use_container_width=True, hide_index=True)
 
 

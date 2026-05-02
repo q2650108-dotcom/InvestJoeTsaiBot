@@ -55,7 +55,12 @@ async def paper_buy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("stop_loss_price must be a number.")
         return
 
-    trade = portfolio_service.create_paper_trade(ticker, stop_loss_price)
+    try:
+        trade = portfolio_service.create_paper_trade(ticker, stop_loss_price)
+    except ValueError as exc:
+        await update.message.reply_text(str(exc))
+        return
+
     await update.message.reply_text(
         f"Paper trade created: {trade['ticker']} buy_price={trade['buy_price']} stop_loss={trade['stop_loss_price']}"
     )
@@ -68,7 +73,12 @@ async def paper_sell_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     ticker = context.args[0].upper()
-    trade = portfolio_service.close_trade(ticker)
+    try:
+        trade = portfolio_service.close_trade(ticker)
+    except ValueError as exc:
+        await update.message.reply_text(str(exc))
+        return
+
     await update.message.reply_text(
         f"Trade closed: {ticker} sell_price={trade['sell_price']} pnl={trade['pnl_percent']}%"
     )

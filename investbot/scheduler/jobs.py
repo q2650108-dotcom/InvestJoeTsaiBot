@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from datetime import date
 
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
@@ -8,7 +10,10 @@ from investbot.services.monitor_service import MonitorService
 from investbot.services.notification_service import NotificationService
 
 
-def run_tw_market_analysis(bot) -> None:
+logger = logging.getLogger(__name__)
+
+
+def run_tw_market_analysis(bot) -> list[dict[str, object]]:
     engine = AnalysisEngine()
     signals = engine.run(
         AnalysisUniverse(
@@ -16,12 +21,12 @@ def run_tw_market_analysis(bot) -> None:
             tickers=["2330.TW", "2317.TW", "2454.TW", "0050.TW"],
         )
     )
-    notifier = NotificationService()
-    digest = notifier.format_signal_digest([signal.to_record() for signal in signals])
-    asyncio.run(notifier.send_text(bot, digest))
+    rows = [signal.to_record() for signal in signals]
+    _notify(bot, NotificationService().format_signal_digest(rows))
+    return rows
 
 
-def run_us_market_analysis(bot) -> None:
+def run_us_market_analysis(bot) -> list[dict[str, object]]:
     engine = AnalysisEngine()
     signals = engine.run(
         AnalysisUniverse(
@@ -29,26 +34,24 @@ def run_us_market_analysis(bot) -> None:
             tickers=["AAPL", "MSFT", "NVDA", "SPY"],
         )
     )
-    notifier = NotificationService()
-    digest = notifier.format_signal_digest([signal.to_record() for signal in signals])
-    asyncio.run(notifier.send_text(bot, digest))
+    rows = [signal.to_record() for signal in signals]
+    _notify(bot, NotificationService().format_signal_digest(rows))
+    return rows
 
 
-def run_defense_monitor(bot) -> None:
-    notifier = NotificationService()
+def run_defense_monitor(bot) -> list[dict[str, object]]:
     alerts = MonitorService().scan_stop_losses()
-    if not alerts:
-        return
-
-    lines = ["停損警報："]
-    for alert in alerts:
-        lines.append(
-            f"- {alert['ticker']} 現價 {alert['latest_price']} 已跌破防守線 {alert['stop_loss_price']}"
-        )
-    asyncio.run(notifier.send_text(bot, "\n".join(lines)))
+    if alerts:
+        _notify(bot, NotificationService().format_stop_loss_alerts(alerts))
+    return alerts
 
 
 def get_today_signals() -> list[dict[str, object]]:
-    from datetime import date
-
     return DailyAnalysisRepository().fetch_by_date(date.today())
+
+
+def _notify(bot, message: str) -> None:
+    try:
+        asyncio.run(NotificationService().send_text(bot, message))
+    except RuntimeError:
+        logger.exception("Failed to send scheduler notification")
