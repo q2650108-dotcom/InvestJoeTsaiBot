@@ -3,7 +3,6 @@ finnhub-python==2.4.20
 numpy==1.26.4
 pandas==2.2.2
 plotly==5.24.1
-psycopg2-binary==2.9.9
 pydantic==2.9.2
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
