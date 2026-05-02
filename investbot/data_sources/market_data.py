@@ -4,8 +4,13 @@ from datetime import date, timedelta
 
 import pandas as pd
 
+from investbot.data_sources.provider_router import ProviderError, QuoteProviderRouter
+
 
 class YahooMarketDataClient:
+    def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
+        self.quote_router = quote_router or self._build_router()
+
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
@@ -18,6 +23,13 @@ class YahooMarketDataClient:
         return frame
 
     def get_latest_price(self, ticker: str) -> float:
+        try:
+            snapshot = self.quote_router.get_quote_snapshot(ticker)
+            if snapshot.latest_price is not None:
+                return snapshot.latest_price
+        except ProviderError:
+            pass
+
         history = self.get_price_history(ticker, period="5d", interval="1d")
         return float(history["Close"].iloc[-1])
 
@@ -28,6 +40,13 @@ class YahooMarketDataClient:
             return None
 
     def get_next_earnings_date(self, ticker: str) -> date | None:
+        try:
+            snapshot = self.quote_router.get_quote_snapshot(ticker)
+            if snapshot.next_earnings_date is not None:
+                return snapshot.next_earnings_date
+        except ProviderError:
+            pass
+
         import yfinance as yf
 
         try:
@@ -68,3 +87,15 @@ class YahooMarketDataClient:
         while candidate.weekday() >= 5:
             candidate -= timedelta(days=1)
         return candidate
+
+    def _build_router(self) -> QuoteProviderRouter:
+        try:
+            from investbot.config import get_settings
+
+            settings = get_settings()
+            finnhub_keys = settings.finnhub_api_keys or settings.finnhub_api_key
+            fmp_keys = settings.fmp_api_keys
+        except ModuleNotFoundError:
+            finnhub_keys = ""
+            fmp_keys = ""
+        return QuoteProviderRouter(finnhub_keys=finnhub_keys, fmp_keys=fmp_keys)
