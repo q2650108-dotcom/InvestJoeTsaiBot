@@ -56,6 +56,22 @@ This starts:
 streamlit run frontend/streamlit_app.py
 ```
 
+## Lazy Deploy
+
+### Oracle VM
+
+```bash
+cp .env.example .env
+# fill .env first
+bash scripts/deploy_oracle.sh
+```
+
+### Streamlit Community Cloud
+
+1. Push this repo to GitHub
+2. Deploy `frontend/streamlit_app.py`
+3. Copy `.streamlit/secrets.example.toml` into Streamlit secrets and fill values
+
 ## Test
 
 ```bash

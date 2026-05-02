@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  investbot-backend:
+    build: .
+    container_name: investbot-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: python -m investbot.main
+
+  investbot-frontend:
+    build: .
+    container_name: investbot-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: streamlit run frontend/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
