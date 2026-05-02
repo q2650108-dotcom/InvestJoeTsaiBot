@@ -41,6 +41,103 @@ dashboard_service = DashboardService(portfolio_service=portfolio_service, market
 summary_service = SummaryService()
 
 
+TRANSLATIONS = {
+    "zh-TW": {
+        "app_title": "Smart Swing Agent",
+        "app_caption": "低維護市場摘要，專注權值龍頭趨勢與法人資金流。",
+        "vix": "VIX",
+        "sentiment": "市場情緒",
+        "open_pnl": "未實現報酬",
+        "win_rate": "勝率",
+        "market_overview": "市場總覽",
+        "taiwan": "台股",
+        "us": "美股",
+        "no_data_yet": "尚無資料",
+        "run_scheduler_first": "請先跑一次排程分析。",
+        "breadth": "廣度",
+        "candidates": "候選",
+        "actionable": "可行動",
+        "safer": "相對安全",
+        "focus_lists": "重點名單",
+        "safer_follow_through": "相對安全延續",
+        "watchlist": "觀察名單",
+        "no_names_bucket": "這個分組目前沒有標的。",
+        "no_candidates": "目前還沒有候選標的。",
+        "portfolio_curve": "資金曲線",
+        "open_positions": "持有部位",
+        "no_closed_trades": "目前還沒有已平倉交易，之後會顯示資金曲線。",
+        "no_open_positions": "目前沒有持倉。",
+        "portfolio": "投資組合",
+        "stop_buffer_by_ticker": "各標的停損緩衝",
+        "tight": "偏緊",
+        "healthy": "健康",
+        "screener": "選股",
+        "no_analysis_history": "尚無分析歷史，請先跑排程。",
+        "market": "市場",
+        "all": "全部",
+        "recommendation_bucket": "建議分組",
+        "minimum_composite_score": "最低綜合分數",
+        "ticker": "代碼",
+        "no_history_ticker": "這檔股票目前沒有分析歷史。",
+        "composite": "綜合分數",
+        "regime": "盤勢",
+        "bucket": "分組",
+        "entry_timing": "進場時機",
+        "event_risk": "事件風險",
+        "next_event": "下一事件",
+        "price_trend": "價格走勢",
+        "funnel_scores": "漏斗分數",
+        "institutional_flow": "法人流向",
+        "institutional_streak": "法人連買天數",
+        "view": "檢視",
+        "dashboard": "總覽",
+        "unknown": "未知",
+        "calm": "平穩",
+        "neutral": "中性",
+        "risk_off": "風險偏高",
+        "language": "語言",
+        "clear": "正常",
+    },
+    "en": {
+        "app_title": "Smart Swing Agent",
+        "app_caption": "Low-touch market brief for large-cap trend following and institutional flow monitoring.",
+    },
+}
+
+
+def detect_language() -> str:
+    try:
+        accept_language = str(st.context.headers.get("Accept-Language", "")).lower()
+    except Exception:
+        accept_language = ""
+    if accept_language.startswith("zh") or "zh-tw" in accept_language:
+        return "zh-TW"
+    return os.environ.get("APP_LANGUAGE", "zh-TW")
+
+
+def build_text(language: str) -> dict[str, str]:
+    text = dict(TRANSLATIONS["zh-TW"])
+    text.update(TRANSLATIONS.get(language, {}))
+    return text
+
+
+def localize_value(value: object, text: dict[str, str]) -> str:
+    mapping = {
+        "Unknown": text["unknown"],
+        "Calm": text["calm"],
+        "Neutral": text["neutral"],
+        "Risk-Off": text["risk_off"],
+        "Watchlist": text["watchlist"],
+        "Actionable": text["actionable"],
+        "Safer Follow-Through": text["safer_follow_through"],
+        "clear": text["clear"],
+        "DAY_1_EARLY": "第 1 天偏早" if text["language"] == "語言" else "Day 1 Early",
+        "DAY_2_BUILDING": "第 2 天建立中" if text["language"] == "語言" else "Day 2 Building",
+        "DAY_3_PLUS_SAFER": "第 3 天以上較穩" if text["language"] == "語言" else "Day 3+ Safer",
+    }
+    return mapping.get(str(value), str(value))
+
+
 def inject_styles() -> None:
     st.markdown(
         """
@@ -114,37 +211,37 @@ def load_candidate_frame(limit: int = 150) -> pd.DataFrame:
     return frame
 
 
-def render_header(snapshot) -> None:
-    st.title("Smart Swing Agent")
-    st.caption("Low-touch market brief for large-cap trend following and institutional flow monitoring.")
+def render_header(snapshot, text: dict[str, str]) -> None:
+    st.title(text["app_title"])
+    st.caption(text["app_caption"])
 
     metric1, metric2, metric3, metric4 = st.columns(4)
     metric1.metric("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A")
-    metric2.metric("Sentiment", snapshot.market_sentiment)
-    metric3.metric("Open PnL", f"{snapshot.total_open_pnl:.2f}%")
-    metric4.metric("Win Rate", f"{snapshot.win_rate:.2f}%")
+    metric2.metric(text["sentiment"], localize_value(snapshot.market_sentiment, text))
+    metric3.metric(text["open_pnl"], f"{snapshot.total_open_pnl:.2f}%")
+    metric4.metric(text["win_rate"], f"{snapshot.win_rate:.2f}%")
 
 
-def render_market_overview() -> None:
+def render_market_overview(text: dict[str, str]) -> None:
     tw_summary = summary_service.build_market_summary("tw")
     us_summary = summary_service.build_market_summary("us")
 
-    st.markdown('<div class="section-label">Market Overview</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-label">{text["market_overview"]}</div>', unsafe_allow_html=True)
     left, right = st.columns(2)
     with left:
-        render_summary_band("Taiwan", tw_summary)
+        render_summary_band(text["taiwan"], tw_summary, text)
     with right:
-        render_summary_band("US", us_summary)
+        render_summary_band(text["us"], us_summary, text)
 
 
-def render_summary_band(label: str, summary) -> None:
+def render_summary_band(label: str, summary, text: dict[str, str]) -> None:
     if summary is None:
         st.markdown(
             f"""
             <div class="summary-band">
                 <div class="summary-title">{label}</div>
-                <div class="summary-main">No data yet</div>
-                <div class="summary-sub">Run the scheduled analysis first.</div>
+                <div class="summary-main">{text["no_data_yet"]}</div>
+                <div class="summary-sub">{text["run_scheduler_first"]}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -155,10 +252,10 @@ def render_summary_band(label: str, summary) -> None:
         f"""
         <div class="summary-band">
             <div class="summary-title">{label}</div>
-            <div class="summary-main">{summary.regime}</div>
+            <div class="summary-main">{localize_value(summary.regime, text)}</div>
             <div class="summary-sub">
-                Breadth {summary.average_breadth:.2f} | Candidates {summary.candidate_count} |
-                Actionable {summary.actionable_count} | Safer {summary.safer_count}
+                {text["breadth"]} {summary.average_breadth:.2f} | {text["candidates"]} {summary.candidate_count} |
+                {text["actionable"]} {summary.actionable_count} | {text["safer"]} {summary.safer_count}
             </div>
         </div>
         """,
@@ -172,13 +269,15 @@ def render_summary_band(label: str, summary) -> None:
             for column in ["ticker", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak"]
             if column in frame.columns
         ]
+        if "recommendation_bucket" in frame.columns:
+            frame["recommendation_bucket"] = frame["recommendation_bucket"].map(lambda value: localize_value(value, text))
         st.dataframe(frame[columns], use_container_width=True, hide_index=True)
 
 
-def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
-    st.markdown('<div class="section-label">Focus Lists</div>', unsafe_allow_html=True)
+def render_focus_lists(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
+    st.markdown(f'<div class="section-label">{text["focus_lists"]}</div>', unsafe_allow_html=True)
     if candidate_frame.empty:
-        st.info("No candidates are available yet.")
+        st.info(text["no_candidates"])
         return
 
     latest_date = candidate_frame["date"].max()
@@ -190,20 +289,24 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.caption("Safer Follow-Through")
-        render_watchlist_table(safer)
+        st.caption(text["safer_follow_through"])
+        render_watchlist_table(safer, text)
     with col2:
-        st.caption("Actionable")
-        render_watchlist_table(actionable)
+        st.caption(text["actionable"])
+        render_watchlist_table(actionable, text)
     with col3:
-        st.caption("Watchlist")
-        render_watchlist_table(watchlist)
+        st.caption(text["watchlist"])
+        render_watchlist_table(watchlist, text)
 
 
-def render_watchlist_table(frame: pd.DataFrame) -> None:
+def render_watchlist_table(frame: pd.DataFrame, text: dict[str, str]) -> None:
     if frame.empty:
-        st.info("No names in this bucket.")
+        st.info(text["no_names_bucket"])
         return
+    localized_frame = frame.copy()
+    for column in ["recommendation_bucket", "entry_timing", "event_risk_note"]:
+        if column in localized_frame.columns:
+            localized_frame[column] = localized_frame[column].map(lambda value: localize_value(value, text))
     columns = [
         column
         for column in [
@@ -216,33 +319,33 @@ def render_watchlist_table(frame: pd.DataFrame) -> None:
         ]
         if column in frame.columns
     ]
-    st.dataframe(frame[columns], use_container_width=True, hide_index=True)
+    st.dataframe(localized_frame[columns], use_container_width=True, hide_index=True)
 
 
-def render_dashboard(candidate_frame: pd.DataFrame) -> None:
+def render_dashboard(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
     snapshot = dashboard_service.build_snapshot()
-    render_header(snapshot)
-    render_market_overview()
-    render_focus_lists(candidate_frame)
+    render_header(snapshot, text)
+    render_market_overview(text)
+    render_focus_lists(candidate_frame, text)
 
     left, right = st.columns((1.6, 1))
     with left:
-        st.markdown('<div class="section-label">Portfolio Curve</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">{text["portfolio_curve"]}</div>', unsafe_allow_html=True)
         if snapshot.equity_curve.empty:
-            st.info("No closed trades yet. Equity curve will appear after exits.")
+            st.info(text["no_closed_trades"])
         else:
             fig = px.line(
                 snapshot.equity_curve,
                 x="sequence",
                 y="equity_pnl",
                 markers=True,
-                title="Closed Trade Equity Curve",
+                title=text["portfolio_curve"],
             )
             st.plotly_chart(fig, use_container_width=True)
     with right:
-        st.markdown('<div class="section-label">Open Positions</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">{text["open_positions"]}</div>', unsafe_allow_html=True)
         if snapshot.open_positions.empty:
-            st.info("No open positions.")
+            st.info(text["no_open_positions"])
         else:
             st.dataframe(
                 snapshot.open_positions[["ticker", "latest_price", "live_pnl_percent", "stop_buffer_percent"]],
@@ -251,11 +354,11 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
             )
 
 
-def render_portfolio() -> None:
-    st.subheader("Portfolio")
+def render_portfolio(text: dict[str, str]) -> None:
+    st.subheader(text["portfolio"])
     positions, _ = portfolio_service.get_open_positions_summary()
     if not positions:
-        st.info("No open positions.")
+        st.info(text["no_open_positions"])
         return
 
     frame = pd.DataFrame(positions)
@@ -269,41 +372,62 @@ def render_portfolio() -> None:
         "stop_buffer_percent",
     ]
     st.dataframe(frame[display_columns], use_container_width=True, hide_index=True)
-    frame["risk_flag"] = frame["stop_buffer_percent"].apply(lambda value: "Tight" if value < 3 else "Healthy")
+    frame["risk_flag"] = frame["stop_buffer_percent"].apply(
+        lambda value: text["tight"] if value < 3 else text["healthy"]
+    )
     fig = px.bar(
         frame,
         x="ticker",
         y="stop_buffer_percent",
         color="risk_flag",
-        title="Stop Buffer by Ticker",
+        title=text["stop_buffer_by_ticker"],
     )
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_screener(candidate_frame: pd.DataFrame) -> None:
-    st.subheader("Screener")
+def render_screener(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
+    st.subheader(text["screener"])
     if candidate_frame.empty:
-        st.warning("No analysis history found yet. Run the scheduler first.")
+        st.warning(text["no_analysis_history"])
         return
 
     latest_date = candidate_frame["date"].max()
     latest_candidates = candidate_frame[candidate_frame["date"] == latest_date].copy()
 
     filter_col1, filter_col2, filter_col3 = st.columns(3)
-    selected_market = filter_col1.selectbox("Market", options=["All", "tw", "us"], index=0)
+    selected_market = filter_col1.selectbox(text["market"], options=[text["all"], "tw", "us"], index=0)
     selected_bucket = filter_col2.selectbox(
-        "Recommendation bucket",
-        options=["All", "Safer Follow-Through", "Actionable", "Watchlist"],
+        text["recommendation_bucket"],
+        options=[text["all"], text["safer_follow_through"], text["actionable"], text["watchlist"]],
         index=0,
     )
-    min_score = filter_col3.slider("Minimum composite score", min_value=0, max_value=100, value=60)
+    min_score = filter_col3.slider(text["minimum_composite_score"], min_value=0, max_value=100, value=60)
 
     filtered_candidates = latest_candidates.copy()
-    if selected_market != "All" and "type" in filtered_candidates.columns:
+    if selected_market != text["all"] and "type" in filtered_candidates.columns:
         filtered_candidates = filtered_candidates[filtered_candidates["type"] == selected_market]
-    if selected_bucket != "All":
-        filtered_candidates = filtered_candidates[filtered_candidates["recommendation_bucket"] == selected_bucket]
+    bucket_reverse_map = {
+        text["safer_follow_through"]: "Safer Follow-Through",
+        text["actionable"]: "Actionable",
+        text["watchlist"]: "Watchlist",
+    }
+    if selected_bucket != text["all"]:
+        filtered_candidates = filtered_candidates[
+            filtered_candidates["recommendation_bucket"] == bucket_reverse_map[selected_bucket]
+        ]
     filtered_candidates = filtered_candidates[filtered_candidates["composite_signal_score"] >= min_score]
+    if "recommendation_bucket" in filtered_candidates.columns:
+        filtered_candidates["recommendation_bucket"] = filtered_candidates["recommendation_bucket"].map(
+            lambda value: localize_value(value, text)
+        )
+    if "market_regime" in filtered_candidates.columns:
+        filtered_candidates["market_regime"] = filtered_candidates["market_regime"].map(
+            lambda value: localize_value(value, text)
+        )
+    if "event_risk_note" in filtered_candidates.columns:
+        filtered_candidates["event_risk_note"] = filtered_candidates["event_risk_note"].map(
+            lambda value: localize_value(value, text)
+        )
 
     candidate_columns = [
         "ticker",
@@ -320,10 +444,10 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
     available_columns = [column for column in candidate_columns if column in filtered_candidates.columns]
     st.dataframe(filtered_candidates[available_columns], use_container_width=True, hide_index=True)
 
-    ticker = st.text_input("Ticker", value="2330.TW")
+    ticker = st.text_input(text["ticker"], value="2330.TW")
     history = pd.DataFrame(daily_analysis_repo.fetch_history(ticker))
     if history.empty:
-        st.warning("No analysis history found for this ticker.")
+        st.warning(text["no_history_ticker"])
         return
 
     defaults = {
@@ -349,16 +473,19 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 
     latest_row = history.iloc[-1]
     top1, top2, top3, top4, top5 = st.columns(5)
-    top1.metric("Composite", f"{float(latest_row['composite_signal_score']):.2f}")
-    top2.metric("Regime", str(latest_row["market_regime"]))
-    top3.metric("Bucket", str(latest_row["recommendation_bucket"]))
-    top4.metric("Entry Timing", str(latest_row["entry_timing"]))
-    top5.metric("Breadth", f"{float(latest_row['breadth_score']):.2f}")
-    st.caption(f"Event risk: {latest_row['event_risk_note']} | Next event: {latest_row['next_event_date']}")
+    top1.metric(text["composite"], f"{float(latest_row['composite_signal_score']):.2f}")
+    top2.metric(text["regime"], localize_value(latest_row["market_regime"], text))
+    top3.metric(text["bucket"], localize_value(latest_row["recommendation_bucket"], text))
+    top4.metric(text["entry_timing"], localize_value(latest_row["entry_timing"], text))
+    top5.metric(text["breadth"], f"{float(latest_row['breadth_score']):.2f}")
+    st.caption(
+        f"{text['event_risk']}: {localize_value(latest_row['event_risk_note'], text)} | "
+        f"{text['next_event']}: {latest_row['next_event_date']}"
+    )
 
     chart_left, chart_right = st.columns((1.35, 1))
     with chart_left:
-        fig = px.line(history, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
+        fig = px.line(history, x="date", y="close_price", markers=True, title=f"{ticker.upper()} {text['price_trend']}")
         st.plotly_chart(fig, use_container_width=True)
     with chart_right:
         score_fig = px.line(
@@ -373,7 +500,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                 "composite_signal_score",
             ],
             markers=True,
-            title=f"{ticker.upper()} funnel scores",
+            title=f"{ticker.upper()} {text['funnel_scores']}",
         )
         st.plotly_chart(score_fig, use_container_width=True)
 
@@ -384,7 +511,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
             x="date",
             y="institutional_net_buy",
             color="signal_type",
-            title=f"{ticker.upper()} institutional flow",
+            title=f"{ticker.upper()} {text['institutional_flow']}",
         )
         st.plotly_chart(flow_fig, use_container_width=True)
     with lower_right:
@@ -394,7 +521,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                 x="date",
                 y="institutional_buy_streak",
                 color="entry_timing",
-                title=f"{ticker.upper()} institutional buying streak",
+                title=f"{ticker.upper()} {text['institutional_streak']}",
             )
             st.plotly_chart(streak_fig, use_container_width=True)
 
@@ -402,11 +529,17 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 inject_styles()
 candidate_frame = load_candidate_frame()
 
-nav = st.sidebar.radio("View", ["Dashboard", "Portfolio", "Screener"], index=0)
+language_options = {"繁體中文": "zh-TW", "English": "en"}
+default_language = detect_language()
+language_label = next((label for label, code in language_options.items() if code == default_language), "繁體中文")
+selected_language_label = st.sidebar.selectbox("Language / 語言", options=list(language_options.keys()), index=list(language_options.keys()).index(language_label))
+text = build_text(language_options[selected_language_label])
 
-if nav == "Dashboard":
-    render_dashboard(candidate_frame)
-elif nav == "Portfolio":
-    render_portfolio()
+nav = st.sidebar.radio(text["view"], [text["dashboard"], text["portfolio"], text["screener"]], index=0)
+
+if nav == text["dashboard"]:
+    render_dashboard(candidate_frame, text)
+elif nav == text["portfolio"]:
+    render_portfolio(text)
 else:
-    render_screener(candidate_frame)
+    render_screener(candidate_frame, text)

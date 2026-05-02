@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import date, timedelta
 
 import pandas as pd
@@ -14,7 +16,8 @@ class YahooMarketDataClient:
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
-        frame = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            frame = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
         frame = frame.reset_index()
@@ -36,7 +39,7 @@ class YahooMarketDataClient:
     def get_vix_value(self) -> float | None:
         try:
             return self.get_latest_price("^VIX")
-        except ValueError:
+        except Exception:
             return None
 
     def get_next_earnings_date(self, ticker: str) -> date | None:
@@ -50,8 +53,9 @@ class YahooMarketDataClient:
         import yfinance as yf
 
         try:
-            ticker_obj = yf.Ticker(ticker)
-            calendar = ticker_obj.calendar
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                ticker_obj = yf.Ticker(ticker)
+                calendar = ticker_obj.calendar
         except Exception:
             return None
 
