@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +11,19 @@ import streamlit as st
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+
+def hydrate_env_from_streamlit_secrets() -> None:
+    try:
+        for key, value in st.secrets.items():
+            if key not in os.environ:
+                os.environ[key] = str(value)
+    except Exception:
+        # Local development and some test runs may not configure Streamlit secrets.
+        return
+
+
+hydrate_env_from_streamlit_secrets()
 
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
