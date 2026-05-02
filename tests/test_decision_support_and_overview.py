@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import date
 from unittest import TestCase
 
+from investbot.data_sources.economic_calendar import EconomicCalendarEvent
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.market_overview_service import MarketOverviewService
 from investbot.services.summary_service import SummaryService
@@ -68,6 +70,14 @@ class FakeOverviewMarketData:
         return 16.5
 
 
+class FakeCalendarClient:
+    def get_upcoming_events(self, **kwargs) -> list[EconomicCalendarEvent]:
+        return [
+            EconomicCalendarEvent(date(2026, 5, 5), "US", "FOMC Statement", "high"),
+            EconomicCalendarEvent(date(2026, 5, 7), "US", "CPI", "high"),
+        ]
+
+
 class DecisionSupportAndOverviewTests(TestCase):
     def test_decision_support_generates_action_and_risk_text(self) -> None:
         service = DecisionSupportService()
@@ -96,9 +106,11 @@ class DecisionSupportAndOverviewTests(TestCase):
             repository=repository,
             summary_service=SummaryService(repository=repository),
             market_data=FakeOverviewMarketData(),
+            calendar_client=FakeCalendarClient(),
         ).build()
 
         self.assertGreaterEqual(overview.fear_greed_score, 50)
         self.assertEqual(overview.overall_trend, "Risk-On Uptrend")
         self.assertTrue(overview.momentum_zones)
         self.assertTrue(overview.caution_items)
+        self.assertTrue(overview.upcoming_macro_events)

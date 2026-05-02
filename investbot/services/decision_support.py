@@ -71,7 +71,7 @@ class DecisionSupportService:
             rationale.append("This name belongs to the core monitoring pool.")
 
         if event_risk_score < 45 or event_risk_note != "clear":
-            risks.append(f"Event risk is elevated: {event_risk_note}.")
+            risks.append(f"Event risk is elevated: {self._format_event_risk_note(event_risk_note)}.")
         elif event_risk_score < 65:
             risks.append("Event risk is manageable but still worth monitoring.")
 
@@ -120,3 +120,9 @@ class DecisionSupportService:
             enriched_row.update(explanation.to_record())
             enriched.append(enriched_row)
         return enriched
+
+    def _format_event_risk_note(self, note: str) -> str:
+        if ":" not in note:
+            return note
+        prefix, label = note.split(":", 1)
+        return f"{prefix} ({label.replace('_', ' ')})"

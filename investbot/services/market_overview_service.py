@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from investbot.data_sources.economic_calendar import FmpEconomicCalendarClient
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.summary_service import SummaryService
@@ -49,6 +50,7 @@ class MarketOverview:
     breadth_snapshot: float
     momentum_zones: list[str]
     caution_items: list[str]
+    upcoming_macro_events: list[str]
 
 
 class MarketOverviewService:
@@ -57,10 +59,12 @@ class MarketOverviewService:
         repository: DailyAnalysisRepository | None = None,
         summary_service: SummaryService | None = None,
         market_data: YahooMarketDataClient | None = None,
+        calendar_client: FmpEconomicCalendarClient | None = None,
     ) -> None:
         self.repository = repository or DailyAnalysisRepository()
         self.summary_service = summary_service or SummaryService(repository=self.repository)
         self.market_data = market_data or YahooMarketDataClient()
+        self.calendar_client = calendar_client or self._build_calendar_client()
 
     def build(self) -> MarketOverview:
         tw_summary = self.summary_service.build_market_summary("tw")
@@ -81,6 +85,7 @@ class MarketOverviewService:
         sentiment_label = self._label_sentiment(fear_greed_score)
         momentum_zones = self._top_momentum_zones(frame)
         caution_items = self._build_cautions(vix=vix, breadth_snapshot=breadth_snapshot, frame=frame)
+        upcoming_macro_events = self._build_upcoming_macro_events()
 
         return MarketOverview(
             overall_trend=overall_trend,
@@ -89,6 +94,7 @@ class MarketOverviewService:
             breadth_snapshot=breadth_snapshot,
             momentum_zones=momentum_zones,
             caution_items=caution_items,
+            upcoming_macro_events=upcoming_macro_events,
         )
 
     def _score_fear_greed(self, vix: float | None, breadth_snapshot: float, frame: pd.DataFrame) -> int:
@@ -164,3 +170,23 @@ class MarketOverviewService:
         if not cautions:
             cautions.append("No major market-wide warnings are flashing right now.")
         return cautions
+
+    def _build_upcoming_macro_events(self) -> list[str]:
+        events = self.calendar_client.get_upcoming_events(
+            days_ahead=7,
+            countries={"US", "CN", "EU", "JP", "TW"},
+            impacts={"high", "3", "3-star", "three-star", "medium", "2", "2-star"},
+        )
+        labels: list[str] = []
+        for event in events[:5]:
+            labels.append(f"{event.event_date.isoformat()} | {event.country} | {event.title}")
+        return labels
+
+    def _build_calendar_client(self) -> FmpEconomicCalendarClient:
+        try:
+            from investbot.config import get_settings
+
+            fmp_api_keys = get_settings().fmp_api_keys
+        except ModuleNotFoundError:
+            fmp_api_keys = ""
+        return FmpEconomicCalendarClient(api_keys=fmp_api_keys)

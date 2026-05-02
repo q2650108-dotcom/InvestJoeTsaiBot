@@ -57,37 +57,38 @@ overview_service = MarketOverviewService(repository=repo, summary_service=summar
 COPY = {
     "zh-TW": {
         "app_title": "Smart Swing Agent",
-        "app_caption": "先看市場總體，再看資金與動能，最後才進個股。",
+        "app_caption": "先看總體市場，再看資金流與動能，最後才下鑽到個股。",
         "language": "語言",
         "view": "檢視",
         "dashboard": "總覽",
-        "portfolio": "投資組合",
-        "screener": "選股",
+        "portfolio": "持股",
+        "screener": "篩選",
         "run_analysis": "執行分析",
         "run_tw": "執行台股分析",
         "run_us": "執行美股分析",
         "analysis_done": "分析完成",
         "analysis_failed": "分析失敗",
         "records": "寫入筆數",
-        "market_state": "市場整體概況",
+        "market_state": "市場狀態",
         "overall_trend": "整體趨勢",
         "sentiment": "市場情緒",
-        "fear_greed": "恐慌貪婪",
+        "fear_greed": "恐慌 / 貪婪",
         "breadth": "市場廣度",
         "momentum_zones": "重點動能區域",
         "cautions": "整體提醒",
+        "macro_calendar": "重大事件行事曆",
         "market_overview": "市場總覽",
         "taiwan": "台股",
         "us": "美股",
-        "candidates": "候選",
+        "candidates": "候選數",
         "actionable": "可行動",
         "safer": "相對安全延續",
         "focus_lists": "重點名單",
         "decision_cards": "決策卡",
-        "core_pool": "Core 固定池",
+        "core_pool": "Core 主池",
         "explore_pool": "Explore 觀察池",
-        "watchlist": "觀察名單",
-        "no_data": "尚無資料，請先跑一次分析。",
+        "watchlist": "觀察",
+        "no_data": "目前還沒有資料，先跑一次分析。",
         "vix": "VIX",
         "open_pnl": "未實現報酬",
         "win_rate": "勝率",
@@ -100,37 +101,37 @@ COPY = {
         "bucket": "分組",
         "all": "全部",
         "min_score": "最低綜合分數",
-        "ticker": "代碼",
-        "price_trend": "價格走勢",
+        "ticker": "代號",
+        "price_trend": "價格趨勢",
         "funnel_scores": "漏斗分數",
-        "suggested_action": "適合動作",
+        "suggested_action": "建議動作",
         "rationale": "推薦理由",
         "risks": "主要風險",
         "win_label": "勝率評估",
         "risk_label": "風險等級",
         "reward_risk": "風報比",
         "event_risk": "事件風險",
-        "next_event": "下一事件",
+        "next_event": "下一個事件",
         "universe": "池別",
-        "score": "綜合分數",
+        "score": "分數",
         "signal_type": "訊號",
         "unknown": "未知",
         "calm": "平穩",
         "neutral": "中性",
-        "risk_off": "風險偏高",
+        "risk_off": "避險",
         "clear": "正常",
-        "day1": "第 1 天偏早",
-        "day2": "第 2 天建立中",
+        "day1": "第 1 天提前卡位",
+        "day2": "第 2 天持續建倉",
         "day3": "第 3 天以上較穩",
-        "core_tab": "Core 主池",
-        "explore_tab": "Explore 觀察",
-        "risk_tab": "風險標記",
-        "why_tab": "推薦原因",
-        "detail_tab": "單股細節",
+        "core_tab": "Core",
+        "explore_tab": "Explore",
+        "risk_tab": "風險",
+        "why_tab": "原因",
+        "detail_tab": "細節",
         "settings_panel": "偏好設定",
         "save_settings": "儲存設定",
-        "settings_saved": "設定已存入資料庫",
-        "high_risk_dates": "高風險事件日期",
+        "settings_saved": "設定已寫入資料庫",
+        "high_risk_dates": "手動補充事件日期",
     },
     "en": {
         "app_title": "Smart Swing Agent",
@@ -153,6 +154,7 @@ COPY = {
         "breadth": "Breadth",
         "momentum_zones": "Momentum Zones",
         "cautions": "Cautions",
+        "macro_calendar": "Macro Calendar",
         "market_overview": "Market Overview",
         "taiwan": "Taiwan",
         "us": "US",
@@ -207,44 +209,42 @@ COPY = {
         "settings_panel": "Preferences",
         "save_settings": "Save Settings",
         "settings_saved": "Settings saved to database",
-        "high_risk_dates": "High-Risk Event Dates",
+        "high_risk_dates": "Manual Fallback Event Dates",
     },
 }
 
 
 ZH_DECISION_TEXT = {
-    "Institutional buying has persisted for 3 sessions.": "法人買超已持續 3 天。",
-    "Institutional buying has persisted for 4 sessions.": "法人買超已持續 4 天。",
-    "Institutional buying has persisted for 5 sessions.": "法人買超已持續 5 天以上。",
-    "Institutional buying is building into a second session.": "法人買超進入第 2 天，正在建立部位。",
+    "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
+    "Institutional buying has persisted for 4 sessions.": "法人買超已連續 4 天。",
+    "Institutional buying has persisted for 5 sessions.": "法人買超已連續 5 天以上。",
+    "Institutional buying is building into a second session.": "法人買超延續到第 2 天，正在建立倉位。",
     "Institutional buying has just turned positive.": "法人買超剛轉正，屬於早期訊號。",
-    "Relative strength is decisively above the market benchmark.": "相對強弱明顯優於大盤基準。",
-    "Relative strength is supportive versus the benchmark.": "相對強弱優於基準，屬於支持訊號。",
-    "Price location is constructive and not excessively extended.": "價格位置健康，沒有明顯過度乖離。",
+    "Relative strength is decisively above the market benchmark.": "相對強弱明顯高於市場基準。",
+    "Relative strength is supportive versus the benchmark.": "相對強弱優於基準，屬於正向加分。",
+    "Price location is constructive and not excessively extended.": "價格位置健康，尚未明顯乖離。",
     "Entry quality is acceptable if execution stays disciplined.": "進場位置尚可，但需要守紀律執行。",
-    "The market regime is supportive for trend-following entries.": "目前市場環境支持順勢跟隨。",
-    "The broader market is neutral, so follow-through may be slower.": "整體市場偏中性，續航力可能較慢。",
-    "The broader market is risk-off, so hit rates can fall quickly.": "整體市場偏風險迴避，勝率可能快速下降。",
-    "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於 Explore 觀察池，不應高於核心大型股優先度。",
-    "This name belongs to the core monitoring pool.": "這檔屬於 Core 固定主池。",
-    "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍需持續追蹤。",
-    "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有明顯風險旗標，但停損紀律仍要遵守。",
-    "Normal position sizing or staged entries on minor pullbacks.": "可採正常倉位，或等小幅回檔分批進場。",
-    "Pilot size first, then add if confirmation holds.": "先用試單倉位，確認續強再加碼。",
-    "Observe only until the odds improve.": "先觀察，等待勝率與風報比改善。",
-    "Small trial size only; keep core capital focused on large caps.": "僅適合小倉位試單，主力資金仍應放在大型股。",
+    "The market regime is supportive for trend-following entries.": "目前市場環境有利於順勢交易。",
+    "The broader market is neutral, so follow-through may be slower.": "整體市場偏中性，後續續強速度可能較慢。",
+    "The broader market is risk-off, so hit rates can fall quickly.": "整體市場偏避險，成功率可能快速下降。",
+    "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於 Explore 觀察池，不應高於核心大型股的優先級。",
+    "This name belongs to the core monitoring pool.": "這檔屬於 Core 主池。",
+    "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得留意。",
+    "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有明顯風險警示，但停損紀律仍要維持。",
+    "Normal position sizing or staged entries on minor pullbacks.": "可以正常部位，或等小幅拉回分批進場。",
+    "Pilot size first, then add if confirmation holds.": "先小部位試單，確認延續後再加碼。",
+    "Observe only until the odds improve.": "先觀察，等勝率條件更完整。",
+    "Small trial size only; keep core capital focused on large caps.": "僅適合小倉位試單，主資金仍以大型股為主。",
     "High Conviction Core": "高信心核心標的",
-    "Actionable Setup": "可執行配置",
-    "Watch and Wait": "先觀察等待",
+    "Actionable Setup": "可執行型態",
+    "Watch and Wait": "觀察等待",
     "High": "高",
     "Medium-High": "中高",
     "Medium-Low": "中低",
     "Medium": "中",
-    "Medium-High": "中高",
-    "Medium-High": "中高",
     "Favorable": "偏有利",
-    "Balanced": "平衡",
-    "Unclear": "尚不明朗",
+    "Balanced": "均衡",
+    "Unclear": "不明朗",
 }
 
 
@@ -270,6 +270,7 @@ def t(key: str) -> str:
 
 
 def localize_value(value: object) -> str:
+    text_value = str(value)
     mapping = {
         "Unknown": t("unknown"),
         "Calm": t("calm"),
@@ -285,7 +286,19 @@ def localize_value(value: object) -> str:
         "DAY_2_BUILDING": t("day2"),
         "DAY_3_PLUS_SAFER": t("day3"),
     }
-    return mapping.get(str(value), str(value))
+    if text_value in mapping:
+        return mapping[text_value]
+    if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
+        prefix, label = text_value.split(":", 1)
+        prefix_label = mapping.get(prefix.replace(":",""), prefix)
+        if prefix == "macro_event_imminent":
+            prefix_label = "Macro imminent"
+        elif prefix == "macro_event_near":
+            prefix_label = "Macro near"
+        if LANG == "zh-TW":
+            prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" else "總經事件接近"
+        return f"{prefix_label}: {label.replace('_', ' ')}"
+    return text_value
 
 
 def maybe_translate_text(text_value: str) -> str:
@@ -386,6 +399,7 @@ def render_runtime_settings_panel() -> None:
             us_explore_tickers = st.text_area("US Explore", value=str(runtime_settings.us_explore_tickers), height=70)
             tw_explore_limit = st.number_input("TW Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.tw_explore_limit), step=1)
             us_explore_limit = st.number_input("US Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.us_explore_limit), step=1)
+            st.caption("FMP economic calendar is used first. This field is only for manual fallback or custom override dates.")
             high_risk_event_dates = st.text_input(t("high_risk_dates"), value=str(runtime_settings.high_risk_event_dates))
             submitted = st.form_submit_button(t("save_settings"), use_container_width=True)
         if submitted:
@@ -434,6 +448,8 @@ def render_market_state() -> None:
             </div>
             <div class="decision-label">{t("momentum_zones")}</div>
             <ul class="mini-list">{momentum_items}</ul>
+            <div class="decision-label">{t("macro_calendar")}</div>
+            <ul class="mini-list">{"".join(f"<li>{item}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"}</ul>
             <div class="decision-label">{t("cautions")}</div>
             <ul class="mini-list">{caution_items}</ul>
         </div>
@@ -688,7 +704,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 
 inject_styles()
 
-language_options = {"繁體中文": "zh-TW", "English": "en"}
+language_options = {"蝜?銝剜?": "zh-TW", "English": "en"}
 selected_label = st.sidebar.selectbox(
     f'Language / {COPY["zh-TW"]["language"]}',
     options=list(language_options.keys()),
