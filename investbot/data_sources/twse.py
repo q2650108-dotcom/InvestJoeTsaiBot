@@ -42,6 +42,25 @@ class TwseClient:
     def get_large_cap_tickers(self) -> set[str]:
         return self.large_cap_tickers
 
+    def get_top_institutional_candidates(
+        self,
+        limit: int = 12,
+        exclude_tickers: Iterable[str] | None = None,
+    ) -> list[str]:
+        rows = self._fetch_latest_t86_rows()
+        if not rows:
+            return []
+
+        excluded = {self._normalize_symbol(ticker) for ticker in (exclude_tickers or [])}
+        ranked: list[tuple[str, int]] = []
+        for symbol, net_buy in self._build_net_buy_map(rows).items():
+            if symbol in excluded or net_buy <= 0:
+                continue
+            ranked.append((symbol, net_buy))
+
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        return [f"{symbol}.TW" for symbol, _ in ranked[:limit]]
+
     def _fetch_latest_t86_rows(self) -> list[dict[str, object]]:
         cursor = date.today()
         for _ in range(7):

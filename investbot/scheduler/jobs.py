@@ -5,6 +5,7 @@ import logging
 from datetime import date
 
 from investbot.db.repositories import DailyAnalysisRepository
+from investbot.data_sources.twse import TwseClient
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
 from investbot.services.monitor_service import MonitorService
 from investbot.services.notification_service import NotificationService
@@ -18,11 +19,17 @@ logger = logging.getLogger(__name__)
 
 def run_tw_market_analysis(bot) -> list[dict[str, object]]:
     settings = get_settings()
+    core_tickers = _parse_tickers(settings.tw_core_tickers, ["2330.TW", "2317.TW", "2454.TW", "0050.TW"])
+    explore_tickers = _merge_unique(
+        _parse_tickers(settings.tw_explore_tickers, []),
+        TwseClient().get_top_institutional_candidates(limit=settings.tw_explore_limit, exclude_tickers=core_tickers),
+    )
     engine = AnalysisEngine()
     signals = engine.run(
         AnalysisUniverse(
             market_type="tw",
-            tickers=_parse_tickers(settings.tw_core_tickers, ["2330.TW", "2317.TW", "2454.TW", "0050.TW"]),
+            core_tickers=core_tickers,
+            explore_tickers=explore_tickers,
         )
     )
     rows = [signal.to_record() for signal in signals]
@@ -33,11 +40,17 @@ def run_tw_market_analysis(bot) -> list[dict[str, object]]:
 
 def run_us_market_analysis(bot) -> list[dict[str, object]]:
     settings = get_settings()
+    core_tickers = _parse_tickers(settings.us_core_tickers, ["AAPL", "MSFT", "NVDA", "SPY"])
+    explore_tickers = _parse_tickers(
+        settings.us_explore_tickers,
+        ["AVGO", "AMD", "NFLX", "PLTR", "TSLA", "IWM", "DIA", "SMH"],
+    )[: settings.us_explore_limit]
     engine = AnalysisEngine()
     signals = engine.run(
         AnalysisUniverse(
             market_type="us",
-            tickers=_parse_tickers(settings.us_core_tickers, ["AAPL", "MSFT", "NVDA", "SPY"]),
+            core_tickers=core_tickers,
+            explore_tickers=explore_tickers,
         )
     )
     rows = [signal.to_record() for signal in signals]
@@ -76,3 +89,13 @@ def _filter_rows_for_default_user(rows: list[dict[str, object]]) -> list[dict[st
 def _parse_tickers(raw_value: str, fallback: list[str]) -> list[str]:
     values = [item.strip().upper() for item in raw_value.split(",") if item.strip()]
     return values or fallback
+
+
+def _merge_unique(*ticker_groups: list[str]) -> list[str]:
+    merged: list[str] = []
+    for group in ticker_groups:
+        for ticker in group:
+            normalized = ticker.upper()
+            if normalized not in merged:
+                merged.append(normalized)
+    return merged

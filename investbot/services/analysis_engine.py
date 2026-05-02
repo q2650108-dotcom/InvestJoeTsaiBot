@@ -15,7 +15,22 @@ from investbot.services.event_risk_service import EventRiskAssessment, EventRisk
 @dataclass(slots=True)
 class AnalysisUniverse:
     market_type: str
-    tickers: list[str]
+    core_tickers: list[str]
+    explore_tickers: list[str] | None = None
+
+    def all_tickers(self) -> list[str]:
+        merged: list[str] = []
+        for ticker in self.core_tickers + (self.explore_tickers or []):
+            normalized = ticker.upper()
+            if normalized not in merged:
+                merged.append(normalized)
+        return merged
+
+    def bucket_for(self, ticker: str) -> str:
+        normalized = ticker.upper()
+        if normalized in {item.upper() for item in (self.explore_tickers or [])}:
+            return "explore"
+        return "core"
 
 
 @dataclass(slots=True)
@@ -46,11 +61,12 @@ class AnalysisEngine:
     def run(self, universe: AnalysisUniverse, target_date: date | None = None) -> list[MarketSignal]:
         trade_date = target_date or self.market_data.get_last_trading_date()
         large_caps = self.twse_client.get_large_cap_tickers()
-        net_buy_map = self.twse_client.get_institutional_net_buy_map(universe.tickers)
-        buy_history_map = self.twse_client.get_institutional_buy_history(universe.tickers, lookback_days=5)
+        all_tickers = universe.all_tickers()
+        net_buy_map = self.twse_client.get_institutional_net_buy_map(all_tickers)
+        buy_history_map = self.twse_client.get_institutional_buy_history(all_tickers, lookback_days=5)
         enriched_frames: dict[str, pd.DataFrame] = {}
 
-        for ticker in universe.tickers:
+        for ticker in all_tickers:
             history = self.market_data.get_price_history(ticker)
             enriched = self._build_indicators(history)
             if not enriched.empty:
@@ -59,13 +75,14 @@ class AnalysisEngine:
         market_context = self._build_market_context(universe.market_type, enriched_frames)
 
         signals: list[MarketSignal] = []
-        for ticker in universe.tickers:
+        for ticker in all_tickers:
             enriched = enriched_frames.get(ticker.upper())
             if enriched is None or enriched.empty:
                 continue
 
             latest = enriched.iloc[-1]
             is_large_cap = ticker.upper() in large_caps or universe.market_type == "us"
+            universe_bucket = universe.bucket_for(ticker)
             ticker_signals = self._evaluate_strategies(
                 ticker=ticker,
                 market_type=universe.market_type,
@@ -74,6 +91,7 @@ class AnalysisEngine:
                 institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
                 institutional_buy_history=buy_history_map.get(ticker.upper(), []),
                 is_large_cap=is_large_cap,
+                universe_bucket=universe_bucket,
                 market_context=market_context,
             )
             signals.extend(ticker_signals)
@@ -133,11 +151,10 @@ class AnalysisEngine:
         institutional_net_buy: int,
         institutional_buy_history: list[int],
         is_large_cap: bool,
+        universe_bucket: str,
         market_context: MarketContext,
     ) -> list[MarketSignal]:
         results: list[MarketSignal] = []
-        if not is_large_cap and market_type == "tw":
-            return results
 
         close_price = float(latest["Close"])
         volume = int(latest["Volume"])
@@ -170,7 +187,20 @@ class AnalysisEngine:
             buy_streak=buy_streak,
             market_regime=market_context.regime,
             breadth_score=market_context.breadth_score,
+            universe_bucket=universe_bucket,
         )
+
+        if market_type == "tw" and not is_large_cap:
+            if universe_bucket != "explore":
+                return results
+            if not self._is_high_quality_explore_candidate(
+                buy_streak=buy_streak,
+                institutional_net_buy=institutional_net_buy,
+                relative_strength_score=relative_strength_score,
+                entry_quality_score=entry_quality_score,
+                composite_signal_score=composite_signal_score,
+            ):
+                return results
 
         if self._is_institutional_accumulation(close_price, ma_20, buy_streak):
             results.append(
@@ -185,6 +215,7 @@ class AnalysisEngine:
                     institutional_net_buy=institutional_net_buy,
                     signal_type=self.INSTITUTIONAL_ACCUMULATION_SIGNAL,
                     is_large_cap=is_large_cap,
+                    universe_bucket=universe_bucket,
                     institutional_buy_streak=buy_streak,
                     entry_timing=self._classify_entry_timing(buy_streak),
                     market_regime=market_context.regime,
@@ -214,6 +245,7 @@ class AnalysisEngine:
                     institutional_net_buy=institutional_net_buy,
                     signal_type=self.PANIC_REVERSAL_SIGNAL,
                     is_large_cap=is_large_cap,
+                    universe_bucket=universe_bucket,
                     market_regime=market_context.regime,
                     market_regime_score=market_context.regime_score,
                     breadth_score=market_context.breadth_score,
@@ -349,14 +381,38 @@ class AnalysisEngine:
         buy_streak: int,
         market_regime: str,
         breadth_score: float,
+        universe_bucket: str,
     ) -> str:
         if market_regime == "Risk-Off" or breadth_score < 40:
             return "Watchlist"
-        if composite_signal_score >= 80 and buy_streak >= 3 and market_regime == "Risk-On" and breadth_score >= 60:
+        if (
+            composite_signal_score >= 80
+            and buy_streak >= 3
+            and market_regime == "Risk-On"
+            and breadth_score >= 60
+            and universe_bucket == "core"
+        ):
             return "Safer Follow-Through"
-        if composite_signal_score >= 68:
+        threshold = 72 if universe_bucket == "explore" else 68
+        if composite_signal_score >= threshold:
             return "Actionable"
         return "Watchlist"
+
+    def _is_high_quality_explore_candidate(
+        self,
+        buy_streak: int,
+        institutional_net_buy: int,
+        relative_strength_score: float,
+        entry_quality_score: float,
+        composite_signal_score: float,
+    ) -> bool:
+        return (
+            buy_streak >= 2
+            and institutional_net_buy > 0
+            and relative_strength_score >= 60
+            and entry_quality_score >= 55
+            and composite_signal_score >= 72
+        )
 
     def _is_panic_reversal(self, latest: pd.Series) -> bool:
         return (

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     high_risk_event_dates: str = Field(default="", alias="HIGH_RISK_EVENT_DATES")
     tw_core_tickers: str = Field(default="", alias="TW_CORE_TICKERS")
     us_core_tickers: str = Field(default="", alias="US_CORE_TICKERS")
+    tw_explore_tickers: str = Field(default="", alias="TW_EXPLORE_TICKERS")
+    us_explore_tickers: str = Field(default="", alias="US_EXPLORE_TICKERS")
+    tw_explore_limit: int = Field(default=12, alias="TW_EXPLORE_LIMIT")
+    us_explore_limit: int = Field(default=12, alias="US_EXPLORE_LIMIT")
 
 
 @lru_cache(maxsize=1)

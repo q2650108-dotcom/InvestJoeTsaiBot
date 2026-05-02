@@ -114,7 +114,7 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [-50, 80]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].signal_type, AnalysisEngine.INSTITUTIONAL_ACCUMULATION_SIGNAL)
@@ -129,7 +129,7 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [-10, 100, 80]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].institutional_buy_streak, 2)
@@ -143,7 +143,7 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [-10, 40, 50, 60]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].institutional_buy_streak, 3)
@@ -157,7 +157,7 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [100, 80, -10]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
         self.assertEqual(signals, [])
 
@@ -174,7 +174,7 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [0, 0, 0]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].signal_type, AnalysisEngine.PANIC_REVERSAL_SIGNAL)
@@ -190,7 +190,7 @@ class AnalysisEngineTests(TestCase):
             vix_value=14.0,
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
         signal = signals[0]
 
         self.assertEqual(signal.market_regime, "Risk-On")
@@ -215,7 +215,7 @@ class AnalysisEngineTests(TestCase):
             ),
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
         signal = signals[0]
 
         self.assertEqual(signal.event_risk_note, "earnings_imminent")
@@ -241,8 +241,64 @@ class AnalysisEngineTests(TestCase):
             repository=FakeDailyAnalysisRepository(),
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW", "2317.TW", "2454.TW"]))
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW", "2317.TW", "2454.TW"]))
         signal = next(item for item in signals if item.ticker == "2330.TW")
 
         self.assertLess(signal.breadth_score or 100, 40)
         self.assertEqual(signal.recommendation_bucket, "Watchlist")
+
+    def test_run_allows_high_quality_explore_small_cap_candidate(self) -> None:
+        history = build_price_history(close_values=[40 + i for i in range(65)], volume_values=[5000] * 65)
+        benchmark_history = build_price_history(close_values=[200 + i for i in range(65)], volume_values=[5000] * 65)
+        frames = {
+            "3037.TW": history,
+            "^TWII": benchmark_history,
+        }
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(frames, vix_value=15.0),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"3037.TW": 1200},
+                buy_history_map={"3037.TW": [100, 120, 180]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        signals = engine.run(
+            AnalysisUniverse(
+                market_type="tw",
+                core_tickers=[],
+                explore_tickers=["3037.TW"],
+            )
+        )
+
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0].ticker, "3037.TW")
+        self.assertEqual(signals[0].universe_bucket, "explore")
+
+    def test_run_skips_low_quality_explore_small_cap_candidate(self) -> None:
+        history = build_price_history(close_values=[40 + (i * 0.1) for i in range(65)], volume_values=[1000] * 65)
+        benchmark_history = build_price_history(close_values=[200 + i for i in range(65)], volume_values=[5000] * 65)
+        frames = {
+            "3037.TW": history,
+            "^TWII": benchmark_history,
+        }
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(frames, vix_value=20.0),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"3037.TW": 50},
+                buy_history_map={"3037.TW": [-10, 30, 40]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        signals = engine.run(
+            AnalysisUniverse(
+                market_type="tw",
+                core_tickers=[],
+                explore_tickers=["3037.TW"],
+            )
+        )
+
+        self.assertEqual(signals, [])

@@ -16,6 +16,7 @@ class MarketSignal:
     institutional_net_buy: int
     signal_type: str
     is_large_cap: bool
+    universe_bucket: str = "core"
     institutional_buy_streak: int | None = None
     entry_timing: str | None = None
     market_regime: str | None = None
@@ -42,6 +43,7 @@ class MarketSignal:
             "institutional_net_buy": self.institutional_net_buy,
             "signal_type": self.signal_type,
             "is_large_cap": self.is_large_cap,
+            "universe_bucket": self.universe_bucket,
             "institutional_buy_streak": self.institutional_buy_streak,
             "entry_timing": self.entry_timing,
             "market_regime": self.market_regime,

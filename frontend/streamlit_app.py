@@ -26,6 +26,7 @@ def hydrate_env_from_streamlit_secrets() -> None:
 hydrate_env_from_streamlit_secrets()
 
 from investbot.data_sources.market_data import YahooMarketDataClient
+from investbot.data_sources.twse import TwseClient
 from investbot.config import get_settings
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
@@ -106,6 +107,10 @@ TRANSLATIONS = {
         "analysis_failed": "分析失敗",
         "records_written": "寫入筆數",
         "refresh_after_run": "分析完成後頁面會自動刷新。",
+        "universe_bucket": "池別",
+        "core_pool": "Core 固定池",
+        "explore_pool": "Explore 觀察池",
+        "explore_candidates": "Explore 觀察池",
     },
     "en": {
         "app_title": "Smart Swing Agent",
@@ -169,6 +174,10 @@ TRANSLATIONS = {
         "analysis_failed": "Analysis Failed",
         "records_written": "Records Written",
         "refresh_after_run": "The page will refresh automatically after the run.",
+        "universe_bucket": "Universe",
+        "core_pool": "Core Pool",
+        "explore_pool": "Explore Pool",
+        "explore_candidates": "Explore Candidates",
     },
 }
 
@@ -199,6 +208,8 @@ def localize_value(value: object, text: dict[str, str]) -> str:
         "Actionable": text["actionable"],
         "Safer Follow-Through": text["safer_follow_through"],
         "clear": text["clear"],
+        "core": text["core_pool"],
+        "explore": text["explore_pool"],
         "DAY_1_EARLY": "第 1 天偏早" if text["language"] == "語言" else "Day 1 Early",
         "DAY_2_BUILDING": "第 2 天建立中" if text["language"] == "語言" else "Day 2 Building",
         "DAY_3_PLUS_SAFER": "第 3 天以上較穩" if text["language"] == "語言" else "Day 3+ Safer",
@@ -259,6 +270,7 @@ def load_candidate_frame(limit: int = 150) -> pd.DataFrame:
 
     defaults = {
         "recommendation_bucket": "Watchlist",
+        "universe_bucket": "core",
         "composite_signal_score": 0.0,
         "institutional_buy_streak": 0,
         "breadth_score": 0.0,
@@ -293,13 +305,28 @@ def render_header(snapshot, text: dict[str, str]) -> None:
 def run_market_analysis(market_type: str) -> int:
     settings = get_settings()
     if market_type == "tw":
-        tickers = [item.strip().upper() for item in settings.tw_core_tickers.split(",") if item.strip()]
+        core_tickers = [item.strip().upper() for item in settings.tw_core_tickers.split(",") if item.strip()]
         fallback = ["2330.TW", "2317.TW", "2454.TW", "0050.TW"]
+        manual_explore = [item.strip().upper() for item in settings.tw_explore_tickers.split(",") if item.strip()]
+        dynamic_explore = TwseClient().get_top_institutional_candidates(
+            limit=settings.tw_explore_limit,
+            exclude_tickers=core_tickers or fallback,
+        )
+        explore_tickers = list(dict.fromkeys(manual_explore + dynamic_explore))
     else:
-        tickers = [item.strip().upper() for item in settings.us_core_tickers.split(",") if item.strip()]
+        core_tickers = [item.strip().upper() for item in settings.us_core_tickers.split(",") if item.strip()]
         fallback = ["AAPL", "MSFT", "NVDA", "SPY"]
+        explore_tickers = [
+            item.strip().upper() for item in settings.us_explore_tickers.split(",") if item.strip()
+        ][: settings.us_explore_limit]
     engine = AnalysisEngine()
-    signals = engine.run(AnalysisUniverse(market_type=market_type, tickers=tickers or fallback))
+    signals = engine.run(
+        AnalysisUniverse(
+            market_type=market_type,
+            core_tickers=core_tickers or fallback,
+            explore_tickers=explore_tickers,
+        )
+    )
     return len(signals)
 
 
@@ -402,6 +429,11 @@ def render_focus_lists(candidate_frame: pd.DataFrame, text: dict[str, str]) -> N
         st.caption(text["watchlist"])
         render_watchlist_table(watchlist, text)
 
+    explore_frame = latest_frame[latest_frame["universe_bucket"] == "explore"].head(10)
+    if not explore_frame.empty:
+        st.caption(text["explore_candidates"])
+        render_watchlist_table(explore_frame, text)
+
 
 def render_watchlist_table(frame: pd.DataFrame, text: dict[str, str]) -> None:
     if frame.empty:
@@ -411,10 +443,15 @@ def render_watchlist_table(frame: pd.DataFrame, text: dict[str, str]) -> None:
     for column in ["recommendation_bucket", "entry_timing", "event_risk_note"]:
         if column in localized_frame.columns:
             localized_frame[column] = localized_frame[column].map(lambda value: localize_value(value, text))
+    if "universe_bucket" in localized_frame.columns:
+        localized_frame["universe_bucket"] = localized_frame["universe_bucket"].map(
+            lambda value: localize_value(value, text)
+        )
     columns = [
         column
         for column in [
             "ticker",
+            "universe_bucket",
             "signal_type",
             "composite_signal_score",
             "institutional_buy_streak",
@@ -525,6 +562,10 @@ def render_screener(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None
         filtered_candidates["recommendation_bucket"] = filtered_candidates["recommendation_bucket"].map(
             lambda value: localize_value(value, text)
         )
+    if "universe_bucket" in filtered_candidates.columns:
+        filtered_candidates["universe_bucket"] = filtered_candidates["universe_bucket"].map(
+            lambda value: localize_value(value, text)
+        )
     if "market_regime" in filtered_candidates.columns:
         filtered_candidates["market_regime"] = filtered_candidates["market_regime"].map(
             lambda value: localize_value(value, text)
@@ -536,6 +577,7 @@ def render_screener(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None
 
     candidate_columns = [
         "ticker",
+        "universe_bucket",
         "signal_type",
         "recommendation_bucket",
         "composite_signal_score",
