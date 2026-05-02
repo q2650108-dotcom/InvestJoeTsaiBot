@@ -96,12 +96,44 @@ create table if not exists user_settings (
     large_cap_only boolean not null default true,
     risk_tolerance_percent double precision not null default 5.0,
     min_institutional_buy_streak integer not null default 3,
+    app_language text not null default 'zh-TW',
+    high_risk_event_dates text not null default '',
+    tw_core_tickers text not null default '',
+    us_core_tickers text not null default '',
+    tw_explore_tickers text not null default '',
+    us_explore_tickers text not null default '',
+    tw_explore_limit integer not null default 12,
+    us_explore_limit integer not null default 8,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 
 alter table user_settings
     add column if not exists min_institutional_buy_streak integer not null default 3;
+
+alter table user_settings
+    add column if not exists app_language text not null default 'zh-TW';
+
+alter table user_settings
+    add column if not exists high_risk_event_dates text not null default '';
+
+alter table user_settings
+    add column if not exists tw_core_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists us_core_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists tw_explore_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists us_explore_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists tw_explore_limit integer not null default 12;
+
+alter table user_settings
+    add column if not exists us_explore_limit integer not null default 8;
 
 create or replace function set_updated_at()
 returns trigger as $$

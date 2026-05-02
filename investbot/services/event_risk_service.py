@@ -14,9 +14,18 @@ class EventRiskAssessment:
 
 
 class EventRiskService:
-    def __init__(self, market_data: YahooMarketDataClient | None = None, high_risk_event_dates: list[date] | None = None) -> None:
+    def __init__(
+        self,
+        market_data: YahooMarketDataClient | None = None,
+        high_risk_event_dates: list[date] | str | None = None,
+    ) -> None:
         self.market_data = market_data or YahooMarketDataClient()
-        self.high_risk_event_dates = high_risk_event_dates if high_risk_event_dates is not None else self._load_high_risk_event_dates()
+        if isinstance(high_risk_event_dates, str):
+            self.high_risk_event_dates = self._parse_high_risk_event_dates(high_risk_event_dates)
+        elif high_risk_event_dates is not None:
+            self.high_risk_event_dates = high_risk_event_dates
+        else:
+            self.high_risk_event_dates = self._load_high_risk_event_dates()
 
     def assess(self, ticker: str, trade_date: date) -> EventRiskAssessment:
         if hasattr(self.market_data, "get_next_earnings_date"):
@@ -65,6 +74,9 @@ class EventRiskService:
         except ModuleNotFoundError:
             raw_value = ""
 
+        return self._parse_high_risk_event_dates(raw_value)
+
+    def _parse_high_risk_event_dates(self, raw_value: str) -> list[date]:
         parsed_dates: list[date] = []
         for token in raw_value.split(","):
             token = token.strip()

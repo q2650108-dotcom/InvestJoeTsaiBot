@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from investbot.config import Settings
+from typing import Any
+
 from investbot.data_sources.twse import TwseClient
 from investbot.services.analysis_engine import AnalysisUniverse
 
@@ -22,7 +23,7 @@ class UniverseBuildResult:
 
 
 class UniverseBuilder:
-    def __init__(self, settings: Settings, twse_client: TwseClient | None = None) -> None:
+    def __init__(self, settings: Any, twse_client: TwseClient | None = None) -> None:
         self.settings = settings
         self.twse_client = twse_client or TwseClient()
 

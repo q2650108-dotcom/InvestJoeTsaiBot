@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from investbot.db.repositories import UserSettingsRepository
 
 
@@ -18,6 +20,14 @@ class UserSettingsService:
             "large_cap_only": self.settings.default_large_cap_only,
             "risk_tolerance_percent": self.settings.default_risk_tolerance_percent,
             "min_institutional_buy_streak": self.settings.default_min_institutional_buy_streak,
+            "app_language": getattr(self.settings, "app_language", "zh-TW"),
+            "high_risk_event_dates": self.settings.high_risk_event_dates,
+            "tw_core_tickers": self.settings.tw_core_tickers,
+            "us_core_tickers": self.settings.us_core_tickers,
+            "tw_explore_tickers": self.settings.tw_explore_tickers,
+            "us_explore_tickers": self.settings.us_explore_tickers,
+            "tw_explore_limit": self.settings.tw_explore_limit,
+            "us_explore_limit": self.settings.us_explore_limit,
         }
         return self.repository.upsert_settings(payload)
 
@@ -64,6 +74,18 @@ class UserSettingsService:
             filtered.append(row)
         return filtered
 
+    def get_runtime_preferences(self, chat_id: str) -> dict[str, object]:
+        current = self.get_or_create(chat_id)
+        return self._merge_defaults(current)
+
+    def get_runtime_namespace(self, chat_id: str):
+        return SimpleNamespace(**self.get_runtime_preferences(chat_id))
+
+    def update_runtime_preferences(self, chat_id: str, updates: dict[str, object]) -> dict[str, object]:
+        current = self.get_runtime_preferences(chat_id)
+        payload = {"telegram_chat_id": chat_id, **current, **updates}
+        return self.repository.upsert_settings(payload)
+
     def _merge_defaults(self, current: dict[str, object]) -> dict[str, object]:
         return {
             "telegram_chat_id": current["telegram_chat_id"],
@@ -76,6 +98,14 @@ class UserSettingsService:
                 "min_institutional_buy_streak",
                 self.settings.default_min_institutional_buy_streak,
             ),
+            "app_language": current.get("app_language", getattr(self.settings, "app_language", "zh-TW")),
+            "high_risk_event_dates": current.get("high_risk_event_dates", self.settings.high_risk_event_dates),
+            "tw_core_tickers": current.get("tw_core_tickers", self.settings.tw_core_tickers),
+            "us_core_tickers": current.get("us_core_tickers", self.settings.us_core_tickers),
+            "tw_explore_tickers": current.get("tw_explore_tickers", self.settings.tw_explore_tickers),
+            "us_explore_tickers": current.get("us_explore_tickers", self.settings.us_explore_tickers),
+            "tw_explore_limit": int(current.get("tw_explore_limit", self.settings.tw_explore_limit)),
+            "us_explore_limit": int(current.get("us_explore_limit", self.settings.us_explore_limit)),
         }
 
     def _load_settings(self):

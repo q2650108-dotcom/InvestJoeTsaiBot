@@ -35,11 +35,16 @@ from investbot.services.market_overview_service import MarketOverviewService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
 from investbot.services.universe_builder import UniverseBuilder
+from investbot.services.user_settings_service import UserSettingsService
+from investbot.services.event_risk_service import EventRiskService
 
 
 st.set_page_config(page_title="Smart Swing Agent", layout="wide", initial_sidebar_state="expanded")
 
 settings = get_settings()
+chat_id = settings.telegram_allowed_chat_id
+user_settings_service = UserSettingsService()
+runtime_settings = user_settings_service.get_runtime_namespace(chat_id)
 repo = DailyAnalysisRepository()
 portfolio_service = PortfolioService()
 market_data = YahooMarketDataClient()
@@ -122,6 +127,10 @@ COPY = {
         "risk_tab": "風險標記",
         "why_tab": "推薦原因",
         "detail_tab": "單股細節",
+        "settings_panel": "偏好設定",
+        "save_settings": "儲存設定",
+        "settings_saved": "設定已存入資料庫",
+        "high_risk_dates": "高風險事件日期",
     },
     "en": {
         "app_title": "Smart Swing Agent",
@@ -195,6 +204,10 @@ COPY = {
         "risk_tab": "Risk",
         "why_tab": "Why",
         "detail_tab": "Detail",
+        "settings_panel": "Preferences",
+        "save_settings": "Save Settings",
+        "settings_saved": "Settings saved to database",
+        "high_risk_dates": "High-Risk Event Dates",
     },
 }
 
@@ -236,6 +249,9 @@ ZH_DECISION_TEXT = {
 
 
 def current_language() -> str:
+    runtime_language = getattr(runtime_settings, "app_language", "")
+    if runtime_language:
+        return str(runtime_language)
     try:
         accept = str(st.context.headers.get("Accept-Language", "")).lower()
     except Exception:
@@ -311,8 +327,10 @@ def inject_styles() -> None:
 
 
 def run_market_analysis(market_type: str) -> int:
-    universe = UniverseBuilder(settings).build(market_type)
-    signals = AnalysisEngine().run(universe.to_analysis_universe())
+    universe = UniverseBuilder(runtime_settings).build(market_type)
+    signals = AnalysisEngine(
+        event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
+    ).run(universe.to_analysis_universe())
     return len(signals)
 
 
@@ -349,6 +367,36 @@ def render_run_controls() -> None:
             st.rerun()
         except Exception as exc:
             st.error(f'{t("analysis_failed")}: {exc}')
+
+
+def render_runtime_settings_panel() -> None:
+    with st.sidebar.expander(t("settings_panel")):
+        with st.form("runtime_settings_form"):
+            app_language = st.selectbox(t("language"), options=["zh-TW", "en"], index=0 if runtime_settings.app_language == "zh-TW" else 1)
+            tw_core_tickers = st.text_area("TW Core", value=str(runtime_settings.tw_core_tickers), height=90)
+            us_core_tickers = st.text_area("US Core", value=str(runtime_settings.us_core_tickers), height=80)
+            tw_explore_tickers = st.text_area("TW Explore", value=str(runtime_settings.tw_explore_tickers), height=70)
+            us_explore_tickers = st.text_area("US Explore", value=str(runtime_settings.us_explore_tickers), height=70)
+            tw_explore_limit = st.number_input("TW Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.tw_explore_limit), step=1)
+            us_explore_limit = st.number_input("US Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.us_explore_limit), step=1)
+            high_risk_event_dates = st.text_input(t("high_risk_dates"), value=str(runtime_settings.high_risk_event_dates))
+            submitted = st.form_submit_button(t("save_settings"), use_container_width=True)
+        if submitted:
+            user_settings_service.update_runtime_preferences(
+                chat_id,
+                {
+                    "app_language": app_language,
+                    "tw_core_tickers": tw_core_tickers,
+                    "us_core_tickers": us_core_tickers,
+                    "tw_explore_tickers": tw_explore_tickers,
+                    "us_explore_tickers": us_explore_tickers,
+                    "tw_explore_limit": int(tw_explore_limit),
+                    "us_explore_limit": int(us_explore_limit),
+                    "high_risk_event_dates": high_risk_event_dates,
+                },
+            )
+            st.success(t("settings_saved"))
+            st.rerun()
     if right.button(t("run_us"), use_container_width=True):
         try:
             count = run_market_analysis("us")
@@ -647,6 +695,7 @@ selected_label = st.sidebar.selectbox(
     index=0 if LANG == "zh-TW" else 1,
 )
 TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
+render_runtime_settings_panel()
 
 candidate_frame = load_candidate_frame()
 nav = st.sidebar.radio(t("view"), [t("dashboard"), t("portfolio"), t("screener")], index=0)

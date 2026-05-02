@@ -6,6 +6,7 @@ from datetime import date
 
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine
+from investbot.services.event_risk_service import EventRiskService
 from investbot.services.monitor_service import MonitorService
 from investbot.services.notification_service import NotificationService
 from investbot.services.summary_service import SummaryService
@@ -19,8 +20,11 @@ logger = logging.getLogger(__name__)
 
 def run_tw_market_analysis(bot) -> list[dict[str, object]]:
     settings = get_settings()
-    universe = UniverseBuilder(settings).build("tw")
-    engine = AnalysisEngine()
+    runtime_settings = UserSettingsService().get_runtime_namespace(settings.telegram_allowed_chat_id)
+    universe = UniverseBuilder(runtime_settings).build("tw")
+    engine = AnalysisEngine(
+        event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
+    )
     signals = engine.run(universe.to_analysis_universe())
     rows = [signal.to_record() for signal in signals]
     summary = SummaryService().build_market_summary("tw")
@@ -30,8 +34,11 @@ def run_tw_market_analysis(bot) -> list[dict[str, object]]:
 
 def run_us_market_analysis(bot) -> list[dict[str, object]]:
     settings = get_settings()
-    universe = UniverseBuilder(settings).build("us")
-    engine = AnalysisEngine()
+    runtime_settings = UserSettingsService().get_runtime_namespace(settings.telegram_allowed_chat_id)
+    universe = UniverseBuilder(runtime_settings).build("us")
+    engine = AnalysisEngine(
+        event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
+    )
     signals = engine.run(universe.to_analysis_universe())
     rows = [signal.to_record() for signal in signals]
     summary = SummaryService().build_market_summary("us")
