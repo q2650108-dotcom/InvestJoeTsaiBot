@@ -90,6 +90,11 @@ def render_screener() -> None:
         return
 
     frame = pd.DataFrame(history)
+    if "institutional_buy_streak" not in frame.columns:
+        frame["institutional_buy_streak"] = None
+    if "entry_timing" not in frame.columns:
+        frame["entry_timing"] = None
+
     fig = px.line(frame, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
     st.plotly_chart(fig, use_container_width=True)
     flow_fig = px.bar(
@@ -100,6 +105,15 @@ def render_screener() -> None:
         title=f"{ticker.upper()} institutional flow",
     )
     st.plotly_chart(flow_fig, use_container_width=True)
+    if frame["institutional_buy_streak"].notna().any():
+        streak_fig = px.bar(
+            frame.dropna(subset=["institutional_buy_streak"]),
+            x="date",
+            y="institutional_buy_streak",
+            color="entry_timing",
+            title=f"{ticker.upper()} institutional buying streak",
+        )
+        st.plotly_chart(streak_fig, use_container_width=True)
     st.dataframe(frame, use_container_width=True, hide_index=True)
 
 

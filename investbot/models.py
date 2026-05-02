@@ -16,6 +16,8 @@ class MarketSignal:
     institutional_net_buy: int
     signal_type: str
     is_large_cap: bool
+    institutional_buy_streak: int | None = None
+    entry_timing: str | None = None
 
     def to_record(self) -> dict[str, object]:
         return {
@@ -29,4 +31,6 @@ class MarketSignal:
             "institutional_net_buy": self.institutional_net_buy,
             "signal_type": self.signal_type,
             "is_large_cap": self.is_large_cap,
+            "institutional_buy_streak": self.institutional_buy_streak,
+            "entry_timing": self.entry_timing,
         }

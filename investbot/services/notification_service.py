@@ -18,8 +18,11 @@ class NotificationService:
 
         lines = ["Today's strategy candidates:"]
         for row in signals:
+            streak_text = ""
+            if row.get("institutional_buy_streak"):
+                streak_text = f" | streak {row['institutional_buy_streak']} | {row.get('entry_timing', 'N/A')}"
             lines.append(
-                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}"
+                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}{streak_text}"
             )
         return "\n".join(lines)
 

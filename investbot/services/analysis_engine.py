@@ -18,8 +18,8 @@ class AnalysisUniverse:
 
 
 class AnalysisEngine:
-    INSTITUTIONAL_ACCUMULATION_SIGNAL = "外資連買"
-    PANIC_REVERSAL_SIGNAL = "底部爆量"
+    INSTITUTIONAL_ACCUMULATION_SIGNAL = "Institutional Accumulation"
+    PANIC_REVERSAL_SIGNAL = "Panic Reversal"
 
     def __init__(
         self,
@@ -35,7 +35,7 @@ class AnalysisEngine:
         trade_date = target_date or self.market_data.get_last_trading_date()
         large_caps = self.twse_client.get_large_cap_tickers()
         net_buy_map = self.twse_client.get_institutional_net_buy_map(universe.tickers)
-        buy_history_map = self.twse_client.get_institutional_buy_history(universe.tickers, lookback_days=3)
+        buy_history_map = self.twse_client.get_institutional_buy_history(universe.tickers, lookback_days=5)
 
         signals: list[MarketSignal] = []
         for ticker in universe.tickers:
@@ -49,7 +49,6 @@ class AnalysisEngine:
             ticker_signals = self._evaluate_strategies(
                 ticker=ticker,
                 market_type=universe.market_type,
-                frame=enriched,
                 latest=latest,
                 trade_date=trade_date,
                 institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
@@ -74,7 +73,6 @@ class AnalysisEngine:
         self,
         ticker: str,
         market_type: str,
-        frame: pd.DataFrame,
         latest: pd.Series,
         trade_date: date,
         institutional_net_buy: int,
@@ -90,7 +88,8 @@ class AnalysisEngine:
         ma_20 = float(latest["20MA"])
         ma_60 = float(latest["60MA"])
 
-        if self._is_institutional_accumulation(frame, institutional_buy_history):
+        buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
+        if self._is_institutional_accumulation(close_price, ma_20, buy_streak):
             results.append(
                 MarketSignal(
                     trade_date=trade_date,
@@ -103,6 +102,8 @@ class AnalysisEngine:
                     institutional_net_buy=institutional_net_buy,
                     signal_type=self.INSTITUTIONAL_ACCUMULATION_SIGNAL,
                     is_large_cap=is_large_cap,
+                    institutional_buy_streak=buy_streak,
+                    entry_timing=self._classify_entry_timing(buy_streak),
                 )
             )
 
@@ -123,14 +124,24 @@ class AnalysisEngine:
             )
         return results
 
-    def _is_institutional_accumulation(self, frame: pd.DataFrame, institutional_buy_history: list[int]) -> bool:
-        latest = frame.iloc[-1]
-        recent_history = institutional_buy_history[-3:]
-        return (
-            len(recent_history) == 3
-            and all(net_buy > 0 for net_buy in recent_history)
-            and latest["Close"] > latest["20MA"]
-        )
+    def _get_institutional_buy_streak(self, institutional_buy_history: list[int]) -> int:
+        streak = 0
+        for net_buy in reversed(institutional_buy_history):
+            if net_buy > 0:
+                streak += 1
+            else:
+                break
+        return streak
+
+    def _is_institutional_accumulation(self, close_price: float, ma_20: float, buy_streak: int) -> bool:
+        return buy_streak >= 1 and close_price > ma_20
+
+    def _classify_entry_timing(self, buy_streak: int) -> str:
+        if buy_streak <= 1:
+            return "DAY_1_EARLY"
+        if buy_streak == 2:
+            return "DAY_2_BUILDING"
+        return "DAY_3_PLUS_SAFER"
 
     def _is_panic_reversal(self, latest: pd.Series) -> bool:
         return (

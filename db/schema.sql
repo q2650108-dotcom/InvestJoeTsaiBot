@@ -12,9 +12,17 @@ create table if not exists daily_analysis (
     institutional_net_buy bigint not null default 0,
     signal_type text not null,
     is_large_cap boolean not null default true,
+    institutional_buy_streak integer,
+    entry_timing text,
     created_at timestamptz not null default now(),
     unique (date, ticker, signal_type)
 );
+
+alter table daily_analysis
+    add column if not exists institutional_buy_streak integer;
+
+alter table daily_analysis
+    add column if not exists entry_timing text;
 
 create index if not exists idx_daily_analysis_ticker_date
     on daily_analysis (ticker, date desc);

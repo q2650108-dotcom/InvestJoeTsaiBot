@@ -61,7 +61,7 @@ def build_price_history(close_values: list[float], volume_values: list[int], low
 
 
 class AnalysisEngineTests(TestCase):
-    def test_run_emits_institutional_accumulation_signal_for_three_day_buying(self) -> None:
+    def test_run_emits_day_1_institutional_accumulation_signal(self) -> None:
         history = build_price_history(
             close_values=[100 + i for i in range(65)],
             volume_values=[1000] * 65,
@@ -72,7 +72,7 @@ class AnalysisEngineTests(TestCase):
             twse_client=FakeTwseClient(
                 large_caps={"2330.TW"},
                 buy_map={"2330.TW": 300},
-                buy_history_map={"2330.TW": [100, 120, 80]},
+                buy_history_map={"2330.TW": [-50, 80]},
             ),
             repository=repository,
         )
@@ -81,9 +81,11 @@ class AnalysisEngineTests(TestCase):
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].signal_type, AnalysisEngine.INSTITUTIONAL_ACCUMULATION_SIGNAL)
+        self.assertEqual(signals[0].institutional_buy_streak, 1)
+        self.assertEqual(signals[0].entry_timing, "DAY_1_EARLY")
         self.assertEqual(len(repository.rows), 1)
 
-    def test_run_skips_institutional_accumulation_when_buying_is_not_consecutive(self) -> None:
+    def test_run_emits_day_2_institutional_accumulation_signal(self) -> None:
         history = build_price_history(
             close_values=[100 + i for i in range(65)],
             volume_values=[1000] * 65,
@@ -93,7 +95,49 @@ class AnalysisEngineTests(TestCase):
             twse_client=FakeTwseClient(
                 large_caps={"2330.TW"},
                 buy_map={"2330.TW": 50},
-                buy_history_map={"2330.TW": [100, -10, 80]},
+                buy_history_map={"2330.TW": [-10, 100, 80]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0].institutional_buy_streak, 2)
+        self.assertEqual(signals[0].entry_timing, "DAY_2_BUILDING")
+
+    def test_run_emits_day_3_plus_institutional_accumulation_signal(self) -> None:
+        history = build_price_history(
+            close_values=[100 + i for i in range(65)],
+            volume_values=[1000] * 65,
+        )
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(history),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": 50},
+                buy_history_map={"2330.TW": [-10, 40, 50, 60]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0].institutional_buy_streak, 3)
+        self.assertEqual(signals[0].entry_timing, "DAY_3_PLUS_SAFER")
+
+    def test_run_skips_institutional_accumulation_when_latest_day_is_not_a_net_buy(self) -> None:
+        history = build_price_history(
+            close_values=[100 + i for i in range(65)],
+            volume_values=[1000] * 65,
+        )
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(history),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": -50},
+                buy_history_map={"2330.TW": [100, 80, -10]},
             ),
             repository=FakeDailyAnalysisRepository(),
         )
