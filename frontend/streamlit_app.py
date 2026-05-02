@@ -8,6 +8,7 @@ from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.dashboard_service import DashboardService
 from investbot.services.portfolio_service import PortfolioService
+from investbot.services.summary_service import SummaryService
 
 
 st.set_page_config(page_title="Smart Swing Agent", layout="wide")
@@ -16,6 +17,7 @@ daily_analysis_repo = DailyAnalysisRepository()
 portfolio_service = PortfolioService()
 market_data = YahooMarketDataClient()
 dashboard_service = DashboardService(portfolio_service=portfolio_service, market_data=market_data)
+summary_service = SummaryService()
 
 def render_dashboard() -> None:
     st.subheader("Dashboard")
@@ -50,6 +52,15 @@ def render_dashboard() -> None:
                 use_container_width=True,
                 hide_index=True,
             )
+
+    st.subheader("Market Overview")
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    market_col1, market_col2 = st.columns(2)
+    with market_col1:
+        _render_market_summary_card("TW", tw_summary)
+    with market_col2:
+        _render_market_summary_card("US", us_summary)
 
 
 def render_portfolio() -> None:
@@ -200,6 +211,25 @@ def render_screener() -> None:
     st.plotly_chart(score_fig, use_container_width=True)
     st.dataframe(frame[score_columns], use_container_width=True, hide_index=True)
     st.dataframe(frame, use_container_width=True, hide_index=True)
+
+
+def _render_market_summary_card(label: str, summary) -> None:
+    st.caption(f"{label} latest summary")
+    if summary is None:
+        st.info("No summary yet.")
+        return
+    st.metric("Regime", summary.regime)
+    st.metric("Breadth", f"{summary.average_breadth:.2f}")
+    st.metric("Actionable", summary.actionable_count)
+    st.metric("Safer", summary.safer_count)
+    top_frame = pd.DataFrame(summary.top_rows)
+    if not top_frame.empty:
+        columns = [
+            column
+            for column in ["ticker", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak"]
+            if column in top_frame.columns
+        ]
+        st.dataframe(top_frame[columns], use_container_width=True, hide_index=True)
 
 
 st.title("Smart Swing Agent")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from investbot.services.summary_service import MarketSummary
+
 
 class NotificationService:
     def __init__(self) -> None:
@@ -41,4 +43,27 @@ class NotificationService:
             lines.append(
                 f"- {alert['ticker']} | price {alert['latest_price']} | stop {alert['stop_loss_price']}"
             )
+        return "\n".join(lines)
+
+    def format_market_summary(self, summary: MarketSummary | None) -> str:
+        if summary is None:
+            return "No summary data is available yet."
+
+        lines = [
+            f"{summary.market_type.upper()} summary | {summary.summary_date}",
+            f"Regime: {summary.regime} | Breadth: {summary.average_breadth:.2f}",
+            f"Candidates: {summary.candidate_count} | Actionable: {summary.actionable_count} | Safer: {summary.safer_count}",
+        ]
+        if summary.top_rows:
+            lines.append("Top candidates:")
+            for row in summary.top_rows[:5]:
+                lines.append(
+                    f"- {row['ticker']} | {row.get('recommendation_bucket', 'Watchlist')} | score {row.get('composite_signal_score', 0)} | streak {row.get('institutional_buy_streak', 0)}"
+                )
+        if summary.risk_rows:
+            lines.append("Risk flags:")
+            for row in summary.risk_rows[:3]:
+                lines.append(
+                    f"- {row['ticker']} | {row.get('event_risk_note', 'clear')} | next event {row.get('next_event_date')}"
+                )
         return "\n".join(lines)

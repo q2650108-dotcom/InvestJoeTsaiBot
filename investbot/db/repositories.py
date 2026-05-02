@@ -55,6 +55,30 @@ class DailyAnalysisRepository:
         )
         return response.data or []
 
+    def fetch_latest_market_rows(self, market_type: str) -> list[dict[str, Any]]:
+        latest_date_response = (
+            self.client.table("daily_analysis")
+            .select("date")
+            .eq("type", market_type)
+            .order("date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest_date_rows = latest_date_response.data or []
+        if not latest_date_rows:
+            return []
+
+        latest_date = latest_date_rows[0]["date"]
+        response = (
+            self.client.table("daily_analysis")
+            .select("*")
+            .eq("type", market_type)
+            .eq("date", latest_date)
+            .order("composite_signal_score", desc=True)
+            .execute()
+        )
+        return response.data or []
+
 
 class PaperTradeRepository:
     def __init__(self, client: Client | None = None) -> None:

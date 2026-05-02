@@ -9,6 +9,7 @@ This repository includes:
 - a Streamlit dashboard for portfolio and screener views
 - unit tests for the core signal and risk logic
 - event-risk-aware funnel scoring for low-attention investors
+- TWSE institutional flow integration for Taiwan large-cap tracking
 
 ## Product Scope
 
@@ -45,9 +46,9 @@ python -m investbot.main
 This starts:
 
 - Telegram bot polling
-- scheduled TW market analysis
-- scheduled US market analysis
-- interval-based defense monitoring
+- scheduled TW market summary
+- scheduled US market summary
+- optional interval-based defense monitoring
 
 ## Run the Frontend
 
@@ -63,11 +64,12 @@ python -m unittest discover -s tests -v
 
 ## Current Product Notes
 
-- `investbot/data_sources/twse.py` is still a production placeholder and should be connected to real TWSE OpenAPI responses.
+- `investbot/data_sources/twse.py` reads TWSE T86 institutional flow data directly from the public TWSE endpoint.
 - `investbot/data_sources/market_data.py` uses `yfinance` for price history, VIX, and earnings calendar lookups.
 - `HIGH_RISK_EVENT_DATES` in `.env` can be used to downscore macro event windows such as Fed, CPI, or major policy dates.
 - The market data router supports multi-key provider fallback:
   - primary: Finnhub keys via `FINNHUB_API_KEYS`
   - secondary: Financial Modeling Prep keys via `FMP_API_KEYS`
   - final fallback: `yfinance`
+- Telegram is configured for summary-style pushes and on-demand commands such as `/summary`, `/signals`, `/portfolio`, and paper trade actions.
 - Core logic is covered by deterministic unit tests so refactors can continue safely.
