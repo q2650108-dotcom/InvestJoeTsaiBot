@@ -367,6 +367,13 @@ def render_run_controls() -> None:
             st.rerun()
         except Exception as exc:
             st.error(f'{t("analysis_failed")}: {exc}')
+    if right.button(t("run_us"), use_container_width=True):
+        try:
+            count = run_market_analysis("us")
+            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
+            st.rerun()
+        except Exception as exc:
+            st.error(f'{t("analysis_failed")}: {exc}')
 
 
 def render_runtime_settings_panel() -> None:
@@ -397,13 +404,6 @@ def render_runtime_settings_panel() -> None:
             )
             st.success(t("settings_saved"))
             st.rerun()
-    if right.button(t("run_us"), use_container_width=True):
-        try:
-            count = run_market_analysis("us")
-            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
-            st.rerun()
-        except Exception as exc:
-            st.error(f'{t("analysis_failed")}: {exc}')
 
 
 def render_market_state() -> None:
