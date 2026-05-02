@@ -16,6 +16,7 @@ create table if not exists daily_analysis (
     entry_timing text,
     market_regime text,
     market_regime_score double precision,
+    breadth_score double precision,
     relative_strength_score double precision,
     institutional_conviction_score double precision,
     event_risk_score double precision,
@@ -37,6 +38,9 @@ alter table daily_analysis
 
 alter table daily_analysis
     add column if not exists market_regime_score double precision;
+
+alter table daily_analysis
+    add column if not exists breadth_score double precision;
 
 alter table daily_analysis
     add column if not exists relative_strength_score double precision;

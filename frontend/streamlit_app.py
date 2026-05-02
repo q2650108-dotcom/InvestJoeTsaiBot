@@ -95,6 +95,7 @@ def render_screener() -> None:
         "entry_timing": None,
         "market_regime": "Unknown",
         "market_regime_score": 0.0,
+        "breadth_score": 0.0,
         "relative_strength_score": 0.0,
         "institutional_conviction_score": 0.0,
         "event_risk_score": 50.0,
@@ -108,11 +109,12 @@ def render_screener() -> None:
 
     latest_row = frame.iloc[-1]
 
-    top1, top2, top3, top4 = st.columns(4)
+    top1, top2, top3, top4, top5 = st.columns(5)
     top1.metric("Composite", f"{float(latest_row['composite_signal_score']):.2f}")
     top2.metric("Regime", str(latest_row["market_regime"]))
     top3.metric("Bucket", str(latest_row["recommendation_bucket"]))
     top4.metric("Entry Timing", str(latest_row["entry_timing"]))
+    top5.metric("Breadth", f"{float(latest_row['breadth_score']):.2f}")
 
     fig = px.line(frame, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
     st.plotly_chart(fig, use_container_width=True)
@@ -138,6 +140,7 @@ def render_screener() -> None:
         "date",
         "market_regime",
         "market_regime_score",
+        "breadth_score",
         "relative_strength_score",
         "institutional_conviction_score",
         "entry_quality_score",
@@ -150,6 +153,7 @@ def render_screener() -> None:
         x="date",
         y=[
             "market_regime_score",
+            "breadth_score",
             "relative_strength_score",
             "institutional_conviction_score",
             "entry_quality_score",

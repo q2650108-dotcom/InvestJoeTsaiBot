@@ -20,6 +20,7 @@ class MarketSignal:
     entry_timing: str | None = None
     market_regime: str | None = None
     market_regime_score: float | None = None
+    breadth_score: float | None = None
     relative_strength_score: float | None = None
     institutional_conviction_score: float | None = None
     event_risk_score: float | None = None
@@ -43,6 +44,7 @@ class MarketSignal:
             "entry_timing": self.entry_timing,
             "market_regime": self.market_regime,
             "market_regime_score": self.market_regime_score,
+            "breadth_score": self.breadth_score,
             "relative_strength_score": self.relative_strength_score,
             "institutional_conviction_score": self.institutional_conviction_score,
             "event_risk_score": self.event_risk_score,

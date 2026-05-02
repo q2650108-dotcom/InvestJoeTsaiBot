@@ -21,8 +21,14 @@ class NotificationService:
             streak_text = ""
             if row.get("institutional_buy_streak"):
                 streak_text = f" | streak {row['institutional_buy_streak']} | {row.get('entry_timing', 'N/A')}"
+            bucket_text = ""
+            if row.get("recommendation_bucket"):
+                bucket_text = f" | bucket {row['recommendation_bucket']}"
+            score_text = ""
+            if row.get("composite_signal_score") is not None:
+                score_text = f" | score {row['composite_signal_score']}"
             lines.append(
-                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}{streak_text}"
+                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}{streak_text}{bucket_text}{score_text}"
             )
         return "\n".join(lines)
 

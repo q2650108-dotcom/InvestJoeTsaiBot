@@ -181,7 +181,33 @@ class AnalysisEngineTests(TestCase):
 
         self.assertEqual(signal.market_regime, "Risk-On")
         self.assertGreater(signal.market_regime_score or 0, 70)
+        self.assertGreater(signal.breadth_score or 0, 60)
         self.assertGreater(signal.relative_strength_score or 0, 50)
         self.assertGreater(signal.institutional_conviction_score or 0, 70)
         self.assertGreater(signal.composite_signal_score or 0, 65)
         self.assertIn(signal.recommendation_bucket, {"Actionable", "Safer Follow-Through"})
+
+    def test_run_downgrades_bucket_when_breadth_is_weak(self) -> None:
+        strong_stock = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
+        weak_stock = build_price_history(close_values=[200 - i for i in range(65)], volume_values=[5000] * 65)
+        frames = {
+            "2330.TW": strong_stock,
+            "2317.TW": weak_stock,
+            "2454.TW": weak_stock,
+            "^TWII": weak_stock,
+        }
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(frames, vix_value=28.0),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW", "2317.TW", "2454.TW"},
+                buy_map={"2330.TW": 1500},
+                buy_history_map={"2330.TW": [50, 100, 200], "2317.TW": [0], "2454.TW": [0]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW", "2317.TW", "2454.TW"]))
+        signal = next(item for item in signals if item.ticker == "2330.TW")
+
+        self.assertLess(signal.breadth_score or 100, 40)
+        self.assertEqual(signal.recommendation_bucket, "Watchlist")
