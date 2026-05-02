@@ -40,15 +40,18 @@ class NotificationAndDashboardTests(TestCase):
             [
                 {
                     "ticker": "2330.TW",
-                    "signal_type": "外資連買",
+                    "signal_type": "Institutional Accumulation",
                     "close_price": 100.5,
                     "institutional_net_buy": 300,
+                    "institutional_buy_streak": 3,
+                    "entry_timing": "DAY_3_PLUS_SAFER",
                 }
             ]
         )
 
         self.assertIn("Today's strategy candidates:", message)
         self.assertIn("2330.TW", message)
+        self.assertIn("streak 3", message)
 
     def test_dashboard_service_computes_snapshot_metrics(self) -> None:
         service = DashboardService(

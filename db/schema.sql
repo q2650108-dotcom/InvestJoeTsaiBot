@@ -47,9 +47,13 @@ create table if not exists user_settings (
     telegram_chat_id text primary key,
     large_cap_only boolean not null default true,
     risk_tolerance_percent double precision not null default 5.0,
+    min_institutional_buy_streak integer not null default 3,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+alter table user_settings
+    add column if not exists min_institutional_buy_streak integer not null default 3;
 
 create or replace function set_updated_at()
 returns trigger as $$

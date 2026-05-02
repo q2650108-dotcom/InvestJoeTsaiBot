@@ -4,12 +4,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from investbot.config import get_settings
-from investbot.db.repositories import UserSettingsRepository
 from investbot.services.portfolio_service import PortfolioService
+from investbot.services.user_settings_service import UserSettingsService
 
 
 settings = get_settings()
-user_settings_repo = UserSettingsRepository()
+user_settings_service = UserSettingsService()
 portfolio_service = PortfolioService()
 
 
@@ -21,25 +21,26 @@ def _assert_authorized(chat_id: int) -> None:
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _assert_authorized(update.effective_chat.id)
     await update.message.reply_text(
-        "Smart Swing Agent is online. Commands: /settings /paper_buy /paper_sell /portfolio"
+        "Smart Swing Agent is online. Commands: /settings /streak /paper_buy /paper_sell /portfolio"
     )
 
 
 async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _assert_authorized(update.effective_chat.id)
     chat_id = str(update.effective_chat.id)
-    current = user_settings_repo.get_settings(chat_id)
-    large_cap_only = not (current or {}).get("large_cap_only", settings.default_large_cap_only)
-    payload = {
-        "telegram_chat_id": chat_id,
-        "large_cap_only": large_cap_only,
-        "risk_tolerance_percent": (current or {}).get(
-            "risk_tolerance_percent",
-            settings.default_risk_tolerance_percent,
-        ),
-    }
-    user_settings_repo.upsert_settings(payload)
-    await update.message.reply_text(f"large_cap_only toggled to {large_cap_only}")
+    updated = user_settings_service.toggle_large_cap_only(chat_id)
+    await update.message.reply_text(
+        f"large_cap_only={updated['large_cap_only']} | min_streak={updated['min_institutional_buy_streak']}"
+    )
+
+
+async def streak_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _assert_authorized(update.effective_chat.id)
+    chat_id = str(update.effective_chat.id)
+    updated = user_settings_service.cycle_min_institutional_buy_streak(chat_id)
+    await update.message.reply_text(
+        f"min_institutional_buy_streak set to {updated['min_institutional_buy_streak']}"
+    )
 
 
 async def paper_buy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -8,6 +8,7 @@ from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
 from investbot.services.monitor_service import MonitorService
 from investbot.services.notification_service import NotificationService
+from investbot.services.user_settings_service import UserSettingsService
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,8 @@ def run_tw_market_analysis(bot) -> list[dict[str, object]]:
         )
     )
     rows = [signal.to_record() for signal in signals]
-    _notify(bot, NotificationService().format_signal_digest(rows))
+    filtered_rows = _filter_rows_for_default_user(rows)
+    _notify(bot, NotificationService().format_signal_digest(filtered_rows))
     return rows
 
 
@@ -35,7 +37,8 @@ def run_us_market_analysis(bot) -> list[dict[str, object]]:
         )
     )
     rows = [signal.to_record() for signal in signals]
-    _notify(bot, NotificationService().format_signal_digest(rows))
+    filtered_rows = _filter_rows_for_default_user(rows)
+    _notify(bot, NotificationService().format_signal_digest(filtered_rows))
     return rows
 
 
@@ -55,3 +58,9 @@ def _notify(bot, message: str) -> None:
         asyncio.run(NotificationService().send_text(bot, message))
     except RuntimeError:
         logger.exception("Failed to send scheduler notification")
+
+
+def _filter_rows_for_default_user(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    settings_service = UserSettingsService()
+    settings_row = settings_service.get_or_create(settings_service.settings.telegram_allowed_chat_id)
+    return settings_service.filter_signals_for_user(settings_row, rows)

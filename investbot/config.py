@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     defense_check_interval_minutes: int = Field(default=30, alias="DEFENSE_CHECK_INTERVAL_MINUTES")
     default_large_cap_only: bool = Field(default=True, alias="DEFAULT_LARGE_CAP_ONLY")
     default_risk_tolerance_percent: float = Field(default=5.0, alias="DEFAULT_RISK_TOLERANCE_PERCENT")
+    default_min_institutional_buy_streak: int = Field(default=3, alias="DEFAULT_MIN_INSTITUTIONAL_BUY_STREAK")
 
 
 @lru_cache(maxsize=1)
