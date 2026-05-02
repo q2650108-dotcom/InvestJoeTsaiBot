@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import plotly.express as px
@@ -19,200 +20,204 @@ def hydrate_env_from_streamlit_secrets() -> None:
             if key not in os.environ:
                 os.environ[key] = str(value)
     except Exception:
-        # Local development and some test runs may not configure Streamlit secrets.
         return
 
 
 hydrate_env_from_streamlit_secrets()
 
-from investbot.data_sources.market_data import YahooMarketDataClient
-from investbot.data_sources.twse import TwseClient
 from investbot.config import get_settings
 from investbot.db.repositories import DailyAnalysisRepository
-from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
+from investbot.services.analysis_engine import AnalysisEngine
 from investbot.services.dashboard_service import DashboardService
+from investbot.services.decision_support import DecisionSupportService
+from investbot.services.market_overview_service import MarketOverviewService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
+from investbot.services.universe_builder import UniverseBuilder
+from investbot.data_sources.market_data import YahooMarketDataClient
 
 
-st.set_page_config(page_title="Smart Swing Agent", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Smart Swing Agent", layout="wide", initial_sidebar_state="expanded")
 
-daily_analysis_repo = DailyAnalysisRepository()
+settings = get_settings()
+repo = DailyAnalysisRepository()
 portfolio_service = PortfolioService()
 market_data = YahooMarketDataClient()
 dashboard_service = DashboardService(portfolio_service=portfolio_service, market_data=market_data)
-summary_service = SummaryService()
+decision_support = DecisionSupportService()
+summary_service = SummaryService(repository=repo, decision_support=decision_support)
+overview_service = MarketOverviewService(repository=repo, summary_service=summary_service, market_data=market_data)
 
 
-TRANSLATIONS = {
+COPY = {
     "zh-TW": {
-        "app_title": "Smart Swing Agent",
-        "app_caption": "低維護市場摘要，專注權值龍頭趨勢與法人資金流。",
-        "vix": "VIX",
+        "title": "Smart Swing Agent",
+        "caption": "先看市場總體，再看資金與動能，最後才進個股。",
+        "language": "語言",
+        "dashboard": "總覽",
+        "portfolio": "投資組合",
+        "screener": "選股",
+        "run_analysis": "執行分析",
+        "run_tw": "執行台股分析",
+        "run_us": "執行美股分析",
+        "analysis_done": "分析完成",
+        "analysis_failed": "分析失敗",
+        "records": "寫入筆數",
+        "market_state": "市場整體概況",
+        "overall_trend": "整體趨勢",
         "sentiment": "市場情緒",
-        "open_pnl": "未實現報酬",
-        "win_rate": "勝率",
+        "fear_greed": "恐慌貪婪",
+        "breadth": "市場廣度",
+        "momentum_zones": "重點動能區域",
+        "cautions": "整體提醒",
         "market_overview": "市場總覽",
         "taiwan": "台股",
         "us": "美股",
-        "no_data_yet": "尚無資料",
-        "run_scheduler_first": "請先跑一次排程分析。",
-        "breadth": "廣度",
         "candidates": "候選",
         "actionable": "可行動",
-        "safer": "相對安全",
+        "safer": "相對安全延續",
         "focus_lists": "重點名單",
-        "safer_follow_through": "相對安全延續",
+        "decision_cards": "決策卡",
+        "core_pool": "Core 固定池",
+        "explore_pool": "Explore 觀察池",
         "watchlist": "觀察名單",
-        "no_names_bucket": "這個分組目前沒有標的。",
-        "no_candidates": "目前還沒有候選標的。",
+        "no_data": "尚無資料，請先跑一次分析。",
+        "vix": "VIX",
+        "open_pnl": "未實現報酬",
+        "win_rate": "勝率",
         "portfolio_curve": "資金曲線",
         "open_positions": "持有部位",
-        "no_closed_trades": "目前還沒有已平倉交易，之後會顯示資金曲線。",
-        "no_open_positions": "目前沒有持倉。",
-        "portfolio": "投資組合",
-        "stop_buffer_by_ticker": "各標的停損緩衝",
-        "tight": "偏緊",
-        "healthy": "健康",
-        "screener": "選股",
-        "no_analysis_history": "尚無分析歷史，請先跑排程。",
+        "no_positions": "目前沒有持倉。",
+        "no_closed_trades": "目前還沒有已平倉交易。",
+        "stop_buffer": "停損緩衝",
         "market": "市場",
-        "all": "全部",
-        "recommendation_bucket": "建議分組",
-        "minimum_composite_score": "最低綜合分數",
-        "ticker": "代碼",
-        "no_history_ticker": "這檔股票目前沒有分析歷史。",
-        "composite": "綜合分數",
-        "regime": "盤勢",
         "bucket": "分組",
-        "entry_timing": "進場時機",
-        "event_risk": "事件風險",
-        "next_event": "下一事件",
+        "all": "全部",
+        "min_score": "最低綜合分數",
+        "ticker": "代碼",
+        "view": "檢視",
         "price_trend": "價格走勢",
         "funnel_scores": "漏斗分數",
-        "institutional_flow": "法人流向",
-        "institutional_streak": "法人連買天數",
-        "view": "檢視",
-        "dashboard": "總覽",
+        "suggested_action": "適合動作",
+        "rationale": "推薦理由",
+        "risks": "主要風險",
+        "win_label": "勝率評估",
+        "risk_label": "風險等級",
+        "reward_risk": "風報比",
+        "event_risk": "事件風險",
+        "next_event": "下一事件",
+        "universe": "池別",
         "unknown": "未知",
         "calm": "平穩",
         "neutral": "中性",
         "risk_off": "風險偏高",
-        "language": "語言",
         "clear": "正常",
-        "run_analysis": "執行分析",
-        "run_tw_analysis": "執行台股分析",
-        "run_us_analysis": "執行美股分析",
-        "analysis_completed": "分析完成",
-        "analysis_failed": "分析失敗",
-        "records_written": "寫入筆數",
-        "refresh_after_run": "分析完成後頁面會自動刷新。",
-        "universe_bucket": "池別",
-        "core_pool": "Core 固定池",
-        "explore_pool": "Explore 觀察池",
-        "explore_candidates": "Explore 觀察池",
+        "day1": "第 1 天偏早",
+        "day2": "第 2 天建立中",
+        "day3": "第 3 天以上較穩",
     },
     "en": {
-        "app_title": "Smart Swing Agent",
-        "app_caption": "Low-touch market brief for large-cap trend following and institutional flow monitoring.",
-        "vix": "VIX",
+        "title": "Smart Swing Agent",
+        "caption": "Start with the market, then capital flow and momentum, then single names.",
+        "language": "Language",
+        "dashboard": "Dashboard",
+        "portfolio": "Portfolio",
+        "screener": "Screener",
+        "run_analysis": "Run Analysis",
+        "run_tw": "Run Taiwan Analysis",
+        "run_us": "Run US Analysis",
+        "analysis_done": "Analysis completed",
+        "analysis_failed": "Analysis failed",
+        "records": "Records written",
+        "market_state": "Market State",
+        "overall_trend": "Overall Trend",
         "sentiment": "Sentiment",
-        "open_pnl": "Open PnL",
-        "win_rate": "Win Rate",
+        "fear_greed": "Fear / Greed",
+        "breadth": "Breadth",
+        "momentum_zones": "Momentum Zones",
+        "cautions": "Cautions",
         "market_overview": "Market Overview",
         "taiwan": "Taiwan",
         "us": "US",
-        "no_data_yet": "No data yet",
-        "run_scheduler_first": "Run an analysis first.",
-        "breadth": "Breadth",
         "candidates": "Candidates",
         "actionable": "Actionable",
-        "safer": "Safer",
+        "safer": "Safer Follow-Through",
         "focus_lists": "Focus Lists",
-        "safer_follow_through": "Safer Follow-Through",
+        "decision_cards": "Decision Cards",
+        "core_pool": "Core Pool",
+        "explore_pool": "Explore Pool",
         "watchlist": "Watchlist",
-        "no_names_bucket": "No names in this bucket.",
-        "no_candidates": "No candidates are available yet.",
+        "no_data": "No data yet. Run an analysis first.",
+        "vix": "VIX",
+        "open_pnl": "Open PnL",
+        "win_rate": "Win Rate",
         "portfolio_curve": "Portfolio Curve",
         "open_positions": "Open Positions",
-        "no_closed_trades": "No closed trades yet. The equity curve will appear after exits.",
-        "no_open_positions": "No open positions.",
-        "portfolio": "Portfolio",
-        "stop_buffer_by_ticker": "Stop Buffer by Ticker",
-        "tight": "Tight",
-        "healthy": "Healthy",
-        "screener": "Screener",
-        "no_analysis_history": "No analysis history found yet. Run an analysis first.",
+        "no_positions": "No open positions.",
+        "no_closed_trades": "No closed trades yet.",
+        "stop_buffer": "Stop Buffer",
         "market": "Market",
-        "all": "All",
-        "recommendation_bucket": "Recommendation Bucket",
-        "minimum_composite_score": "Minimum Composite Score",
-        "ticker": "Ticker",
-        "no_history_ticker": "No analysis history found for this ticker.",
-        "composite": "Composite",
-        "regime": "Regime",
         "bucket": "Bucket",
-        "entry_timing": "Entry Timing",
-        "event_risk": "Event Risk",
-        "next_event": "Next Event",
+        "all": "All",
+        "min_score": "Minimum Composite Score",
+        "ticker": "Ticker",
+        "view": "View",
         "price_trend": "Price Trend",
         "funnel_scores": "Funnel Scores",
-        "institutional_flow": "Institutional Flow",
-        "institutional_streak": "Institutional Buying Streak",
-        "view": "View",
-        "dashboard": "Dashboard",
+        "suggested_action": "Suggested Action",
+        "rationale": "Why It Ranks",
+        "risks": "Main Risks",
+        "win_label": "Win-Rate View",
+        "risk_label": "Risk Level",
+        "reward_risk": "Reward / Risk",
+        "event_risk": "Event Risk",
+        "next_event": "Next Event",
+        "universe": "Universe",
         "unknown": "Unknown",
         "calm": "Calm",
         "neutral": "Neutral",
         "risk_off": "Risk-Off",
-        "language": "Language",
         "clear": "Clear",
-        "run_analysis": "Run Analysis",
-        "run_tw_analysis": "Run Taiwan Analysis",
-        "run_us_analysis": "Run US Analysis",
-        "analysis_completed": "Analysis Completed",
-        "analysis_failed": "Analysis Failed",
-        "records_written": "Records Written",
-        "refresh_after_run": "The page will refresh automatically after the run.",
-        "universe_bucket": "Universe",
-        "core_pool": "Core Pool",
-        "explore_pool": "Explore Pool",
-        "explore_candidates": "Explore Candidates",
+        "day1": "Day 1 Early",
+        "day2": "Day 2 Building",
+        "day3": "Day 3+ Safer",
     },
 }
 
 
-def detect_language() -> str:
+def current_language() -> str:
     try:
-        accept_language = str(st.context.headers.get("Accept-Language", "")).lower()
+        accept = str(st.context.headers.get("Accept-Language", "")).lower()
     except Exception:
-        accept_language = ""
-    if accept_language.startswith("zh") or "zh-tw" in accept_language:
+        accept = ""
+    if "zh" in accept:
         return "zh-TW"
     return os.environ.get("APP_LANGUAGE", "zh-TW")
 
 
-def build_text(language: str) -> dict[str, str]:
-    text = dict(TRANSLATIONS["zh-TW"])
-    text.update(TRANSLATIONS.get(language, {}))
-    return text
+LANG = current_language()
+TEXT = COPY["zh-TW"] | COPY.get(LANG, {})
 
 
-def localize_value(value: object, text: dict[str, str]) -> str:
+def t(key: str) -> str:
+    return TEXT[key]
+
+
+def localize_value(value: object) -> str:
     mapping = {
-        "Unknown": text["unknown"],
-        "Calm": text["calm"],
-        "Neutral": text["neutral"],
-        "Risk-Off": text["risk_off"],
-        "Watchlist": text["watchlist"],
-        "Actionable": text["actionable"],
-        "Safer Follow-Through": text["safer_follow_through"],
-        "clear": text["clear"],
-        "core": text["core_pool"],
-        "explore": text["explore_pool"],
-        "DAY_1_EARLY": "第 1 天偏早" if text["language"] == "語言" else "Day 1 Early",
-        "DAY_2_BUILDING": "第 2 天建立中" if text["language"] == "語言" else "Day 2 Building",
-        "DAY_3_PLUS_SAFER": "第 3 天以上較穩" if text["language"] == "語言" else "Day 3+ Safer",
+        "Unknown": t("unknown"),
+        "Calm": t("calm"),
+        "Neutral": t("neutral"),
+        "Risk-Off": t("risk_off"),
+        "Watchlist": t("watchlist"),
+        "Actionable": t("actionable"),
+        "Safer Follow-Through": t("safer"),
+        "core": t("core_pool"),
+        "explore": t("explore_pool"),
+        "clear": t("clear"),
+        "DAY_1_EARLY": t("day1"),
+        "DAY_2_BUILDING": t("day2"),
+        "DAY_3_PLUS_SAFER": t("day3"),
     }
     return mapping.get(str(value), str(value))
 
@@ -221,472 +226,340 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        .block-container {
-            padding-top: 1.1rem;
-            padding-bottom: 2rem;
-            max-width: 1380px;
-        }
-        .summary-band {
-            border: 1px solid rgba(120, 120, 140, 0.2);
-            border-radius: 8px;
-            padding: 14px 16px;
-            background: rgba(18, 22, 28, 0.04);
-            margin-bottom: 12px;
-        }
-        .summary-title {
-            font-size: 0.78rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: rgba(90, 100, 110, 0.95);
-            margin-bottom: 4px;
-        }
-        .summary-main {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-        .summary-sub {
-            font-size: 0.84rem;
-            color: rgba(90, 100, 110, 0.95);
-        }
-        .section-label {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: rgba(90, 100, 110, 0.95);
-            text-transform: uppercase;
-            margin-top: 0.35rem;
-            margin-bottom: 0.35rem;
-        }
+        .block-container { max-width: 1380px; padding-top: 1.1rem; padding-bottom: 2rem; }
+        .section-label { font-size: 0.82rem; font-weight: 700; color: #5d6776; margin: 0.9rem 0 0.45rem; text-transform: uppercase; }
+        .state-card, .summary-band, .decision-card { border: 1px solid rgba(118,128,145,.22); border-radius: 8px; background: #ffffff; }
+        .state-card { padding: 16px; min-height: 160px; }
+        .summary-band { padding: 14px 16px; min-height: 116px; background: #f7f9fc; }
+        .summary-title { font-size: 0.78rem; font-weight: 700; color: #677282; margin-bottom: 6px; text-transform: uppercase; }
+        .summary-main { font-size: 1.15rem; font-weight: 800; margin-bottom: 8px; }
+        .summary-sub { font-size: 0.84rem; color: #5c6776; line-height: 1.45; }
+        .state-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:12px; }
+        .state-metric { border:1px solid rgba(118,128,145,.18); border-radius:8px; padding:12px; background:#f7f9fc; }
+        .state-label { font-size:0.76rem; color:#677282; text-transform:uppercase; margin-bottom:4px; font-weight:700; }
+        .state-value { font-size:1rem; font-weight:800; }
+        .decision-card { padding: 16px; margin-bottom: 12px; }
+        .decision-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
+        .decision-ticker { font-size: 1.02rem; font-weight: 800; }
+        .decision-meta { font-size: 0.82rem; color: #5f6977; }
+        .decision-pill { display:inline-block; border: 1px solid rgba(95,105,119,.22); border-radius:999px; padding: 3px 8px; font-size:0.76rem; margin-right:6px; margin-bottom:6px; }
+        .decision-label { font-size: 0.78rem; font-weight: 700; color: #647080; margin: 8px 0 4px; text-transform: uppercase; }
+        .decision-list { margin: 0; padding-left: 18px; color: #1f2937; }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-def load_candidate_frame(limit: int = 150) -> pd.DataFrame:
-    frame = pd.DataFrame(daily_analysis_repo.fetch_recent_candidates(limit=limit))
-    if frame.empty:
-        return frame
-
-    defaults = {
-        "recommendation_bucket": "Watchlist",
-        "universe_bucket": "core",
-        "composite_signal_score": 0.0,
-        "institutional_buy_streak": 0,
-        "breadth_score": 0.0,
-        "market_regime": "Unknown",
-        "event_risk_note": "clear",
-        "next_event_date": None,
-        "entry_timing": None,
-        "signal_type": "",
-    }
-    for column, default_value in defaults.items():
-        if column not in frame.columns:
-            frame[column] = default_value
-        else:
-            frame[column] = frame[column].fillna(default_value)
-
-    frame["composite_signal_score"] = frame["composite_signal_score"].astype(float)
-    frame["institutional_buy_streak"] = frame["institutional_buy_streak"].astype(float)
-    return frame
-
-
-def render_header(snapshot, text: dict[str, str]) -> None:
-    st.title(text["app_title"])
-    st.caption(text["app_caption"])
-
-    metric1, metric2, metric3, metric4 = st.columns(4)
-    metric1.metric("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A")
-    metric2.metric(text["sentiment"], localize_value(snapshot.market_sentiment, text))
-    metric3.metric(text["open_pnl"], f"{snapshot.total_open_pnl:.2f}%")
-    metric4.metric(text["win_rate"], f"{snapshot.win_rate:.2f}%")
-
-
 def run_market_analysis(market_type: str) -> int:
-    settings = get_settings()
-    if market_type == "tw":
-        core_tickers = [item.strip().upper() for item in settings.tw_core_tickers.split(",") if item.strip()]
-        fallback = ["2330.TW", "2317.TW", "2454.TW", "0050.TW"]
-        manual_explore = [item.strip().upper() for item in settings.tw_explore_tickers.split(",") if item.strip()]
-        dynamic_explore = TwseClient().get_top_institutional_candidates(
-            limit=settings.tw_explore_limit,
-            exclude_tickers=core_tickers or fallback,
-        )
-        explore_tickers = list(dict.fromkeys(manual_explore + dynamic_explore))
-    else:
-        core_tickers = [item.strip().upper() for item in settings.us_core_tickers.split(",") if item.strip()]
-        fallback = ["AAPL", "MSFT", "NVDA", "SPY"]
-        explore_tickers = [
-            item.strip().upper() for item in settings.us_explore_tickers.split(",") if item.strip()
-        ][: settings.us_explore_limit]
-    engine = AnalysisEngine()
-    signals = engine.run(
-        AnalysisUniverse(
-            market_type=market_type,
-            core_tickers=core_tickers or fallback,
-            explore_tickers=explore_tickers,
-        )
-    )
+    universe = UniverseBuilder(settings).build(market_type)
+    signals = AnalysisEngine().run(universe.to_analysis_universe())
     return len(signals)
 
 
-def render_analysis_controls(text: dict[str, str]) -> None:
-    st.markdown(f'<div class="section-label">{text["run_analysis"]}</div>', unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    if col1.button(text["run_tw_analysis"], use_container_width=True):
-        try:
-            with st.spinner(text["run_tw_analysis"]):
-                count = run_market_analysis("tw")
-            st.success(f'{text["analysis_completed"]}: {text["taiwan"]} | {text["records_written"]}: {count}')
-            st.caption(text["refresh_after_run"])
-            st.rerun()
-        except Exception as exc:
-            st.error(f'{text["analysis_failed"]}: {exc}')
-    if col2.button(text["run_us_analysis"], use_container_width=True):
-        try:
-            with st.spinner(text["run_us_analysis"]):
-                count = run_market_analysis("us")
-            st.success(f'{text["analysis_completed"]}: {text["us"]} | {text["records_written"]}: {count}')
-            st.caption(text["refresh_after_run"])
-            st.rerun()
-        except Exception as exc:
-            st.error(f'{text["analysis_failed"]}: {exc}')
+def load_candidate_frame(limit: int = 180) -> pd.DataFrame:
+    frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
+    if frame.empty:
+        return frame
+    frame = pd.DataFrame(decision_support.enrich_rows(frame.to_dict("records")))
+    defaults = {
+        "recommendation_bucket": "Watchlist",
+        "universe_bucket": "core",
+        "market_regime": "Unknown",
+        "event_risk_note": "clear",
+        "institutional_buy_streak": 0,
+        "composite_signal_score": 0.0,
+    }
+    for column, default in defaults.items():
+        if column not in frame.columns:
+            frame[column] = default
+        else:
+            frame[column] = frame[column].fillna(default)
+    return frame
 
 
-def render_market_overview(text: dict[str, str]) -> None:
-    tw_summary = summary_service.build_market_summary("tw")
-    us_summary = summary_service.build_market_summary("us")
-
-    st.markdown(f'<div class="section-label">{text["market_overview"]}</div>', unsafe_allow_html=True)
+def render_run_controls() -> None:
+    st.markdown(f'<div class="section-label">{t("run_analysis")}</div>', unsafe_allow_html=True)
     left, right = st.columns(2)
-    with left:
-        render_summary_band(text["taiwan"], tw_summary, text)
-    with right:
-        render_summary_band(text["us"], us_summary, text)
+    if left.button(t("run_tw"), use_container_width=True):
+        try:
+            count = run_market_analysis("tw")
+            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
+            st.rerun()
+        except Exception as exc:
+            st.error(f'{t("analysis_failed")}: {exc}')
+    if right.button(t("run_us"), use_container_width=True):
+        try:
+            count = run_market_analysis("us")
+            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
+            st.rerun()
+        except Exception as exc:
+            st.error(f'{t("analysis_failed")}: {exc}')
 
 
-def render_summary_band(label: str, summary, text: dict[str, str]) -> None:
-    if summary is None:
-        st.markdown(
-            f"""
-            <div class="summary-band">
-                <div class="summary-title">{label}</div>
-                <div class="summary-main">{text["no_data_yet"]}</div>
-                <div class="summary-sub">{text["run_scheduler_first"]}</div>
+def render_market_state() -> None:
+    overview = overview_service.build()
+    st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
+    momentum_text = "<br>".join(overview.momentum_zones) if overview.momentum_zones else t("no_data")
+    caution_text = "<br>".join(overview.caution_items)
+    st.markdown(
+        f"""
+        <div class="state-card">
+            <div class="state-grid">
+                <div class="state-metric">
+                    <div class="state-label">{t("overall_trend")}</div>
+                    <div class="state-value">{overview.overall_trend}</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("sentiment")}</div>
+                    <div class="state-value">{overview.sentiment_label}</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("fear_greed")}</div>
+                    <div class="state-value">{overview.fear_greed_score}/100</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("breadth")}</div>
+                    <div class="state-value">{overview.breadth_snapshot:.2f}</div>
+                </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
+            <div class="decision-label">{t("momentum_zones")}</div>
+            <div class="summary-sub">{momentum_text}</div>
+            <div class="decision-label">{t("cautions")}</div>
+            <div class="summary-sub">{caution_text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+
+def render_summary_band(label: str, summary: Any) -> None:
+    if summary is None:
+        st.info(t("no_data"))
+        return
     st.markdown(
         f"""
         <div class="summary-band">
             <div class="summary-title">{label}</div>
-            <div class="summary-main">{localize_value(summary.regime, text)}</div>
+            <div class="summary-main">{localize_value(summary.regime)}</div>
             <div class="summary-sub">
-                {text["breadth"]} {summary.average_breadth:.2f} | {text["candidates"]} {summary.candidate_count} |
-                {text["actionable"]} {summary.actionable_count} | {text["safer"]} {summary.safer_count}
+                {t("breadth")} {summary.average_breadth:.2f} |
+                {t("candidates")} {summary.candidate_count} |
+                {t("actionable")} {summary.actionable_count} |
+                {t("safer")} {summary.safer_count}
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    frame = pd.DataFrame(summary.top_rows)
-    if not frame.empty:
-        columns = [
-            column
-            for column in ["ticker", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak"]
-            if column in frame.columns
-        ]
-        if "recommendation_bucket" in frame.columns:
-            frame["recommendation_bucket"] = frame["recommendation_bucket"].map(lambda value: localize_value(value, text))
-        st.dataframe(frame[columns], use_container_width=True, hide_index=True)
+
+def render_market_overview() -> None:
+    st.markdown(f'<div class="section-label">{t("market_overview")}</div>', unsafe_allow_html=True)
+    left, right = st.columns(2)
+    with left:
+        render_summary_band(t("taiwan"), summary_service.build_market_summary("tw"))
+    with right:
+        render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
-def render_focus_lists(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
-    st.markdown(f'<div class="section-label">{text["focus_lists"]}</div>', unsafe_allow_html=True)
-    if candidate_frame.empty:
-        st.info(text["no_candidates"])
+def render_simple_table(frame: pd.DataFrame, columns: list[str]) -> None:
+    if frame.empty:
+        st.info(t("no_data"))
         return
+    localized = frame.copy()
+    for column in ["universe_bucket", "recommendation_bucket"]:
+        if column in localized.columns:
+            localized[column] = localized[column].map(localize_value)
+    st.dataframe(localized[[column for column in columns if column in localized.columns]], use_container_width=True, hide_index=True)
 
+
+def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
+    st.markdown(f'<div class="section-label">{t("focus_lists")}</div>', unsafe_allow_html=True)
+    if candidate_frame.empty:
+        st.info(t("no_data"))
+        return
     latest_date = candidate_frame["date"].max()
-    latest_frame = candidate_frame[candidate_frame["date"] == latest_date].copy()
-
-    safer = latest_frame[latest_frame["recommendation_bucket"] == "Safer Follow-Through"].head(8)
-    actionable = latest_frame[latest_frame["recommendation_bucket"] == "Actionable"].head(8)
-    watchlist = latest_frame[latest_frame["recommendation_bucket"] == "Watchlist"].head(8)
-
+    latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    columns = ["ticker", "universe_bucket", "recommendation_bucket", "composite_signal_score", "suggested_action"]
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.caption(text["safer_follow_through"])
-        render_watchlist_table(safer, text)
+        st.caption(t("safer"))
+        render_simple_table(latest[latest["recommendation_bucket"] == "Safer Follow-Through"].head(6), columns)
     with col2:
-        st.caption(text["actionable"])
-        render_watchlist_table(actionable, text)
+        st.caption(t("actionable"))
+        render_simple_table(latest[latest["recommendation_bucket"] == "Actionable"].head(6), columns)
     with col3:
-        st.caption(text["watchlist"])
-        render_watchlist_table(watchlist, text)
-
-    explore_frame = latest_frame[latest_frame["universe_bucket"] == "explore"].head(10)
-    if not explore_frame.empty:
-        st.caption(text["explore_candidates"])
-        render_watchlist_table(explore_frame, text)
+        st.caption(t("explore_pool"))
+        render_simple_table(latest[latest["universe_bucket"] == "explore"].head(6), columns)
 
 
-def render_watchlist_table(frame: pd.DataFrame, text: dict[str, str]) -> None:
-    if frame.empty:
-        st.info(text["no_names_bucket"])
+def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
+    st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
+    if candidate_frame.empty:
+        st.info(t("no_data"))
         return
-    localized_frame = frame.copy()
-    for column in ["recommendation_bucket", "entry_timing", "event_risk_note"]:
-        if column in localized_frame.columns:
-            localized_frame[column] = localized_frame[column].map(lambda value: localize_value(value, text))
-    if "universe_bucket" in localized_frame.columns:
-        localized_frame["universe_bucket"] = localized_frame["universe_bucket"].map(
-            lambda value: localize_value(value, text)
+    latest_date = candidate_frame["date"].max()
+    latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    latest = latest.sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False]).head(8)
+    for _, row in latest.iterrows():
+        rationale = "".join(f"<li>{item}</li>" for item in row.get("rationale", []))
+        risks = "".join(f"<li>{item}</li>" for item in row.get("risks", []))
+        st.markdown(
+            f"""
+            <div class="decision-card">
+                <div class="decision-head">
+                    <div>
+                        <div class="decision-ticker">{row["ticker"]}</div>
+                        <div class="decision-meta">{row.get("signal_type", "")} | {localize_value(row.get("universe_bucket", "core"))} | {localize_value(row.get("recommendation_bucket", "Watchlist"))}</div>
+                    </div>
+                    <div class="decision-meta">Score {float(row.get("composite_signal_score", 0)):.2f}</div>
+                </div>
+                <span class="decision-pill">{t("win_label")}: {row.get("win_rate_label", "N/A")}</span>
+                <span class="decision-pill">{t("risk_label")}: {row.get("risk_level", "N/A")}</span>
+                <span class="decision-pill">{t("reward_risk")}: {row.get("reward_risk_label", "N/A")}</span>
+                <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
+                <div class="decision-label">{t("suggested_action")}</div>
+                <div>{row.get("suggested_action", "")}</div>
+                <div class="decision-label">{t("rationale")}</div>
+                <ul class="decision-list">{rationale}</ul>
+                <div class="decision-label">{t("risks")}</div>
+                <ul class="decision-list">{risks}</ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    columns = [
-        column
-        for column in [
-            "ticker",
-            "universe_bucket",
-            "signal_type",
-            "composite_signal_score",
-            "institutional_buy_streak",
-            "entry_timing",
-            "event_risk_note",
-        ]
-        if column in frame.columns
-    ]
-    st.dataframe(localized_frame[columns], use_container_width=True, hide_index=True)
 
 
-def render_dashboard(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
+def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     snapshot = dashboard_service.build_snapshot()
-    render_header(snapshot, text)
-    render_analysis_controls(text)
-    render_market_overview(text)
-    render_focus_lists(candidate_frame, text)
-
+    st.title(t("title"))
+    st.caption(t("caption"))
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A")
+    m2.metric(t("sentiment"), localize_value(snapshot.market_sentiment))
+    m3.metric(t("open_pnl"), f"{snapshot.total_open_pnl:.2f}%")
+    m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
+    render_run_controls()
+    render_market_state()
+    render_market_overview()
+    render_focus_lists(candidate_frame)
+    render_decision_cards(candidate_frame)
     left, right = st.columns((1.6, 1))
     with left:
-        st.markdown(f'<div class="section-label">{text["portfolio_curve"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">{t("portfolio_curve")}</div>', unsafe_allow_html=True)
         if snapshot.equity_curve.empty:
-            st.info(text["no_closed_trades"])
+            st.info(t("no_closed_trades"))
         else:
-            fig = px.line(
-                snapshot.equity_curve,
-                x="sequence",
-                y="equity_pnl",
-                markers=True,
-                title=text["portfolio_curve"],
-            )
+            fig = px.line(snapshot.equity_curve, x="sequence", y="equity_pnl", markers=True, title=t("portfolio_curve"))
             st.plotly_chart(fig, use_container_width=True)
     with right:
-        st.markdown(f'<div class="section-label">{text["open_positions"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">{t("open_positions")}</div>', unsafe_allow_html=True)
         if snapshot.open_positions.empty:
-            st.info(text["no_open_positions"])
+            st.info(t("no_positions"))
         else:
-            st.dataframe(
-                snapshot.open_positions[["ticker", "latest_price", "live_pnl_percent", "stop_buffer_percent"]],
-                use_container_width=True,
-                hide_index=True,
-            )
+            st.dataframe(snapshot.open_positions, use_container_width=True, hide_index=True)
 
 
-def render_portfolio(text: dict[str, str]) -> None:
-    st.subheader(text["portfolio"])
+def render_portfolio() -> None:
+    st.subheader(t("portfolio"))
     positions, _ = portfolio_service.get_open_positions_summary()
     if not positions:
-        st.info(text["no_open_positions"])
+        st.info(t("no_positions"))
         return
-
     frame = pd.DataFrame(positions)
-    display_columns = [
-        "ticker",
-        "buy_date",
-        "buy_price",
-        "latest_price",
-        "stop_loss_price",
-        "live_pnl_percent",
-        "stop_buffer_percent",
-    ]
-    st.dataframe(frame[display_columns], use_container_width=True, hide_index=True)
-    frame["risk_flag"] = frame["stop_buffer_percent"].apply(
-        lambda value: text["tight"] if value < 3 else text["healthy"]
-    )
-    fig = px.bar(
-        frame,
-        x="ticker",
-        y="stop_buffer_percent",
-        color="risk_flag",
-        title=text["stop_buffer_by_ticker"],
-    )
+    st.dataframe(frame, use_container_width=True, hide_index=True)
+    fig = px.bar(frame, x="ticker", y="stop_buffer_percent", title=t("stop_buffer"))
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_screener(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
-    st.subheader(text["screener"])
+def render_screener(candidate_frame: pd.DataFrame) -> None:
+    st.subheader(t("screener"))
     if candidate_frame.empty:
-        st.warning(text["no_analysis_history"])
+        st.info(t("no_data"))
         return
-
     latest_date = candidate_frame["date"].max()
-    latest_candidates = candidate_frame[candidate_frame["date"] == latest_date].copy()
-
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
-    selected_market = filter_col1.selectbox(text["market"], options=[text["all"], "tw", "us"], index=0)
-    selected_bucket = filter_col2.selectbox(
-        text["recommendation_bucket"],
-        options=[text["all"], text["safer_follow_through"], text["actionable"], text["watchlist"]],
-        index=0,
+    latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    c1, c2, c3 = st.columns(3)
+    selected_market = c1.selectbox(t("market"), [t("all"), "tw", "us"])
+    selected_bucket = c2.selectbox(t("bucket"), [t("all"), "Safer Follow-Through", "Actionable", "Watchlist"])
+    min_score = c3.slider(t("min_score"), min_value=0, max_value=100, value=60)
+    filtered = latest.copy()
+    if selected_market != t("all"):
+        filtered = filtered[filtered["type"] == selected_market]
+    if selected_bucket != t("all"):
+        filtered = filtered[filtered["recommendation_bucket"] == selected_bucket]
+    filtered = filtered[filtered["composite_signal_score"] >= min_score]
+    display = filtered.copy()
+    for column in ["universe_bucket", "recommendation_bucket", "entry_timing", "market_regime", "event_risk_note"]:
+        if column in display.columns:
+            display[column] = display[column].map(localize_value)
+    st.dataframe(
+        display[
+            [
+                column
+                for column in [
+                    "ticker",
+                    "type",
+                    "universe_bucket",
+                    "signal_type",
+                    "recommendation_bucket",
+                    "composite_signal_score",
+                    "recommendation_level",
+                    "win_rate_label",
+                    "risk_level",
+                    "suggested_action",
+                ]
+                if column in display.columns
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
     )
-    min_score = filter_col3.slider(text["minimum_composite_score"], min_value=0, max_value=100, value=60)
-
-    filtered_candidates = latest_candidates.copy()
-    if selected_market != text["all"] and "type" in filtered_candidates.columns:
-        filtered_candidates = filtered_candidates[filtered_candidates["type"] == selected_market]
-    bucket_reverse_map = {
-        text["safer_follow_through"]: "Safer Follow-Through",
-        text["actionable"]: "Actionable",
-        text["watchlist"]: "Watchlist",
-    }
-    if selected_bucket != text["all"]:
-        filtered_candidates = filtered_candidates[
-            filtered_candidates["recommendation_bucket"] == bucket_reverse_map[selected_bucket]
-        ]
-    filtered_candidates = filtered_candidates[filtered_candidates["composite_signal_score"] >= min_score]
-    if "recommendation_bucket" in filtered_candidates.columns:
-        filtered_candidates["recommendation_bucket"] = filtered_candidates["recommendation_bucket"].map(
-            lambda value: localize_value(value, text)
-        )
-    if "universe_bucket" in filtered_candidates.columns:
-        filtered_candidates["universe_bucket"] = filtered_candidates["universe_bucket"].map(
-            lambda value: localize_value(value, text)
-        )
-    if "market_regime" in filtered_candidates.columns:
-        filtered_candidates["market_regime"] = filtered_candidates["market_regime"].map(
-            lambda value: localize_value(value, text)
-        )
-    if "event_risk_note" in filtered_candidates.columns:
-        filtered_candidates["event_risk_note"] = filtered_candidates["event_risk_note"].map(
-            lambda value: localize_value(value, text)
-        )
-
-    candidate_columns = [
-        "ticker",
-        "universe_bucket",
-        "signal_type",
-        "recommendation_bucket",
-        "composite_signal_score",
-        "institutional_buy_streak",
-        "entry_timing",
-        "market_regime",
-        "breadth_score",
-        "event_risk_note",
-        "next_event_date",
-    ]
-    available_columns = [column for column in candidate_columns if column in filtered_candidates.columns]
-    st.dataframe(filtered_candidates[available_columns], use_container_width=True, hide_index=True)
-
-    ticker = st.text_input(text["ticker"], value="2330.TW")
-    history = pd.DataFrame(daily_analysis_repo.fetch_history(ticker))
+    ticker = st.text_input(t("ticker"), value="2330.TW")
+    history = pd.DataFrame(repo.fetch_history(ticker))
     if history.empty:
-        st.warning(text["no_history_ticker"])
+        st.info(t("no_data"))
         return
-
-    defaults = {
-        "institutional_buy_streak": None,
-        "entry_timing": None,
-        "market_regime": "Unknown",
-        "market_regime_score": 0.0,
-        "breadth_score": 0.0,
-        "relative_strength_score": 0.0,
-        "institutional_conviction_score": 0.0,
-        "event_risk_score": 50.0,
-        "next_event_date": None,
-        "event_risk_note": "clear",
-        "entry_quality_score": 0.0,
-        "composite_signal_score": 0.0,
-        "recommendation_bucket": "Watchlist",
-    }
-    for column, default_value in defaults.items():
-        if column not in history.columns:
-            history[column] = default_value
-        else:
-            history[column] = history[column].fillna(default_value)
-
+    history = pd.DataFrame(decision_support.enrich_rows(history.to_dict("records")))
     latest_row = history.iloc[-1]
-    top1, top2, top3, top4, top5 = st.columns(5)
-    top1.metric(text["composite"], f"{float(latest_row['composite_signal_score']):.2f}")
-    top2.metric(text["regime"], localize_value(latest_row["market_regime"], text))
-    top3.metric(text["bucket"], localize_value(latest_row["recommendation_bucket"], text))
-    top4.metric(text["entry_timing"], localize_value(latest_row["entry_timing"], text))
-    top5.metric(text["breadth"], f"{float(latest_row['breadth_score']):.2f}")
-    st.caption(
-        f"{text['event_risk']}: {localize_value(latest_row['event_risk_note'], text)} | "
-        f"{text['next_event']}: {latest_row['next_event_date']}"
-    )
-
-    chart_left, chart_right = st.columns((1.35, 1))
+    top1, top2, top3, top4 = st.columns(4)
+    top1.metric("Score", f"{float(latest_row.get('composite_signal_score', 0)):.2f}")
+    top2.metric(t("bucket"), localize_value(latest_row.get("recommendation_bucket", "Watchlist")))
+    top3.metric(t("win_label"), str(latest_row.get("win_rate_label", "")))
+    top4.metric(t("risk_label"), str(latest_row.get("risk_level", "")))
+    chart_left, chart_right = st.columns(2)
     with chart_left:
-        fig = px.line(history, x="date", y="close_price", markers=True, title=f"{ticker.upper()} {text['price_trend']}")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.line(history, x="date", y="close_price", markers=True, title=t("price_trend")), use_container_width=True)
     with chart_right:
-        score_fig = px.line(
-            history,
-            x="date",
-            y=[
-                "market_regime_score",
-                "breadth_score",
-                "relative_strength_score",
-                "institutional_conviction_score",
-                "entry_quality_score",
-                "composite_signal_score",
-            ],
-            markers=True,
-            title=f"{ticker.upper()} {text['funnel_scores']}",
-        )
-        st.plotly_chart(score_fig, use_container_width=True)
-
-    lower_left, lower_right = st.columns((1, 1))
-    with lower_left:
-        flow_fig = px.bar(
-            history,
-            x="date",
-            y="institutional_net_buy",
-            color="signal_type",
-            title=f"{ticker.upper()} {text['institutional_flow']}",
-        )
-        st.plotly_chart(flow_fig, use_container_width=True)
-    with lower_right:
-        if history["institutional_buy_streak"].notna().any():
-            streak_fig = px.bar(
-                history.dropna(subset=["institutional_buy_streak"]),
+        st.plotly_chart(
+            px.line(
+                history,
                 x="date",
-                y="institutional_buy_streak",
-                color="entry_timing",
-                title=f"{ticker.upper()} {text['institutional_streak']}",
-            )
-            st.plotly_chart(streak_fig, use_container_width=True)
+                y=["market_regime_score", "breadth_score", "relative_strength_score", "institutional_conviction_score", "entry_quality_score", "composite_signal_score"],
+                markers=True,
+                title=t("funnel_scores"),
+            ),
+            use_container_width=True,
+        )
 
 
 inject_styles()
-candidate_frame = load_candidate_frame()
 
 language_options = {"繁體中文": "zh-TW", "English": "en"}
-default_language = detect_language()
-language_label = next((label for label, code in language_options.items() if code == default_language), "繁體中文")
-selected_language_label = st.sidebar.selectbox("Language / 語言", options=list(language_options.keys()), index=list(language_options.keys()).index(language_label))
-text = build_text(language_options[selected_language_label])
+selected_label = st.sidebar.selectbox(
+    f'Language / {COPY["zh-TW"]["language"]}',
+    options=list(language_options.keys()),
+    index=0 if LANG == "zh-TW" else 1,
+)
+TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
 
-nav = st.sidebar.radio(text["view"], [text["dashboard"], text["portfolio"], text["screener"]], index=0)
+candidate_frame = load_candidate_frame()
+nav = st.sidebar.radio(t("view"), [t("dashboard"), t("portfolio"), t("screener")], index=0)
 
-if nav == text["dashboard"]:
-    render_dashboard(candidate_frame, text)
-elif nav == text["portfolio"]:
-    render_portfolio(text)
+if nav == t("dashboard"):
+    render_dashboard(candidate_frame)
+elif nav == t("portfolio"):
+    render_portfolio()
 else:
-    render_screener(candidate_frame, text)
+    render_screener(candidate_frame)

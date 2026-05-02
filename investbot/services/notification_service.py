@@ -29,8 +29,11 @@ class NotificationService:
             score_text = ""
             if row.get("composite_signal_score") is not None:
                 score_text = f" | score {row['composite_signal_score']}"
+            reason_text = ""
+            if row.get("recommendation_level"):
+                reason_text = f" | {row['recommendation_level']}"
             lines.append(
-                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}{streak_text}{bucket_text}{score_text}"
+                f"- {row['ticker']} | {row['signal_type']} | close {row['close_price']} | institutional {row['institutional_net_buy']}{streak_text}{bucket_text}{score_text}{reason_text}"
             )
         return "\n".join(lines)
 
@@ -58,7 +61,13 @@ class NotificationService:
             lines.append("Top candidates:")
             for row in summary.top_rows[:5]:
                 lines.append(
-                    f"- {row['ticker']} | {row.get('recommendation_bucket', 'Watchlist')} | score {row.get('composite_signal_score', 0)} | streak {row.get('institutional_buy_streak', 0)}"
+                    f"- {row['ticker']} | {row.get('recommendation_bucket', 'Watchlist')} | score {row.get('composite_signal_score', 0)} | {row.get('suggested_action', '')}"
+                )
+        if summary.explore_rows:
+            lines.append("Explore ideas:")
+            for row in summary.explore_rows[:3]:
+                lines.append(
+                    f"- {row['ticker']} | score {row.get('composite_signal_score', 0)} | risk {row.get('risk_level', 'N/A')}"
                 )
         if summary.risk_rows:
             lines.append("Risk flags:")

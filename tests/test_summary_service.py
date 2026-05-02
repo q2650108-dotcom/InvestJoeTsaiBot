@@ -14,6 +14,7 @@ class FakeDailyAnalysisRepository:
                 "market_regime": "Risk-On",
                 "breadth_score": 72.0,
                 "recommendation_bucket": "Safer Follow-Through",
+                "universe_bucket": "core",
                 "institutional_buy_streak": 3,
                 "composite_signal_score": 84.0,
                 "event_risk_note": "clear",
@@ -24,6 +25,7 @@ class FakeDailyAnalysisRepository:
                 "market_regime": "Risk-On",
                 "breadth_score": 68.0,
                 "recommendation_bucket": "Actionable",
+                "universe_bucket": "explore",
                 "institutional_buy_streak": 2,
                 "composite_signal_score": 72.0,
                 "event_risk_note": "earnings_near",
@@ -44,4 +46,6 @@ class SummaryServiceTests(TestCase):
         self.assertEqual(summary.actionable_count, 1)
         self.assertEqual(summary.safer_count, 1)
         self.assertEqual(summary.top_rows[0]["ticker"], "2330.TW")
+        self.assertEqual(summary.core_rows[0]["ticker"], "2330.TW")
+        self.assertEqual(summary.explore_rows[0]["ticker"], "2317.TW")
         self.assertEqual(summary.risk_rows[0]["ticker"], "2317.TW")
