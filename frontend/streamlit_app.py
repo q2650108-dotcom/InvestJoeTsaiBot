@@ -90,10 +90,29 @@ def render_screener() -> None:
         return
 
     frame = pd.DataFrame(history)
-    if "institutional_buy_streak" not in frame.columns:
-        frame["institutional_buy_streak"] = None
-    if "entry_timing" not in frame.columns:
-        frame["entry_timing"] = None
+    defaults = {
+        "institutional_buy_streak": None,
+        "entry_timing": None,
+        "market_regime": "Unknown",
+        "market_regime_score": 0.0,
+        "relative_strength_score": 0.0,
+        "institutional_conviction_score": 0.0,
+        "event_risk_score": 50.0,
+        "entry_quality_score": 0.0,
+        "composite_signal_score": 0.0,
+        "recommendation_bucket": "Watchlist",
+    }
+    for column, default_value in defaults.items():
+        if column not in frame.columns:
+            frame[column] = default_value
+
+    latest_row = frame.iloc[-1]
+
+    top1, top2, top3, top4 = st.columns(4)
+    top1.metric("Composite", f"{float(latest_row['composite_signal_score']):.2f}")
+    top2.metric("Regime", str(latest_row["market_regime"]))
+    top3.metric("Bucket", str(latest_row["recommendation_bucket"]))
+    top4.metric("Entry Timing", str(latest_row["entry_timing"]))
 
     fig = px.line(frame, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
     st.plotly_chart(fig, use_container_width=True)
@@ -114,6 +133,33 @@ def render_screener() -> None:
             title=f"{ticker.upper()} institutional buying streak",
         )
         st.plotly_chart(streak_fig, use_container_width=True)
+
+    score_columns = [
+        "date",
+        "market_regime",
+        "market_regime_score",
+        "relative_strength_score",
+        "institutional_conviction_score",
+        "entry_quality_score",
+        "event_risk_score",
+        "composite_signal_score",
+        "recommendation_bucket",
+    ]
+    score_fig = px.line(
+        frame,
+        x="date",
+        y=[
+            "market_regime_score",
+            "relative_strength_score",
+            "institutional_conviction_score",
+            "entry_quality_score",
+            "composite_signal_score",
+        ],
+        markers=True,
+        title=f"{ticker.upper()} funnel scores",
+    )
+    st.plotly_chart(score_fig, use_container_width=True)
+    st.dataframe(frame[score_columns], use_container_width=True, hide_index=True)
     st.dataframe(frame, use_container_width=True, hide_index=True)
 
 

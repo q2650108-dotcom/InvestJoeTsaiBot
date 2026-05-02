@@ -17,6 +17,14 @@ class AnalysisUniverse:
     tickers: list[str]
 
 
+@dataclass(slots=True)
+class MarketContext:
+    regime: str
+    regime_score: float
+    benchmark_return_20d: float
+    vix_value: float | None
+
+
 class AnalysisEngine:
     INSTITUTIONAL_ACCUMULATION_SIGNAL = "Institutional Accumulation"
     PANIC_REVERSAL_SIGNAL = "Panic Reversal"
@@ -36,6 +44,7 @@ class AnalysisEngine:
         large_caps = self.twse_client.get_large_cap_tickers()
         net_buy_map = self.twse_client.get_institutional_net_buy_map(universe.tickers)
         buy_history_map = self.twse_client.get_institutional_buy_history(universe.tickers, lookback_days=5)
+        market_context = self._build_market_context(universe.market_type)
 
         signals: list[MarketSignal] = []
         for ticker in universe.tickers:
@@ -54,6 +63,7 @@ class AnalysisEngine:
                 institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
                 institutional_buy_history=buy_history_map.get(ticker.upper(), []),
                 is_large_cap=is_large_cap,
+                market_context=market_context,
             )
             signals.extend(ticker_signals)
 
@@ -65,9 +75,40 @@ class AnalysisEngine:
         frame["20MA"] = frame["Close"].rolling(window=20).mean()
         frame["60MA"] = frame["Close"].rolling(window=60).mean()
         frame["5D_VOL_AVG"] = frame["Volume"].rolling(window=5).mean()
+        frame["20D_RETURN"] = frame["Close"].pct_change(periods=20)
         frame["lower_shadow"] = frame[["Open", "Close"]].min(axis=1) - frame["Low"]
         frame["body_size"] = (frame["Close"] - frame["Open"]).abs()
         return frame.dropna().reset_index(drop=True)
+
+    def _build_market_context(self, market_type: str) -> MarketContext:
+        benchmark_ticker = "^TWII" if market_type == "tw" else "^GSPC"
+        vix_value = self.market_data.get_vix_value()
+
+        try:
+            benchmark_history = self.market_data.get_price_history(benchmark_ticker)
+            benchmark_enriched = self._build_indicators(benchmark_history)
+            latest = benchmark_enriched.iloc[-1]
+            benchmark_return_20d = float(latest["20D_RETURN"])
+            regime_score = self._score_market_regime(
+                close_price=float(latest["Close"]),
+                ma_20=float(latest["20MA"]),
+                ma_60=float(latest["60MA"]),
+                vix_value=vix_value,
+            )
+            regime = self._label_market_regime(regime_score)
+            return MarketContext(
+                regime=regime,
+                regime_score=regime_score,
+                benchmark_return_20d=benchmark_return_20d,
+                vix_value=vix_value,
+            )
+        except ValueError:
+            return MarketContext(
+                regime="Neutral",
+                regime_score=50.0,
+                benchmark_return_20d=0.0,
+                vix_value=vix_value,
+            )
 
     def _evaluate_strategies(
         self,
@@ -78,6 +119,7 @@ class AnalysisEngine:
         institutional_net_buy: int,
         institutional_buy_history: list[int],
         is_large_cap: bool,
+        market_context: MarketContext,
     ) -> list[MarketSignal]:
         results: list[MarketSignal] = []
         if not is_large_cap and market_type == "tw":
@@ -89,6 +131,30 @@ class AnalysisEngine:
         ma_60 = float(latest["60MA"])
 
         buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
+        relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
+        institutional_conviction_score = self._score_institutional_conviction(buy_streak, institutional_net_buy)
+        entry_quality_score = self._score_entry_quality(
+            close_price=close_price,
+            ma_20=ma_20,
+            ma_60=ma_60,
+            volume=volume,
+            volume_avg_5d=float(latest["5D_VOL_AVG"]),
+            is_large_cap=is_large_cap,
+        )
+        event_risk_score = 50.0
+        composite_signal_score = self._score_composite_signal(
+            market_regime_score=market_context.regime_score,
+            relative_strength_score=relative_strength_score,
+            institutional_conviction_score=institutional_conviction_score,
+            event_risk_score=event_risk_score,
+            entry_quality_score=entry_quality_score,
+        )
+        recommendation_bucket = self._classify_recommendation_bucket(
+            composite_signal_score=composite_signal_score,
+            buy_streak=buy_streak,
+            market_regime=market_context.regime,
+        )
+
         if self._is_institutional_accumulation(close_price, ma_20, buy_streak):
             results.append(
                 MarketSignal(
@@ -104,6 +170,14 @@ class AnalysisEngine:
                     is_large_cap=is_large_cap,
                     institutional_buy_streak=buy_streak,
                     entry_timing=self._classify_entry_timing(buy_streak),
+                    market_regime=market_context.regime,
+                    market_regime_score=market_context.regime_score,
+                    relative_strength_score=relative_strength_score,
+                    institutional_conviction_score=institutional_conviction_score,
+                    event_risk_score=event_risk_score,
+                    entry_quality_score=entry_quality_score,
+                    composite_signal_score=composite_signal_score,
+                    recommendation_bucket=recommendation_bucket,
                 )
             )
 
@@ -120,6 +194,14 @@ class AnalysisEngine:
                     institutional_net_buy=institutional_net_buy,
                     signal_type=self.PANIC_REVERSAL_SIGNAL,
                     is_large_cap=is_large_cap,
+                    market_regime=market_context.regime,
+                    market_regime_score=market_context.regime_score,
+                    relative_strength_score=relative_strength_score,
+                    institutional_conviction_score=institutional_conviction_score,
+                    event_risk_score=event_risk_score,
+                    entry_quality_score=entry_quality_score,
+                    composite_signal_score=composite_signal_score,
+                    recommendation_bucket=recommendation_bucket,
                 )
             )
         return results
@@ -142,6 +224,93 @@ class AnalysisEngine:
         if buy_streak == 2:
             return "DAY_2_BUILDING"
         return "DAY_3_PLUS_SAFER"
+
+    def _score_market_regime(self, close_price: float, ma_20: float, ma_60: float, vix_value: float | None) -> float:
+        score = 0.0
+        if close_price > ma_20:
+            score += 35
+        if close_price > ma_60:
+            score += 35
+        if ma_20 > ma_60:
+            score += 15
+
+        if vix_value is None:
+            score += 10
+        elif vix_value < 18:
+            score += 15
+        elif vix_value < 25:
+            score += 8
+        return min(score, 100.0)
+
+    def _label_market_regime(self, regime_score: float) -> str:
+        if regime_score >= 70:
+            return "Risk-On"
+        if regime_score >= 45:
+            return "Neutral"
+        return "Risk-Off"
+
+    def _score_relative_strength(self, stock_return_20d: float, benchmark_return_20d: float) -> float:
+        delta = stock_return_20d - benchmark_return_20d
+        score = 50 + (delta * 200)
+        return round(max(0.0, min(score, 100.0)), 2)
+
+    def _score_institutional_conviction(self, buy_streak: int, institutional_net_buy: int) -> float:
+        streak_score = min(buy_streak * 25, 75)
+        flow_bonus = 0
+        if institutional_net_buy > 0:
+            flow_bonus = 10 if institutional_net_buy < 1000 else 20
+        return round(min(streak_score + flow_bonus, 100.0), 2)
+
+    def _score_entry_quality(
+        self,
+        close_price: float,
+        ma_20: float,
+        ma_60: float,
+        volume: int,
+        volume_avg_5d: float,
+        is_large_cap: bool,
+    ) -> float:
+        score = 0.0
+        if close_price > ma_20:
+            score += 30
+        if close_price > ma_60:
+            score += 20
+
+        distance_to_ma20 = abs((close_price - ma_20) / ma_20) if ma_20 else 0.0
+        if distance_to_ma20 <= 0.03:
+            score += 25
+        elif distance_to_ma20 <= 0.08:
+            score += 15
+
+        if volume_avg_5d > 0 and volume >= volume_avg_5d:
+            score += 15
+        if is_large_cap:
+            score += 10
+        return round(min(score, 100.0), 2)
+
+    def _score_composite_signal(
+        self,
+        market_regime_score: float,
+        relative_strength_score: float,
+        institutional_conviction_score: float,
+        event_risk_score: float,
+        entry_quality_score: float,
+    ) -> float:
+        score = (
+            (market_regime_score * 0.25)
+            + (relative_strength_score * 0.2)
+            + (institutional_conviction_score * 0.25)
+            + (event_risk_score * 0.1)
+            + (entry_quality_score * 0.2)
+        )
+        return round(score, 2)
+
+    def _classify_recommendation_bucket(self, composite_signal_score: float, buy_streak: int, market_regime: str) -> str:
+        if composite_signal_score >= 80 and buy_streak >= 3 and market_regime == "Risk-On":
+            return "Safer Follow-Through"
+        if composite_signal_score >= 65:
+            return "Actionable"
+        return "Watchlist"
 
     def _is_panic_reversal(self, latest: pd.Series) -> bool:
         return (

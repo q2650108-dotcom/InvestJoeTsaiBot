@@ -14,6 +14,14 @@ create table if not exists daily_analysis (
     is_large_cap boolean not null default true,
     institutional_buy_streak integer,
     entry_timing text,
+    market_regime text,
+    market_regime_score double precision,
+    relative_strength_score double precision,
+    institutional_conviction_score double precision,
+    event_risk_score double precision,
+    entry_quality_score double precision,
+    composite_signal_score double precision,
+    recommendation_bucket text,
     created_at timestamptz not null default now(),
     unique (date, ticker, signal_type)
 );
@@ -23,6 +31,30 @@ alter table daily_analysis
 
 alter table daily_analysis
     add column if not exists entry_timing text;
+
+alter table daily_analysis
+    add column if not exists market_regime text;
+
+alter table daily_analysis
+    add column if not exists market_regime_score double precision;
+
+alter table daily_analysis
+    add column if not exists relative_strength_score double precision;
+
+alter table daily_analysis
+    add column if not exists institutional_conviction_score double precision;
+
+alter table daily_analysis
+    add column if not exists event_risk_score double precision;
+
+alter table daily_analysis
+    add column if not exists entry_quality_score double precision;
+
+alter table daily_analysis
+    add column if not exists composite_signal_score double precision;
+
+alter table daily_analysis
+    add column if not exists recommendation_bucket text;
 
 create index if not exists idx_daily_analysis_ticker_date
     on daily_analysis (ticker, date desc);

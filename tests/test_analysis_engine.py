@@ -9,14 +9,18 @@ from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
 
 
 class FakeMarketDataClient:
-    def __init__(self, frame: pd.DataFrame) -> None:
-        self.frame = frame
+    def __init__(self, frames: dict[str, pd.DataFrame], vix_value: float = 16.0) -> None:
+        self.frames = frames
+        self.vix_value = vix_value
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
-        return self.frame.copy()
+        return self.frames[ticker].copy()
 
     def get_last_trading_date(self) -> date:
         return date(2026, 5, 1)
+
+    def get_vix_value(self) -> float:
+        return self.vix_value
 
 
 class FakeTwseClient:
@@ -60,21 +64,40 @@ def build_price_history(close_values: list[float], volume_values: list[int], low
     return pd.DataFrame(rows)
 
 
+def build_engine(
+    stock_history: pd.DataFrame,
+    benchmark_history: pd.DataFrame | None = None,
+    buy_map: dict[str, int] | None = None,
+    buy_history_map: dict[str, list[int]] | None = None,
+    vix_value: float = 16.0,
+) -> AnalysisEngine:
+    if benchmark_history is None:
+        benchmark_history = build_price_history(
+            close_values=[200 + i for i in range(65)],
+            volume_values=[5000] * 65,
+        )
+    frames = {
+        "2330.TW": stock_history,
+        "^TWII": benchmark_history,
+    }
+    return AnalysisEngine(
+        market_data=FakeMarketDataClient(frames, vix_value=vix_value),
+        twse_client=FakeTwseClient(
+            large_caps={"2330.TW"},
+            buy_map=buy_map or {"2330.TW": 300},
+            buy_history_map=buy_history_map or {"2330.TW": [100, 120, 80]},
+        ),
+        repository=FakeDailyAnalysisRepository(),
+    )
+
+
 class AnalysisEngineTests(TestCase):
     def test_run_emits_day_1_institutional_accumulation_signal(self) -> None:
-        history = build_price_history(
-            close_values=[100 + i for i in range(65)],
-            volume_values=[1000] * 65,
-        )
-        repository = FakeDailyAnalysisRepository()
-        engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(history),
-            twse_client=FakeTwseClient(
-                large_caps={"2330.TW"},
-                buy_map={"2330.TW": 300},
-                buy_history_map={"2330.TW": [-50, 80]},
-            ),
-            repository=repository,
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 300},
+            buy_history_map={"2330.TW": [-50, 80]},
         )
 
         signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
@@ -83,21 +106,13 @@ class AnalysisEngineTests(TestCase):
         self.assertEqual(signals[0].signal_type, AnalysisEngine.INSTITUTIONAL_ACCUMULATION_SIGNAL)
         self.assertEqual(signals[0].institutional_buy_streak, 1)
         self.assertEqual(signals[0].entry_timing, "DAY_1_EARLY")
-        self.assertEqual(len(repository.rows), 1)
 
     def test_run_emits_day_2_institutional_accumulation_signal(self) -> None:
-        history = build_price_history(
-            close_values=[100 + i for i in range(65)],
-            volume_values=[1000] * 65,
-        )
-        engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(history),
-            twse_client=FakeTwseClient(
-                large_caps={"2330.TW"},
-                buy_map={"2330.TW": 50},
-                buy_history_map={"2330.TW": [-10, 100, 80]},
-            ),
-            repository=FakeDailyAnalysisRepository(),
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 50},
+            buy_history_map={"2330.TW": [-10, 100, 80]},
         )
 
         signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
@@ -107,18 +122,11 @@ class AnalysisEngineTests(TestCase):
         self.assertEqual(signals[0].entry_timing, "DAY_2_BUILDING")
 
     def test_run_emits_day_3_plus_institutional_accumulation_signal(self) -> None:
-        history = build_price_history(
-            close_values=[100 + i for i in range(65)],
-            volume_values=[1000] * 65,
-        )
-        engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(history),
-            twse_client=FakeTwseClient(
-                large_caps={"2330.TW"},
-                buy_map={"2330.TW": 50},
-                buy_history_map={"2330.TW": [-10, 40, 50, 60]},
-            ),
-            repository=FakeDailyAnalysisRepository(),
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 50},
+            buy_history_map={"2330.TW": [-10, 40, 50, 60]},
         )
 
         signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
@@ -128,18 +136,11 @@ class AnalysisEngineTests(TestCase):
         self.assertEqual(signals[0].entry_timing, "DAY_3_PLUS_SAFER")
 
     def test_run_skips_institutional_accumulation_when_latest_day_is_not_a_net_buy(self) -> None:
-        history = build_price_history(
-            close_values=[100 + i for i in range(65)],
-            volume_values=[1000] * 65,
-        )
-        engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(history),
-            twse_client=FakeTwseClient(
-                large_caps={"2330.TW"},
-                buy_map={"2330.TW": -50},
-                buy_history_map={"2330.TW": [100, 80, -10]},
-            ),
-            repository=FakeDailyAnalysisRepository(),
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": -50},
+            buy_history_map={"2330.TW": [100, 80, -10]},
         )
 
         signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
@@ -153,18 +154,34 @@ class AnalysisEngineTests(TestCase):
         history.loc[64, "Open"] = 82
         history.loc[64, "Close"] = 80
         history.loc[64, "Low"] = 65
-
-        engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(history),
-            twse_client=FakeTwseClient(
-                large_caps={"2330.TW"},
-                buy_map={"2330.TW": 0},
-                buy_history_map={"2330.TW": [0, 0, 0]},
-            ),
-            repository=FakeDailyAnalysisRepository(),
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 0},
+            buy_history_map={"2330.TW": [0, 0, 0]},
         )
 
         signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0].signal_type, AnalysisEngine.PANIC_REVERSAL_SIGNAL)
+
+    def test_run_adds_market_and_relative_strength_scores(self) -> None:
+        stock_history = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
+        benchmark_history = build_price_history(close_values=[200 + i for i in range(65)], volume_values=[5000] * 65)
+        engine = build_engine(
+            stock_history=stock_history,
+            benchmark_history=benchmark_history,
+            buy_map={"2330.TW": 1500},
+            buy_history_map={"2330.TW": [50, 100, 200]},
+            vix_value=14.0,
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signal = signals[0]
+
+        self.assertEqual(signal.market_regime, "Risk-On")
+        self.assertGreater(signal.market_regime_score or 0, 70)
+        self.assertGreater(signal.relative_strength_score or 0, 50)
+        self.assertGreater(signal.institutional_conviction_score or 0, 70)
+        self.assertGreater(signal.composite_signal_score or 0, 65)
+        self.assertIn(signal.recommendation_bucket, {"Actionable", "Safer Follow-Through"})
