@@ -26,7 +26,9 @@ def hydrate_env_from_streamlit_secrets() -> None:
 hydrate_env_from_streamlit_secrets()
 
 from investbot.data_sources.market_data import YahooMarketDataClient
+from investbot.config import get_settings
 from investbot.db.repositories import DailyAnalysisRepository
+from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
 from investbot.services.dashboard_service import DashboardService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
@@ -97,10 +99,76 @@ TRANSLATIONS = {
         "risk_off": "風險偏高",
         "language": "語言",
         "clear": "正常",
+        "run_analysis": "執行分析",
+        "run_tw_analysis": "執行台股分析",
+        "run_us_analysis": "執行美股分析",
+        "analysis_completed": "分析完成",
+        "analysis_failed": "分析失敗",
+        "records_written": "寫入筆數",
+        "refresh_after_run": "分析完成後頁面會自動刷新。",
     },
     "en": {
         "app_title": "Smart Swing Agent",
         "app_caption": "Low-touch market brief for large-cap trend following and institutional flow monitoring.",
+        "vix": "VIX",
+        "sentiment": "Sentiment",
+        "open_pnl": "Open PnL",
+        "win_rate": "Win Rate",
+        "market_overview": "Market Overview",
+        "taiwan": "Taiwan",
+        "us": "US",
+        "no_data_yet": "No data yet",
+        "run_scheduler_first": "Run an analysis first.",
+        "breadth": "Breadth",
+        "candidates": "Candidates",
+        "actionable": "Actionable",
+        "safer": "Safer",
+        "focus_lists": "Focus Lists",
+        "safer_follow_through": "Safer Follow-Through",
+        "watchlist": "Watchlist",
+        "no_names_bucket": "No names in this bucket.",
+        "no_candidates": "No candidates are available yet.",
+        "portfolio_curve": "Portfolio Curve",
+        "open_positions": "Open Positions",
+        "no_closed_trades": "No closed trades yet. The equity curve will appear after exits.",
+        "no_open_positions": "No open positions.",
+        "portfolio": "Portfolio",
+        "stop_buffer_by_ticker": "Stop Buffer by Ticker",
+        "tight": "Tight",
+        "healthy": "Healthy",
+        "screener": "Screener",
+        "no_analysis_history": "No analysis history found yet. Run an analysis first.",
+        "market": "Market",
+        "all": "All",
+        "recommendation_bucket": "Recommendation Bucket",
+        "minimum_composite_score": "Minimum Composite Score",
+        "ticker": "Ticker",
+        "no_history_ticker": "No analysis history found for this ticker.",
+        "composite": "Composite",
+        "regime": "Regime",
+        "bucket": "Bucket",
+        "entry_timing": "Entry Timing",
+        "event_risk": "Event Risk",
+        "next_event": "Next Event",
+        "price_trend": "Price Trend",
+        "funnel_scores": "Funnel Scores",
+        "institutional_flow": "Institutional Flow",
+        "institutional_streak": "Institutional Buying Streak",
+        "view": "View",
+        "dashboard": "Dashboard",
+        "unknown": "Unknown",
+        "calm": "Calm",
+        "neutral": "Neutral",
+        "risk_off": "Risk-Off",
+        "language": "Language",
+        "clear": "Clear",
+        "run_analysis": "Run Analysis",
+        "run_tw_analysis": "Run Taiwan Analysis",
+        "run_us_analysis": "Run US Analysis",
+        "analysis_completed": "Analysis Completed",
+        "analysis_failed": "Analysis Failed",
+        "records_written": "Records Written",
+        "refresh_after_run": "The page will refresh automatically after the run.",
     },
 }
 
@@ -222,6 +290,42 @@ def render_header(snapshot, text: dict[str, str]) -> None:
     metric4.metric(text["win_rate"], f"{snapshot.win_rate:.2f}%")
 
 
+def run_market_analysis(market_type: str) -> int:
+    settings = get_settings()
+    if market_type == "tw":
+        tickers = [item.strip().upper() for item in settings.tw_core_tickers.split(",") if item.strip()]
+        fallback = ["2330.TW", "2317.TW", "2454.TW", "0050.TW"]
+    else:
+        tickers = [item.strip().upper() for item in settings.us_core_tickers.split(",") if item.strip()]
+        fallback = ["AAPL", "MSFT", "NVDA", "SPY"]
+    engine = AnalysisEngine()
+    signals = engine.run(AnalysisUniverse(market_type=market_type, tickers=tickers or fallback))
+    return len(signals)
+
+
+def render_analysis_controls(text: dict[str, str]) -> None:
+    st.markdown(f'<div class="section-label">{text["run_analysis"]}</div>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    if col1.button(text["run_tw_analysis"], use_container_width=True):
+        try:
+            with st.spinner(text["run_tw_analysis"]):
+                count = run_market_analysis("tw")
+            st.success(f'{text["analysis_completed"]}: {text["taiwan"]} | {text["records_written"]}: {count}')
+            st.caption(text["refresh_after_run"])
+            st.rerun()
+        except Exception as exc:
+            st.error(f'{text["analysis_failed"]}: {exc}')
+    if col2.button(text["run_us_analysis"], use_container_width=True):
+        try:
+            with st.spinner(text["run_us_analysis"]):
+                count = run_market_analysis("us")
+            st.success(f'{text["analysis_completed"]}: {text["us"]} | {text["records_written"]}: {count}')
+            st.caption(text["refresh_after_run"])
+            st.rerun()
+        except Exception as exc:
+            st.error(f'{text["analysis_failed"]}: {exc}')
+
+
 def render_market_overview(text: dict[str, str]) -> None:
     tw_summary = summary_service.build_market_summary("tw")
     us_summary = summary_service.build_market_summary("us")
@@ -325,6 +429,7 @@ def render_watchlist_table(frame: pd.DataFrame, text: dict[str, str]) -> None:
 def render_dashboard(candidate_frame: pd.DataFrame, text: dict[str, str]) -> None:
     snapshot = dashboard_service.build_snapshot()
     render_header(snapshot, text)
+    render_analysis_controls(text)
     render_market_overview(text)
     render_focus_lists(candidate_frame, text)
 
