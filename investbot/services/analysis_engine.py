@@ -9,6 +9,7 @@ from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.data_sources.twse import TwseClient
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.models import MarketSignal
+from investbot.services.event_risk_service import EventRiskAssessment, EventRiskService
 
 
 @dataclass(slots=True)
@@ -35,10 +36,12 @@ class AnalysisEngine:
         market_data: YahooMarketDataClient | None = None,
         twse_client: TwseClient | None = None,
         repository: DailyAnalysisRepository | None = None,
+        event_risk_service: EventRiskService | None = None,
     ) -> None:
         self.market_data = market_data or YahooMarketDataClient()
         self.twse_client = twse_client or TwseClient()
         self.repository = repository or DailyAnalysisRepository()
+        self.event_risk_service = event_risk_service or EventRiskService(market_data=self.market_data)
 
     def run(self, universe: AnalysisUniverse, target_date: date | None = None) -> list[MarketSignal]:
         trade_date = target_date or self.market_data.get_last_trading_date()
@@ -142,6 +145,7 @@ class AnalysisEngine:
         ma_60 = float(latest["60MA"])
 
         buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
+        event_risk = self.event_risk_service.assess(ticker.upper(), trade_date)
         relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
         institutional_conviction_score = self._score_institutional_conviction(buy_streak, institutional_net_buy)
         entry_quality_score = self._score_entry_quality(
@@ -152,7 +156,7 @@ class AnalysisEngine:
             volume_avg_5d=float(latest["5D_VOL_AVG"]),
             is_large_cap=is_large_cap,
         )
-        event_risk_score = 50.0
+        event_risk_score = event_risk.score
         composite_signal_score = self._score_composite_signal(
             market_regime_score=market_context.regime_score,
             breadth_score=market_context.breadth_score,
@@ -189,6 +193,8 @@ class AnalysisEngine:
                     relative_strength_score=relative_strength_score,
                     institutional_conviction_score=institutional_conviction_score,
                     event_risk_score=event_risk_score,
+                    next_event_date=event_risk.next_event_date.isoformat() if event_risk.next_event_date else None,
+                    event_risk_note=event_risk.note,
                     entry_quality_score=entry_quality_score,
                     composite_signal_score=composite_signal_score,
                     recommendation_bucket=recommendation_bucket,
@@ -214,6 +220,8 @@ class AnalysisEngine:
                     relative_strength_score=relative_strength_score,
                     institutional_conviction_score=institutional_conviction_score,
                     event_risk_score=event_risk_score,
+                    next_event_date=event_risk.next_event_date.isoformat() if event_risk.next_event_date else None,
+                    event_risk_note=event_risk.note,
                     entry_quality_score=entry_quality_score,
                     composite_signal_score=composite_signal_score,
                     recommendation_bucket=recommendation_bucket,

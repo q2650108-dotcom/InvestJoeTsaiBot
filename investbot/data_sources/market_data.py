@@ -27,6 +27,41 @@ class YahooMarketDataClient:
         except ValueError:
             return None
 
+    def get_next_earnings_date(self, ticker: str) -> date | None:
+        import yfinance as yf
+
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            calendar = ticker_obj.calendar
+        except Exception:
+            return None
+
+        if calendar is None:
+            return None
+
+        if isinstance(calendar, pd.DataFrame) and not calendar.empty:
+            values = calendar.to_numpy().flatten().tolist()
+        elif isinstance(calendar, dict):
+            values = list(calendar.values())
+        else:
+            values = [calendar]
+
+        parsed_dates: list[date] = []
+        for value in values:
+            if value is None:
+                continue
+            try:
+                timestamp = pd.to_datetime(value)
+            except Exception:
+                continue
+            if pd.isna(timestamp):
+                continue
+            parsed_dates.append(timestamp.date())
+
+        today = date.today()
+        future_dates = sorted(event_date for event_date in parsed_dates if event_date >= today)
+        return future_dates[0] if future_dates else None
+
     def get_last_trading_date(self) -> date:
         today = date.today()
         candidate = today - timedelta(days=1)

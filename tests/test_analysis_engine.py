@@ -6,6 +6,7 @@ from unittest import TestCase
 import pandas as pd
 
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisUniverse
+from investbot.services.event_risk_service import EventRiskAssessment
 
 
 class FakeMarketDataClient:
@@ -21,6 +22,9 @@ class FakeMarketDataClient:
 
     def get_vix_value(self) -> float:
         return self.vix_value
+
+    def get_next_earnings_date(self, ticker: str) -> date | None:
+        return None
 
 
 class FakeTwseClient:
@@ -47,6 +51,14 @@ class FakeDailyAnalysisRepository:
         self.rows.extend(rows)
 
 
+class FakeEventRiskService:
+    def __init__(self, assessment: EventRiskAssessment | None = None) -> None:
+        self.assessment = assessment or EventRiskAssessment(score=70.0, next_event_date=None, note="clear")
+
+    def assess(self, ticker: str, trade_date: date) -> EventRiskAssessment:
+        return self.assessment
+
+
 def build_price_history(close_values: list[float], volume_values: list[int], low_offset: float = 3.0) -> pd.DataFrame:
     base_date = date(2026, 1, 1)
     rows = []
@@ -70,6 +82,7 @@ def build_engine(
     buy_map: dict[str, int] | None = None,
     buy_history_map: dict[str, list[int]] | None = None,
     vix_value: float = 16.0,
+    event_risk_assessment: EventRiskAssessment | None = None,
 ) -> AnalysisEngine:
     if benchmark_history is None:
         benchmark_history = build_price_history(
@@ -88,6 +101,7 @@ def build_engine(
             buy_history_map=buy_history_map or {"2330.TW": [100, 120, 80]},
         ),
         repository=FakeDailyAnalysisRepository(),
+        event_risk_service=FakeEventRiskService(event_risk_assessment),
     )
 
 
@@ -186,6 +200,27 @@ class AnalysisEngineTests(TestCase):
         self.assertGreater(signal.institutional_conviction_score or 0, 70)
         self.assertGreater(signal.composite_signal_score or 0, 65)
         self.assertIn(signal.recommendation_bucket, {"Actionable", "Safer Follow-Through"})
+
+    def test_run_penalizes_composite_score_when_event_risk_is_high(self) -> None:
+        history = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 1500},
+            buy_history_map={"2330.TW": [50, 100, 200]},
+            vix_value=14.0,
+            event_risk_assessment=EventRiskAssessment(
+                score=35.0,
+                next_event_date=date(2026, 5, 3),
+                note="earnings_imminent",
+            ),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", tickers=["2330.TW"]))
+        signal = signals[0]
+
+        self.assertEqual(signal.event_risk_note, "earnings_imminent")
+        self.assertEqual(signal.next_event_date, "2026-05-03")
+        self.assertLess(signal.composite_signal_score or 100, 85)
 
     def test_run_downgrades_bucket_when_breadth_is_weak(self) -> None:
         strong_stock = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)

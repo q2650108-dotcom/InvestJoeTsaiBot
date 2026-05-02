@@ -24,6 +24,8 @@ class MarketSignal:
     relative_strength_score: float | None = None
     institutional_conviction_score: float | None = None
     event_risk_score: float | None = None
+    next_event_date: str | None = None
+    event_risk_note: str | None = None
     entry_quality_score: float | None = None
     composite_signal_score: float | None = None
     recommendation_bucket: str | None = None
@@ -48,6 +50,8 @@ class MarketSignal:
             "relative_strength_score": self.relative_strength_score,
             "institutional_conviction_score": self.institutional_conviction_score,
             "event_risk_score": self.event_risk_score,
+            "next_event_date": self.next_event_date,
+            "event_risk_note": self.event_risk_note,
             "entry_quality_score": self.entry_quality_score,
             "composite_signal_score": self.composite_signal_score,
             "recommendation_bucket": self.recommendation_bucket,

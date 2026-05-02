@@ -20,6 +20,8 @@ create table if not exists daily_analysis (
     relative_strength_score double precision,
     institutional_conviction_score double precision,
     event_risk_score double precision,
+    next_event_date date,
+    event_risk_note text,
     entry_quality_score double precision,
     composite_signal_score double precision,
     recommendation_bucket text,
@@ -50,6 +52,12 @@ alter table daily_analysis
 
 alter table daily_analysis
     add column if not exists event_risk_score double precision;
+
+alter table daily_analysis
+    add column if not exists next_event_date date;
+
+alter table daily_analysis
+    add column if not exists event_risk_note text;
 
 alter table daily_analysis
     add column if not exists entry_quality_score double precision;

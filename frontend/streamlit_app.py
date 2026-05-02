@@ -83,6 +83,36 @@ def render_portfolio() -> None:
 
 def render_screener() -> None:
     st.subheader("Screener")
+    latest_candidates = pd.DataFrame(daily_analysis_repo.fetch_recent_candidates(limit=100))
+    if not latest_candidates.empty:
+        st.caption("Latest candidates")
+        filter_col1, filter_col2 = st.columns(2)
+        selected_bucket = filter_col1.selectbox(
+            "Recommendation bucket",
+            options=["All", "Safer Follow-Through", "Actionable", "Watchlist"],
+            index=0,
+        )
+        min_score = filter_col2.slider("Minimum composite score", min_value=0, max_value=100, value=60)
+        filtered_candidates = latest_candidates.copy()
+        if selected_bucket != "All":
+            filtered_candidates = filtered_candidates[filtered_candidates["recommendation_bucket"] == selected_bucket]
+        if "composite_signal_score" in filtered_candidates.columns:
+            filtered_candidates = filtered_candidates[filtered_candidates["composite_signal_score"].fillna(0) >= min_score]
+        candidate_columns = [
+            "date",
+            "ticker",
+            "signal_type",
+            "recommendation_bucket",
+            "composite_signal_score",
+            "institutional_buy_streak",
+            "market_regime",
+            "breadth_score",
+            "event_risk_note",
+            "next_event_date",
+        ]
+        available_columns = [column for column in candidate_columns if column in filtered_candidates.columns]
+        st.dataframe(filtered_candidates[available_columns], use_container_width=True, hide_index=True)
+
     ticker = st.text_input("Ticker", value="2330.TW")
     history = daily_analysis_repo.fetch_history(ticker)
     if not history:
@@ -99,6 +129,8 @@ def render_screener() -> None:
         "relative_strength_score": 0.0,
         "institutional_conviction_score": 0.0,
         "event_risk_score": 50.0,
+        "next_event_date": None,
+        "event_risk_note": "clear",
         "entry_quality_score": 0.0,
         "composite_signal_score": 0.0,
         "recommendation_bucket": "Watchlist",
@@ -115,6 +147,7 @@ def render_screener() -> None:
     top3.metric("Bucket", str(latest_row["recommendation_bucket"]))
     top4.metric("Entry Timing", str(latest_row["entry_timing"]))
     top5.metric("Breadth", f"{float(latest_row['breadth_score']):.2f}")
+    st.caption(f"Event risk: {latest_row['event_risk_note']} | Next event: {latest_row['next_event_date']}")
 
     fig = px.line(frame, x="date", y="close_price", markers=True, title=f"{ticker.upper()} price trend")
     st.plotly_chart(fig, use_container_width=True)
@@ -143,6 +176,8 @@ def render_screener() -> None:
         "breadth_score",
         "relative_strength_score",
         "institutional_conviction_score",
+        "event_risk_note",
+        "next_event_date",
         "entry_quality_score",
         "event_risk_score",
         "composite_signal_score",

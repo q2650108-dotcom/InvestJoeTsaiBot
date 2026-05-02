@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     default_large_cap_only: bool = Field(default=True, alias="DEFAULT_LARGE_CAP_ONLY")
     default_risk_tolerance_percent: float = Field(default=5.0, alias="DEFAULT_RISK_TOLERANCE_PERCENT")
     default_min_institutional_buy_streak: int = Field(default=3, alias="DEFAULT_MIN_INSTITUTIONAL_BUY_STREAK")
+    high_risk_event_dates: str = Field(default="", alias="HIGH_RISK_EVENT_DATES")
 
 
 @lru_cache(maxsize=1)

@@ -44,6 +44,17 @@ class DailyAnalysisRepository:
         )
         return list(reversed(response.data or []))
 
+    def fetch_recent_candidates(self, limit: int = 100) -> list[dict[str, Any]]:
+        response = (
+            self.client.table("daily_analysis")
+            .select("*")
+            .order("date", desc=True)
+            .order("composite_signal_score", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
+
 
 class PaperTradeRepository:
     def __init__(self, client: Client | None = None) -> None:

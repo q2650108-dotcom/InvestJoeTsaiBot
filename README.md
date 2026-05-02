@@ -8,6 +8,7 @@ This repository includes:
 - Supabase/PostgreSQL schema
 - a Streamlit dashboard for portfolio and screener views
 - unit tests for the core signal and risk logic
+- event-risk-aware funnel scoring for low-attention investors
 
 ## Product Scope
 
@@ -63,5 +64,6 @@ python -m unittest discover -s tests -v
 ## Current Product Notes
 
 - `investbot/data_sources/twse.py` is still a production placeholder and should be connected to real TWSE OpenAPI responses.
-- `investbot/data_sources/market_data.py` uses `yfinance` for price history and VIX.
+- `investbot/data_sources/market_data.py` uses `yfinance` for price history, VIX, and earnings calendar lookups.
+- `HIGH_RISK_EVENT_DATES` in `.env` can be used to downscore macro event windows such as Fed, CPI, or major policy dates.
 - Core logic is covered by deterministic unit tests so refactors can continue safely.
