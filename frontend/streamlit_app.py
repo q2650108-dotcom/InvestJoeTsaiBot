@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -861,6 +862,20 @@ def _benchmark_range_caption(range_key: str, trend_window: int) -> str:
     return mapping.get(range_key, mapping["1d"])
 
 
+def _format_benchmark_datetime(value: pd.Timestamp | None) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    stamp = pd.Timestamp(value)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _render_segmented_control(label: str, options: list[str], format_func, key: str) -> str:
+    segmented = getattr(st, "segmented_control", None)
+    if callable(segmented):
+        return segmented(label, options=options, format_func=format_func, selection_mode="single", key=key)
+    return st.radio(label, options=options, format_func=format_func, horizontal=True, label_visibility="collapsed", key=key)
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -> dict[str, Any]:
     period, interval, default_window = _benchmark_config(range_key)
@@ -887,6 +902,8 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
             "trend_window": 0,
             "range_key": range_key,
             "has_data": False,
+            "start_at": None,
+            "end_at": None,
         }
     frame["Close"] = frame["Close"].astype(float)
     latest = float(frame["Close"].iloc[-1])
@@ -905,7 +922,36 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
         "trend_window": trend_window,
         "range_key": range_key,
         "has_data": True,
+        "start_at": _format_benchmark_datetime(frame["Date"].iloc[0] if "Date" in frame.columns and not frame.empty else None),
+        "end_at": _format_benchmark_datetime(frame["Date"].iloc[-1] if "Date" in frame.columns and not frame.empty else None),
     }
+
+
+def load_benchmark_snapshots(symbol_pairs: list[tuple[str, str]], range_key: str) -> dict[str, dict[str, Any]]:
+    results: dict[str, dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=min(3, len(symbol_pairs) or 1)) as executor:
+        future_map = {
+            executor.submit(get_benchmark_snapshot_cached, symbol, label_key, range_key): (symbol, label_key)
+            for symbol, label_key in symbol_pairs
+        }
+        for future in as_completed(future_map):
+            symbol, label_key = future_map[future]
+            try:
+                results[symbol] = future.result()
+            except Exception:
+                results[symbol] = {
+                    "label_key": label_key,
+                    "latest": None,
+                    "delta": None,
+                    "pct": None,
+                    "trend": [],
+                    "trend_window": 0,
+                    "range_key": range_key,
+                    "has_data": False,
+                    "start_at": None,
+                    "end_at": None,
+                }
+    return results
 
 
 def build_benchmark_chart(series: list[float], positive: bool) -> go.Figure:
@@ -1357,23 +1403,22 @@ def render_market_overview() -> None:
 
 
 def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
-    selected_market = st.radio(
+    selected_market = _render_segmented_control(
         t("dashboard_market_view"),
-        options=[t("taiwan"), t("us")],
-        horizontal=True,
-        label_visibility="collapsed",
+        [t("taiwan"), t("us")],
+        format_func=lambda value: value,
         key="dashboard_market_view",
     )
     market_key = "tw" if selected_market == t("taiwan") else "us"
-    selected_range_key = st.radio(
+    selected_range_key = _render_segmented_control(
         t("benchmark_range"),
-        options=[key for key, _ in BENCHMARK_RANGE_OPTIONS],
+        [key for key, _ in BENCHMARK_RANGE_OPTIONS],
         format_func=lambda key: t(dict(BENCHMARK_RANGE_OPTIONS)[key]),
-        horizontal=True,
-        label_visibility="collapsed",
         key=f"benchmark_range_{market_key}",
     )
     summary = summary_service.build_market_summary(market_key)
+    benchmark_pairs = BENCHMARK_SETS[market_key]
+    benchmark_snapshots = load_benchmark_snapshots(benchmark_pairs, selected_range_key)
     hero_left, hero_right = st.columns((3.2, 1.15))
     with hero_left:
         st.markdown(
@@ -1386,11 +1431,10 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
             unsafe_allow_html=True,
         )
         card_columns = st.columns(3)
-        for column, (symbol, label_key) in zip(card_columns, BENCHMARK_SETS[market_key]):
-            try:
-                benchmark = get_benchmark_snapshot_cached(symbol, label_key, selected_range_key)
-            except Exception:
-                benchmark = {
+        for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
+            benchmark = benchmark_snapshots.get(
+                symbol,
+                {
                     "label_key": label_key,
                     "latest": None,
                     "delta": None,
@@ -1399,7 +1443,10 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
                     "trend_window": 0,
                     "range_key": selected_range_key,
                     "has_data": False,
-                }
+                    "start_at": None,
+                    "end_at": None,
+                },
+            )
             positive = float(benchmark["delta"] or 0) >= 0
             change_color = "#16a34a" if positive else "#ef4444"
             delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
@@ -1417,6 +1464,10 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
                     )
                     st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
                     st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
+                    start_at = str(benchmark.get("start_at") or "")
+                    end_at = str(benchmark.get("end_at") or "")
+                    if start_at and end_at:
+                        st.caption(f"{start_at} -> {end_at}")
                 else:
                     st.markdown(
                         f"""
