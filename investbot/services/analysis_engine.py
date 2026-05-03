@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 import logging
 from typing import Callable
@@ -52,8 +52,11 @@ class AnalysisRunSummary:
     skipped_data_tickers: int
     no_signal_tickers: int
     signal_count: int
-    skipped_reason_counts: dict[str, int]
-    signals: list[MarketSignal]
+    skipped_reason_counts: dict[str, int] = field(default_factory=dict)
+    no_signal_reason_counts: dict[str, int] = field(default_factory=dict)
+    core_ticker_count: int = 0
+    explore_ticker_count: int = 0
+    signals: list[MarketSignal] = field(default_factory=list)
 
 
 class AnalysisEngine:
@@ -90,6 +93,7 @@ class AnalysisEngine:
         enriched_frames: dict[str, pd.DataFrame] = {}
         skipped_data_tickers = 0
         skipped_reason_counts: dict[str, int] = {}
+        no_signal_reason_counts: dict[str, int] = {}
         no_signal_tickers = 0
 
         if progress_callback:
@@ -138,6 +142,16 @@ class AnalysisEngine:
             )
             if not ticker_signals:
                 no_signal_tickers += 1
+                no_signal_reason = self._classify_no_signal_reason(
+                    market_type=universe.market_type,
+                    latest=latest,
+                    institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
+                    institutional_buy_history=buy_history_map.get(ticker.upper(), []),
+                    is_large_cap=is_large_cap,
+                    universe_bucket=universe_bucket,
+                    market_context=market_context,
+                )
+                no_signal_reason_counts[no_signal_reason] = no_signal_reason_counts.get(no_signal_reason, 0) + 1
             signals.extend(ticker_signals)
 
         self.repository.upsert_many([signal.to_record() for signal in signals])
@@ -156,6 +170,9 @@ class AnalysisEngine:
             no_signal_tickers=no_signal_tickers,
             signal_count=len(signals),
             skipped_reason_counts=skipped_reason_counts,
+            no_signal_reason_counts=no_signal_reason_counts,
+            core_ticker_count=sum(1 for ticker in all_tickers if universe.bucket_for(ticker) == "core"),
+            explore_ticker_count=sum(1 for ticker in all_tickers if universe.bucket_for(ticker) == "explore"),
             signals=signals,
         )
 
@@ -178,6 +195,55 @@ class AnalysisEngine:
         frame["lower_shadow"] = frame[["Open", "Close"]].min(axis=1) - frame["Low"]
         frame["body_size"] = (frame["Close"] - frame["Open"]).abs()
         return frame.dropna().reset_index(drop=True)
+
+    def _classify_no_signal_reason(
+        self,
+        market_type: str,
+        latest: pd.Series,
+        institutional_net_buy: int,
+        institutional_buy_history: list[int],
+        is_large_cap: bool,
+        universe_bucket: str,
+        market_context: MarketContext,
+    ) -> str:
+        close_price = float(latest["Close"])
+        ma_20 = float(latest["20MA"])
+        buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
+        relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
+        entry_quality_score = self._score_entry_quality(
+            close_price=close_price,
+            ma_20=ma_20,
+            ma_60=float(latest["60MA"]),
+            volume=int(latest["Volume"]),
+            volume_avg_5d=float(latest["5D_VOL_AVG"]),
+            is_large_cap=is_large_cap,
+        )
+        composite_signal_score = self._score_composite_signal(
+            market_regime_score=market_context.regime_score,
+            breadth_score=market_context.breadth_score,
+            relative_strength_score=relative_strength_score,
+            institutional_conviction_score=self._score_institutional_conviction(buy_streak, institutional_net_buy),
+            event_risk_score=50.0,
+            entry_quality_score=entry_quality_score,
+        )
+
+        if market_type == "tw" and not is_large_cap:
+            if universe_bucket != "explore":
+                return "small_cap_outside_explore"
+            if not self._is_high_quality_explore_candidate(
+                buy_streak=buy_streak,
+                institutional_net_buy=institutional_net_buy,
+                relative_strength_score=relative_strength_score,
+                entry_quality_score=entry_quality_score,
+                composite_signal_score=composite_signal_score,
+            ):
+                return "explore_quality_gate"
+
+        if buy_streak < 1:
+            return "no_institutional_buy_streak"
+        if close_price <= ma_20:
+            return "below_20ma"
+        return "no_strategy_trigger"
 
     def _build_market_context(self, market_type: str, enriched_frames: dict[str, pd.DataFrame]) -> MarketContext:
         benchmark_ticker = "^TWII" if market_type == "tw" else "^GSPC"

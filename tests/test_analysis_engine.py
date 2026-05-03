@@ -106,6 +106,20 @@ def build_engine(
 
 
 class AnalysisEngineTests(TestCase):
+    def test_run_with_summary_reports_primary_no_signal_reason(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": -50},
+            buy_history_map={"2330.TW": [100, 80, -10]},
+        )
+
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(summary.signal_count, 0)
+        self.assertEqual(summary.no_signal_tickers, 1)
+        self.assertEqual(summary.no_signal_reason_counts["no_institutional_buy_streak"], 1)
+
     def test_run_emits_day_1_institutional_accumulation_signal(self) -> None:
         history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
         engine = build_engine(
@@ -333,3 +347,31 @@ class AnalysisEngineTests(TestCase):
         self.assertEqual(summary.data_ready_tickers, 1)
         self.assertEqual(summary.no_signal_tickers, 1)
         self.assertEqual(summary.signal_count, 0)
+
+    def test_run_with_summary_reports_explore_quality_gate_failure(self) -> None:
+        history = build_price_history(close_values=[40 + (i * 0.1) for i in range(65)], volume_values=[1000] * 65)
+        benchmark_history = build_price_history(close_values=[200 + i for i in range(65)], volume_values=[5000] * 65)
+        frames = {
+            "3037.TW": history,
+            "^TWII": benchmark_history,
+        }
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(frames, vix_value=20.0),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"3037.TW": 50},
+                buy_history_map={"3037.TW": [-10, 30, 40]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+        )
+
+        summary = engine.run_with_summary(
+            AnalysisUniverse(
+                market_type="tw",
+                core_tickers=[],
+                explore_tickers=["3037.TW"],
+            )
+        )
+
+        self.assertEqual(summary.signal_count, 0)
+        self.assertEqual(summary.no_signal_reason_counts["explore_quality_gate"], 1)

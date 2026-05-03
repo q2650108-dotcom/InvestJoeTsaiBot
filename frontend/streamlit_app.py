@@ -1281,6 +1281,20 @@ def format_skip_reasons(reason_counts: dict[str, int]) -> str:
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in reason_counts.items())
 
 
+def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
+    if not reason_counts:
+        return ""
+    labels = {
+        "no_institutional_buy_streak": "法人最近沒有連買" if LANG == "zh-TW" else "no recent institutional accumulation",
+        "below_20ma": "股價尚未站回 20 日線上方" if LANG == "zh-TW" else "price still below the 20-day moving average",
+        "explore_quality_gate": "觀察池股票未通過品質門檻" if LANG == "zh-TW" else "explore-pool name failed the quality gate",
+        "small_cap_outside_explore": "非大型股且不在觀察池" if LANG == "zh-TW" else "small-cap name outside the explore pool",
+        "no_strategy_trigger": "沒有觸發目前兩套策略型態" if LANG == "zh-TW" else "no active strategy trigger",
+    }
+    ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
+    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
+
+
 def _analysis_cooldown_key(market_type: str) -> str:
     return f"analysis_last_run_{market_type}"
 
@@ -1353,6 +1367,9 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     no_signal_tickers = int(getattr(summary, "no_signal_tickers", 0) or 0)
     signal_count = int(getattr(summary, "signal_count", 0) or 0)
     skipped_reason_counts = getattr(summary, "skipped_reason_counts", {}) or {}
+    no_signal_reason_counts = getattr(summary, "no_signal_reason_counts", {}) or {}
+    core_ticker_count = int(getattr(summary, "core_ticker_count", 0) or 0)
+    explore_ticker_count = int(getattr(summary, "explore_ticker_count", 0) or 0)
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("掃描檔數" if LANG == "zh-TW" else "Scanned", scanned_tickers)
@@ -1363,8 +1380,18 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     summary_at = str(st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
+    if core_ticker_count or explore_ticker_count:
+        if LANG == "zh-TW":
+            st.caption(f"這批設定是掃描宇宙，不是保證輸出名單。這次掃描來源：核心 {core_ticker_count} 檔｜觀察 {explore_ticker_count} 檔。")
+        else:
+            st.caption(
+                f"These preference lists define the scan universe, not guaranteed output names. "
+                f"This run scanned {core_ticker_count} core names and {explore_ticker_count} explore names."
+            )
     if skipped_reason_counts:
         st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+    if no_signal_reason_counts:
+        st.caption(("無訊號主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
             st.warning("本次有執行，但沒有任何可分析資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
@@ -1373,6 +1400,18 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
                 "本次有執行成功，但目前沒有標的通過進場條件。常見原因是市場廣度不足、連買天數不夠，或分數未達門檻。"
                 if LANG == "zh-TW"
                 else "Execution completed successfully, but no names passed the entry rules. Common reasons: weak breadth, insufficient buy streak, or scores below threshold."
+            )
+    else:
+        pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
+        if LANG == "zh-TW":
+            st.info(
+                f"最後只有 {signal_count} 檔留下，不代表偏好設定失效；代表這批股票裡只有 {pass_rate:.1f}% "
+                "同時通過資料可用、策略觸發與風險條件。"
+            )
+        else:
+            st.info(
+                f"Only {signal_count} names survived this run. That does not mean the preference lists failed; "
+                f"it means only {pass_rate:.1f}% cleared data readiness, strategy triggers, and risk checks together."
             )
 
 
