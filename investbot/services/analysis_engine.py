@@ -52,6 +52,7 @@ class AnalysisRunSummary:
     skipped_data_tickers: int
     no_signal_tickers: int
     signal_count: int
+    skipped_reason_counts: dict[str, int]
     signals: list[MarketSignal]
 
 
@@ -88,6 +89,7 @@ class AnalysisEngine:
         buy_history_map = self.twse_client.get_institutional_buy_history(all_tickers, lookback_days=5)
         enriched_frames: dict[str, pd.DataFrame] = {}
         skipped_data_tickers = 0
+        skipped_reason_counts: dict[str, int] = {}
         no_signal_tickers = 0
 
         if progress_callback:
@@ -99,9 +101,11 @@ class AnalysisEngine:
             try:
                 history = self.market_data.get_price_history(ticker)
                 enriched = self._build_indicators(history)
-            except Exception:
+            except Exception as exc:
                 self.logger.warning("Skip ticker with unavailable market data: %s", ticker, exc_info=True)
                 skipped_data_tickers += 1
+                skipped_reason = self._classify_skip_reason(exc)
+                skipped_reason_counts[skipped_reason] = skipped_reason_counts.get(skipped_reason, 0) + 1
                 continue
             if not enriched.empty:
                 enriched_frames[ticker.upper()] = enriched
@@ -151,8 +155,19 @@ class AnalysisEngine:
             skipped_data_tickers=skipped_data_tickers,
             no_signal_tickers=no_signal_tickers,
             signal_count=len(signals),
+            skipped_reason_counts=skipped_reason_counts,
             signals=signals,
         )
+
+    def _classify_skip_reason(self, exc: Exception) -> str:
+        message = str(exc).lower()
+        if "incomplete market data" in message:
+            return "incomplete_history"
+        if "no market data found" in message:
+            return "no_market_data"
+        if "timeout" in message:
+            return "request_timeout"
+        return "provider_error"
 
     def _build_indicators(self, frame: pd.DataFrame) -> pd.DataFrame:
         frame = frame.copy()

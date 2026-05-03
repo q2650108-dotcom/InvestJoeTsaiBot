@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,10 @@ COPY = {
         "analysis_failed": "分析失敗",
         "analysis_progress": "分析進度",
         "analysis_summary": "分析摘要",
+        "analysis_options": "分析選項",
+        "force_refresh": "強制重抓歷史資料",
+        "cooldown_skip": "剛分析過，直接沿用近期結果，避免重複抓資料。",
+        "cooldown_force_hint": "若你懷疑資料源更新較慢，再勾選強制重抓。",
         "records": "寫入筆數",
         "market_state": "市場狀態",
         "overall_trend": "整體趨勢",
@@ -176,6 +181,10 @@ COPY = {
         "analysis_failed": "Analysis failed",
         "analysis_progress": "Analysis Progress",
         "analysis_summary": "Analysis Summary",
+        "analysis_options": "Analysis Options",
+        "force_refresh": "Force refresh history",
+        "cooldown_skip": "Recent analysis exists, so the app reused it to avoid extra data pulls.",
+        "cooldown_force_hint": "Use force refresh if you suspect providers have newer data.",
         "records": "Records written",
         "market_state": "Market State",
         "overall_trend": "Overall Trend",
@@ -849,7 +858,40 @@ def format_analysis_summary(summary: AnalysisRunSummary) -> str:
     )
 
 
-def run_market_analysis(market_type: str, progress_bar: Any | None = None, status_box: Any | None = None) -> AnalysisRunSummary:
+def format_skip_reasons(reason_counts: dict[str, int]) -> str:
+    if not reason_counts:
+        return ""
+    labels = {
+        "no_market_data": "查無市場資料" if LANG == "zh-TW" else "no market data",
+        "incomplete_history": "歷史資料欄位不完整" if LANG == "zh-TW" else "incomplete history",
+        "request_timeout": "來源逾時" if LANG == "zh-TW" else "request timeout",
+        "provider_error": "來源異常" if LANG == "zh-TW" else "provider error",
+    }
+    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in reason_counts.items())
+
+
+def _analysis_cooldown_key(market_type: str) -> str:
+    return f"analysis_last_run_{market_type}"
+
+
+def should_skip_recent_analysis(market_type: str, force_refresh: bool, cooldown_minutes: int = 20) -> bool:
+    if force_refresh:
+        return False
+    last_run = st.session_state.get(_analysis_cooldown_key(market_type))
+    if not isinstance(last_run, datetime):
+        return False
+    return datetime.now() - last_run < timedelta(minutes=cooldown_minutes)
+
+
+def run_market_analysis(
+    market_type: str,
+    progress_bar: Any | None = None,
+    status_box: Any | None = None,
+    force_refresh: bool = False,
+) -> AnalysisRunSummary | None:
+    if should_skip_recent_analysis(market_type, force_refresh=force_refresh):
+        _set_analysis_feedback("info", t("cooldown_skip"))
+        return None
     universe = UniverseBuilder(runtime_settings).build(market_type)
     engine = AnalysisEngine(
         event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
@@ -868,6 +910,7 @@ def run_market_analysis(market_type: str, progress_bar: Any | None = None, statu
     summary = engine.run_with_summary(universe.to_analysis_universe(), progress_callback=on_progress)
     if progress_bar is not None:
         progress_bar.progress(100)
+    st.session_state[_analysis_cooldown_key(market_type)] = datetime.now()
     return summary
 
 
@@ -899,6 +942,8 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     c3.metric("資料不足" if LANG == "zh-TW" else "Missing", summary.skipped_data_tickers)
     c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", summary.no_signal_tickers)
     c5.metric(t("records"), summary.signal_count)
+    if summary.skipped_reason_counts:
+        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(summary.skipped_reason_counts))
     if summary.signal_count == 0:
         if summary.data_ready_tickers == 0:
             st.warning("本次有執行，但沒有任何可分析資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
@@ -935,14 +980,18 @@ def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
 
 def render_run_controls() -> None:
     st.markdown(f'<div class="section-label">{t("run_analysis")}</div>', unsafe_allow_html=True)
+    st.caption(t("cooldown_force_hint"))
+    force_refresh = st.checkbox(t("force_refresh"), value=False, key="force_refresh_history")
     left, right = st.columns(2)
     if left.button(t("run_tw"), use_container_width=True):
         try:
             progress_bar = st.progress(0)
             status_box = st.empty()
-            summary = run_market_analysis("tw", progress_bar=progress_bar, status_box=status_box)
+            summary = run_market_analysis("tw", progress_bar=progress_bar, status_box=status_box, force_refresh=force_refresh)
             status_box.empty()
             progress_bar.empty()
+            if summary is None:
+                st.rerun()
             if summary.signal_count > 0:
                 _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             else:
@@ -956,9 +1005,11 @@ def render_run_controls() -> None:
         try:
             progress_bar = st.progress(0)
             status_box = st.empty()
-            summary = run_market_analysis("us", progress_bar=progress_bar, status_box=status_box)
+            summary = run_market_analysis("us", progress_bar=progress_bar, status_box=status_box, force_refresh=force_refresh)
             status_box.empty()
             progress_bar.empty()
+            if summary is None:
+                st.rerun()
             if summary.signal_count > 0:
                 _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             else:
