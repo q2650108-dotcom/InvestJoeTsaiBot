@@ -195,8 +195,10 @@ class YahooMarketDataClient:
         return frame.reset_index(drop=True)
 
     def _period_to_months(self, period: str) -> int:
-        mapping = {"1d": 1, "5d": 1, "1mo": 2, "3mo": 4, "6mo": 8, "1y": 14, "2y": 26}
-        return mapping.get(period, 8)
+        # Keep a long fallback window because hosted environments can have
+        # date offsets and TWSE may return "no data" for future months.
+        mapping = {"1d": 6, "5d": 6, "1mo": 12, "3mo": 18, "6mo": 24, "1y": 30, "2y": 36}
+        return mapping.get(period, 24)
 
     def _month_back(self, source: date, offset: int) -> date:
         year = source.year
