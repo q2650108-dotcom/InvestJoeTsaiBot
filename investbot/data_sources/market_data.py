@@ -117,37 +117,23 @@ class YahooMarketDataClient:
             return pd.DataFrame()
 
         months = self._period_to_months(period)
+        max_probe_months = max(months + 3, 120)
         today = date.today()
         rows: list[dict[str, object]] = []
         session = requests.Session()
+        consecutive_empty = 0
 
-        for offset in range(months + 1):
+        for offset in range(max_probe_months + 1):
             month_date = self._month_back(today, offset)
             ym = month_date.strftime("%Y%m01")
-            url = (
-                "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
-                f"?date={ym}&stockNo={stock_no}&response=json"
-            )
-            data: list[list[object]] = []
-            for attempt in range(3):
-                try:
-                    response = session.get(
-                        url,
-                        timeout=12,
-                        headers={
-                            "User-Agent": "Mozilla/5.0",
-                            "Accept": "application/json,text/plain,*/*",
-                            "Referer": "https://www.twse.com.tw/",
-                        },
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                    data = payload.get("data") or []
-                    if data:
-                        break
-                except Exception:
-                    pass
-                time.sleep(0.35 * (attempt + 1))
+            data = self._fetch_twse_stock_day_month(session=session, month_anchor=ym, stock_no=stock_no)
+            if not data:
+                consecutive_empty += 1
+                # once we already collected enough rows for indicators, stop probing if repeated empty months appear
+                if rows and consecutive_empty >= 3 and offset >= months:
+                    break
+                continue
+            consecutive_empty = 0
 
             for item in data:
                 # [date, volume, amount, open, high, low, close, change, transactions]
@@ -168,12 +154,44 @@ class YahooMarketDataClient:
                 except Exception:
                     continue
 
+            # enough records for MA60 + buffer
+            if len(rows) >= 90 and offset >= months:
+                break
+
         if not rows:
             return pd.DataFrame()
 
         frame = pd.DataFrame(rows).dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         frame = frame.sort_values("Date").drop_duplicates(subset=["Date"], keep="last").reset_index(drop=True)
         return frame
+
+    def _fetch_twse_stock_day_month(self, session: requests.Session, month_anchor: str, stock_no: str) -> list[list[object]]:
+        endpoints = [
+            "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY",
+            "https://www.twse.com.tw/exchangeReport/STOCK_DAY",
+        ]
+        for endpoint in endpoints:
+            url = f"{endpoint}?date={month_anchor}&stockNo={stock_no}&response=json"
+            for attempt in range(3):
+                try:
+                    response = session.get(
+                        url,
+                        timeout=12,
+                        headers={
+                            "User-Agent": "Mozilla/5.0",
+                            "Accept": "application/json,text/plain,*/*",
+                            "Referer": "https://www.twse.com.tw/",
+                        },
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    data = payload.get("data") or []
+                    if data:
+                        return data
+                except Exception:
+                    pass
+                time.sleep(0.25 * (attempt + 1))
+        return []
 
     def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
         symbol = ticker.lower()
