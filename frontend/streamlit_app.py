@@ -281,6 +281,14 @@ def localize_value(value: object) -> str:
         "Calm": t("calm"),
         "Neutral": t("neutral"),
         "Risk-Off": t("risk_off"),
+        "Risk-On": "偏多" if LANG == "zh-TW" else "Risk-On",
+        "Risk-On Uptrend": "偏多上升趨勢" if LANG == "zh-TW" else "Risk-On Uptrend",
+        "Balanced / Selective": "平衡 / 精選" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "防禦 / 避險" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Greed": "貪婪" if LANG == "zh-TW" else "Greed",
+        "Constructive": "偏正向" if LANG == "zh-TW" else "Constructive",
+        "Cautious": "謹慎" if LANG == "zh-TW" else "Cautious",
+        "Fear": "恐慌" if LANG == "zh-TW" else "Fear",
         "Watchlist": t("watchlist"),
         "Actionable": t("actionable"),
         "Safer Follow-Through": t("safer"),
@@ -290,6 +298,8 @@ def localize_value(value: object) -> str:
         "DAY_1_EARLY": t("day1"),
         "DAY_2_BUILDING": t("day2"),
         "DAY_3_PLUS_SAFER": t("day3"),
+        "Institutional Accumulation": "法人連續布局" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "恐慌反轉" if LANG == "zh-TW" else "Panic Reversal",
     }
     if text_value in mapping:
         return mapping[text_value]
@@ -314,6 +324,26 @@ def maybe_translate_text(text_value: str) -> str:
         return text_value.replace("macro_event_imminent (", "總經事件臨近（").replace(")", "）")
     if text_value.startswith("macro_event_near ("):
         return text_value.replace("macro_event_near (", "總經事件接近（").replace(")", "）")
+    if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
+        return "波動率偏高，建議保守控管部位。"
+    if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
+        return "市場廣度偏弱，個股突破失敗率可能較高。"
+    if text_value.endswith(" names are carrying event-risk flags."):
+        count = text_value.split(" ", 1)[0]
+        return f"{count} 檔標的帶有事件風險旗標。"
+    if text_value.startswith("No major market-wide warnings are flashing right now."):
+        return "目前沒有市場級重大風險警訊。"
+    if " | " in text_value and len(text_value.split(" | ")) == 3:
+        dt, region, title = text_value.split(" | ", 2)
+        region_map = {"US": "美國", "EU": "歐元區", "JP": "日本", "CN": "中國", "TW": "台灣"}
+        title_map = {
+            "Annual Report": "年度報告",
+            "ECB Cipollone Speech": "歐洲央行 Cipollone 講話",
+            "ECB De Guindos Speech": "歐洲央行 De Guindos 講話",
+            "ECB Survey of Monetary Analysts": "歐洲央行貨幣分析師調查",
+            "ECB Survey of Professional Forecasters": "歐洲央行專業預測調查",
+        }
+        return f"{dt}｜{region_map.get(region, region)}｜{title_map.get(title, title)}"
     return ZH_DECISION_TEXT.get(text_value, text_value)
 
 
@@ -488,20 +518,20 @@ def render_runtime_settings_panel() -> None:
 def render_market_state() -> None:
     overview = overview_service.build()
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
-    momentum_items = "".join(f"<li>{item}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
-    macro_items = "".join(f"<li>{item}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
-    caution_items = "".join(f"<li>{item}</li>" for item in overview.caution_items)
+    momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
+    macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
+    caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
     st.markdown(
         f"""
         <div class="terminal-card">
             <div class="state-grid">
                 <div class="state-metric">
                     <div class="state-label">{t("overall_trend")}</div>
-                    <div class="state-value">{overview.overall_trend}</div>
+                    <div class="state-value">{localize_value(overview.overall_trend)}</div>
                 </div>
                 <div class="state-metric">
                     <div class="state-label">{t("sentiment")}</div>
-                    <div class="state-value">{overview.sentiment_label}</div>
+                    <div class="state-value">{localize_value(overview.sentiment_label)}</div>
                 </div>
                 <div class="state-metric">
                     <div class="state-label">{t("fear_greed")}</div>
@@ -641,7 +671,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                         <div class="decision-ticker">{row["ticker"]}</div>
                         <div class="decision-meta">
                             {company_name} | {t("sector")} {sector_name} <br/>
-                            {t("signal_type")} {row.get("signal_type", "")} |
+                            {t("signal_type")} {localize_value(row.get("signal_type", ""))} |
                             {localize_value(row.get("universe_bucket", "core"))} |
                             {localize_value(row.get("recommendation_bucket", "Watchlist"))}
                         </div>

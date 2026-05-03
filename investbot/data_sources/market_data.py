@@ -12,6 +12,68 @@ import requests
 
 from investbot.data_sources.provider_router import ProviderError, QuoteProviderRouter
 
+TW_FALLBACK_PROFILE = {
+    "2330": {"name_zh": "台積電", "name_en": "TSMC", "sector": "半導體"},
+    "2317": {"name_zh": "鴻海", "name_en": "Hon Hai", "sector": "電子代工"},
+    "2454": {"name_zh": "聯發科", "name_en": "MediaTek", "sector": "IC設計"},
+    "2308": {"name_zh": "台達電", "name_en": "Delta", "sector": "電源供應"},
+    "2881": {"name_zh": "富邦金", "name_en": "Fubon Financial", "sector": "金融保險"},
+    "2882": {"name_zh": "國泰金", "name_en": "Cathay Financial", "sector": "金融保險"},
+    "1303": {"name_zh": "南亞", "name_en": "Nan Ya Plastics", "sector": "塑化"},
+    "1301": {"name_zh": "台塑", "name_en": "Formosa Plastics", "sector": "塑化"},
+    "2886": {"name_zh": "兆豐金", "name_en": "Mega Financial", "sector": "金融保險"},
+    "2891": {"name_zh": "中信金", "name_en": "CTBC Financial", "sector": "金融保險"},
+    "2382": {"name_zh": "廣達", "name_en": "Quanta", "sector": "電腦週邊"},
+    "3711": {"name_zh": "日月光投控", "name_en": "ASEH", "sector": "半導體封測"},
+    "2884": {"name_zh": "玉山金", "name_en": "E.SUN Financial", "sector": "金融保險"},
+    "1216": {"name_zh": "統一", "name_en": "Uni-President", "sector": "食品"},
+    "2002": {"name_zh": "中鋼", "name_en": "China Steel", "sector": "鋼鐵"},
+    "2303": {"name_zh": "聯電", "name_en": "UMC", "sector": "半導體"},
+    "5880": {"name_zh": "合庫金", "name_en": "Hua Nan Financial", "sector": "金融保險"},
+    "2885": {"name_zh": "元大金", "name_en": "Yuanta Financial", "sector": "金融保險"},
+    "2207": {"name_zh": "和泰車", "name_en": "Hotai Motor", "sector": "汽車"},
+    "0050": {"name_zh": "元大台灣50", "name_en": "Yuanta Taiwan 50 ETF", "sector": "ETF"},
+}
+
+TW_INDUSTRY_CODE_MAP = {
+    "01": "水泥",
+    "02": "食品",
+    "03": "塑膠",
+    "04": "紡織纖維",
+    "05": "電機機械",
+    "06": "電器電纜",
+    "08": "玻璃陶瓷",
+    "09": "造紙",
+    "10": "鋼鐵",
+    "11": "橡膠",
+    "12": "汽車",
+    "14": "建材營造",
+    "15": "航運",
+    "16": "觀光餐旅",
+    "17": "金融保險",
+    "18": "貿易百貨",
+    "20": "其他",
+    "21": "化學",
+    "22": "生技醫療",
+    "23": "油電燃氣",
+    "24": "半導體",
+    "25": "電腦及週邊設備",
+    "26": "光電",
+    "27": "通信網路",
+    "28": "電子零組件",
+    "29": "電子通路",
+    "30": "資訊服務",
+    "31": "其他電子",
+    "32": "文化創意",
+    "33": "農業科技",
+    "34": "電子商務",
+    "35": "綠能環保",
+    "36": "數位雲端",
+    "37": "運動休閒",
+    "38": "居家生活",
+    "80": "管理股票",
+}
+
 
 class YahooMarketDataClient:
     def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
@@ -382,6 +444,8 @@ class YahooMarketDataClient:
         symbol = ticker.replace(".TW", "").replace(".TWO", "")
         cache = self._load_tw_profile_cache()
         row = cache.get(symbol, {})
+        if not row and symbol in TW_FALLBACK_PROFILE:
+            row = TW_FALLBACK_PROFILE[symbol]
         return {
             "name_zh": row.get("name_zh", symbol),
             "name_en": row.get("name_en", symbol),
@@ -410,9 +474,10 @@ class YahooMarketDataClient:
                 symbol = str(item.get("公司代號") or item.get("SecuritiesCompanyCode") or "").strip()
                 if not symbol:
                     continue
-                name_zh = str(item.get("公司名稱") or item.get("CompanyName") or "").strip() or symbol
+                name_zh = str(item.get("公司簡稱") or item.get("公司名稱") or item.get("CompanyName") or "").strip() or symbol
                 name_en = str(item.get("英文簡稱") or item.get("CompanyAbbreviation") or "").strip() or name_zh
-                sector = str(item.get("產業別") or item.get("Industry") or "").strip() or "未知"
+                industry_code = str(item.get("產業別") or item.get("Industry") or "").strip()
+                sector = TW_INDUSTRY_CODE_MAP.get(industry_code, industry_code or "未知")
                 cache[symbol] = {"name_zh": name_zh, "name_en": name_en, "sector": sector}
 
         self._tw_profile_cache = cache
