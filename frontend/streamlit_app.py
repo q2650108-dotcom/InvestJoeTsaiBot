@@ -370,6 +370,17 @@ COPY["en"].update(
     }
 )
 
+COPY["zh-TW"].update(
+    {
+        "data_freshness": "資料時間",
+        "snapshot_as_of": "快照日期",
+        "data_window": "資料區間",
+        "page_rendered_at": "頁面抓取時間",
+        "latest_analysis_date": "最新分析日期",
+        "intraday_source_note": "當日分時若來源不足，會顯示沒有資料，不自動冒充較長區間。",
+    }
+)
+
 
 ZH_DECISION_TEXT = {
     "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
@@ -407,6 +418,43 @@ ZH_DECISION_TEXT = {
 }
 
 
+ZH_DECISION_TEXT.update(
+    {
+        "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
+        "Institutional buying has persisted for 4 sessions.": "法人買超已連續 4 天。",
+        "Institutional buying has persisted for 5 sessions.": "法人買超已連續 5 天。",
+        "Institutional buying is building into a second session.": "法人買超延續到第 2 天，動能正在建立。",
+        "Institutional buying has just turned positive.": "法人買盤剛轉正。",
+        "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
+        "Relative strength is supportive versus the benchmark.": "相對強度優於基準，屬於正向支持。",
+        "Price location is constructive and not excessively extended.": "價格位階健康，且未過度乖離。",
+        "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
+        "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
+        "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
+        "The broader market is risk-off, so hit rates can fall quickly.": "市場偏避險，命中率可能快速下滑。",
+        "This idea is in the Explore pool, so it should not outrank core large-cap names.": "此標的屬於觀察池，不應優先於核心大型股。",
+        "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
+        "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍需持續追蹤。",
+        "No major risk flags are active right now, but standard stop discipline still applies.": "目前無重大風險警訊，但仍需遵守停損紀律。",
+        "The current signal does not yet have enough stacked evidence.": "目前訊號的堆疊證據還不夠。",
+        "Normal position sizing or staged entries on minor pullbacks.": "可用正常部位，或在小幅拉回時分批進場。",
+        "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
+        "Observe only until the odds improve.": "先觀察，等勝率提升再行動。",
+        "Small trial size only; keep core capital focused on large caps.": "只用小部位試單，核心資金仍以大型股為主。",
+        "High Conviction Core": "高信心核心",
+        "Actionable Setup": "可執行設定",
+        "Watch and Wait": "觀察等待",
+        "High": "高",
+        "Medium-High": "中高",
+        "Medium-Low": "中低",
+        "Medium": "中",
+        "Favorable": "風報偏佳",
+        "Balanced": "風報平衡",
+        "Unclear": "風報不明",
+    }
+)
+
+
 def current_language() -> str:
     runtime_language = getattr(runtime_settings, "app_language", "")
     if runtime_language:
@@ -435,34 +483,34 @@ def _translate_macro_event_label(label: str) -> str:
     if LANG != "zh-TW":
         return cleaned
     direct_map = {
-        "cftc eur speculative net positions": "CFTC ???????",
-        "cftc eur speculative net position": "CFTC ???????",
-        "annual report": "??",
-        "ecb cipollone speech": "???? Cipollone ??",
-        "ecb de guindos speech": "???? De Guindos ??",
-        "ecb survey of monetary analysts": "???????????",
-        "ecb survey of professional forecasters": "???????????",
+        "cftc eur speculative net positions": "CFTC 歐元投機淨部位",
+        "cftc eur speculative net position": "CFTC 歐元投機淨部位",
+        "annual report": "年報",
+        "ecb cipollone speech": "歐洲央行 Cipollone 談話",
+        "ecb de guindos speech": "歐洲央行 De Guindos 談話",
+        "ecb survey of monetary analysts": "歐洲央行貨幣分析師調查",
+        "ecb survey of professional forecasters": "歐洲央行專業預測調查",
     }
     if cleaned in direct_map:
         return direct_map[cleaned]
     replacements = {
         "cftc": "CFTC",
-        "eur": "??",
-        "usd": "??",
-        "jpy": "??",
-        "gbp": "??",
-        "speculative": "??",
-        "net": "?",
-        "position": "??",
-        "positions": "??",
-        "survey": "??",
-        "speech": "??",
-        "annual": "??",
-        "report": "??",
-        "earnings": "??",
-        "inflation": "??",
-        "payrolls": "????",
-        "minutes": "????",
+        "eur": "歐元",
+        "usd": "美元",
+        "jpy": "日圓",
+        "gbp": "英鎊",
+        "speculative": "投機",
+        "net": "淨",
+        "position": "部位",
+        "positions": "部位",
+        "survey": "調查",
+        "speech": "談話",
+        "annual": "年度",
+        "report": "報告",
+        "earnings": "財報",
+        "inflation": "通膨",
+        "payrolls": "非農就業",
+        "minutes": "會議紀要",
     }
     translated = cleaned
     for source, target in replacements.items():
@@ -477,14 +525,14 @@ def localize_value(value: object) -> str:
         "Calm": t("calm"),
         "Neutral": t("neutral"),
         "Risk-Off": t("risk_off"),
-        "Risk-On": "??" if LANG == "zh-TW" else "Risk-On",
-        "Risk-On Uptrend": "??????" if LANG == "zh-TW" else "Risk-On Uptrend",
-        "Balanced / Selective": "?? / ??" if LANG == "zh-TW" else "Balanced / Selective",
-        "Defensive / Risk-Off": "?? / ??" if LANG == "zh-TW" else "Defensive / Risk-Off",
-        "Greed": "??" if LANG == "zh-TW" else "Greed",
-        "Constructive": "???" if LANG == "zh-TW" else "Constructive",
-        "Cautious": "??" if LANG == "zh-TW" else "Cautious",
-        "Fear": "??" if LANG == "zh-TW" else "Fear",
+        "Risk-On": "偏多" if LANG == "zh-TW" else "Risk-On",
+        "Risk-On Uptrend": "偏多上升趨勢" if LANG == "zh-TW" else "Risk-On Uptrend",
+        "Balanced / Selective": "平衡 / 精選" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "防守 / 避險" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Greed": "貪婪" if LANG == "zh-TW" else "Greed",
+        "Constructive": "正向" if LANG == "zh-TW" else "Constructive",
+        "Cautious": "謹慎" if LANG == "zh-TW" else "Cautious",
+        "Fear": "恐慌" if LANG == "zh-TW" else "Fear",
         "Watchlist": t("watchlist"),
         "Actionable": t("actionable"),
         "Safer Follow-Through": t("safer"),
@@ -494,23 +542,23 @@ def localize_value(value: object) -> str:
         "DAY_1_EARLY": t("day1"),
         "DAY_2_BUILDING": t("day2"),
         "DAY_3_PLUS_SAFER": t("day3"),
-        "Institutional Accumulation": "??????" if LANG == "zh-TW" else "Institutional Accumulation",
-        "Panic Reversal": "????" if LANG == "zh-TW" else "Panic Reversal",
-        "High": "?" if LANG == "zh-TW" else "High",
-        "Medium": "?" if LANG == "zh-TW" else "Medium",
-        "Medium-High": "??" if LANG == "zh-TW" else "Medium-High",
-        "Medium-Low": "??" if LANG == "zh-TW" else "Medium-Low",
-        "Favorable": "??" if LANG == "zh-TW" else "Favorable",
-        "Balanced": "??" if LANG == "zh-TW" else "Balanced",
-        "Unclear": "??" if LANG == "zh-TW" else "Unclear",
+        "Institutional Accumulation": "法人買盤累積" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "恐慌反轉" if LANG == "zh-TW" else "Panic Reversal",
+        "High": "高" if LANG == "zh-TW" else "High",
+        "Medium": "中" if LANG == "zh-TW" else "Medium",
+        "Medium-High": "中高" if LANG == "zh-TW" else "Medium-High",
+        "Medium-Low": "中低" if LANG == "zh-TW" else "Medium-Low",
+        "Favorable": "風報偏佳" if LANG == "zh-TW" else "Favorable",
+        "Balanced": "風報平衡" if LANG == "zh-TW" else "Balanced",
+        "Unclear": "風報不明" if LANG == "zh-TW" else "Unclear",
     }
     if text_value in mapping:
         return mapping[text_value]
     if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
         prefix, label = text_value.split(":", 1)
-        prefix_label = "??????" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
+        prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
         if prefix == "macro_event_near":
-            prefix_label = "??????" if LANG == "zh-TW" else "Macro near"
+            prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
         return f"{prefix_label}: {_translate_macro_event_label(label)}"
     if LANG == "zh-TW" and text_value in ZH_DECISION_TEXT:
         return ZH_DECISION_TEXT[text_value]
@@ -522,36 +570,36 @@ def maybe_translate_text(text_value: str) -> str:
         return text_value
     if text_value.startswith("Institutional buying has persisted for ") and text_value.endswith(" sessions."):
         days = text_value.replace("Institutional buying has persisted for ", "").replace(" sessions.", "").strip()
-        return f"??????? {days} ??"
+        return f"法人買超已連續 {days} 天。"
     if text_value.startswith("Event risk is elevated:"):
         detail = text_value.replace("Event risk is elevated:", "").strip()
-        return f"???????{_translate_macro_event_label(detail)}"
+        return f"事件風險偏高：{_translate_macro_event_label(detail)}"
     if text_value.startswith("macro_event_imminent ("):
         inner = text_value.replace("macro_event_imminent (", "").rstrip(")")
-        return f"???????{_translate_macro_event_label(inner)}?"
+        return f"總經事件臨近：{_translate_macro_event_label(inner)}。"
     if text_value.startswith("macro_event_near ("):
         inner = text_value.replace("macro_event_near (", "").rstrip(")")
-        return f"???????{_translate_macro_event_label(inner)}?"
+        return f"總經事件接近：{_translate_macro_event_label(inner)}。"
     if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
-        return "???????????????"
+        return "波動升高，部位控管應更保守。"
     if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
-        return "???????????????????"
+        return "市場廣度偏弱，單一個股突破失敗率可能較高。"
     if text_value.endswith(" names are carrying event-risk flags."):
         count = text_value.split(" ", 1)[0]
-        return f"{count} ????????????"
+        return f"{count} 檔標的帶有事件風險標記。"
     if text_value.startswith("No major market-wide warnings are flashing right now."):
-        return "???????????????"
+        return "目前沒有明顯的市場級風險警訊。"
     if text_value.startswith("Theme support:"):
-        return text_value.replace("Theme support:", "?????")
+        return text_value.replace("Theme support:", "主題支撐：")
     if text_value.startswith("Institutional flow persistence supports the forward setup."):
-        return "???????????????"
+        return "法人資金延續性支持前瞻設定。"
     if text_value.startswith("Relative strength confirms demand leadership."):
-        return "???????????"
+        return "相對強度確認需求領先。"
     if text_value.startswith("Forward demand narrative is strong enough for a starter position."):
-        return "??????????????????"
+        return "前瞻需求敘事夠強，可先建立試單部位。"
     if " | " in text_value and len(text_value.split(" | ")) == 3:
         dt, region, title = text_value.split(" | ", 2)
-        region_map = {"US": "??", "EU": "??", "JP": "??", "CN": "??", "TW": "??"}
+        region_map = {"US": "美國", "EU": "歐洲", "JP": "日本", "CN": "中國", "TW": "台灣"}
         return f"{dt} | {region_map.get(region, region)} | {_translate_macro_event_label(title)}"
     return ZH_DECISION_TEXT.get(text_value, text_value)
 
