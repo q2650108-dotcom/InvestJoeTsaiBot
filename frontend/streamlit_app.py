@@ -55,6 +55,20 @@ summary_service = SummaryService(repository=repo, decision_support=decision_supp
 overview_service = MarketOverviewService(repository=repo, summary_service=summary_service, market_data=market_data)
 
 
+BENCHMARK_SETS = {
+    "tw": [
+        ("^TWII", "taiex"),
+        ("0050.TW", "taiwan50"),
+        ("2330.TW", "tsmc_proxy"),
+    ],
+    "us": [
+        ("^GSPC", "sp500"),
+        ("^IXIC", "nasdaq"),
+        ("^DJI", "dow"),
+    ],
+}
+
+
 COPY = {
     "zh-TW": {
         "app_title": "Smart Swing Agent",
@@ -87,6 +101,15 @@ COPY = {
         "cautions": "提醒",
         "macro_calendar": "重大事件行事曆",
         "market_overview": "市場總覽",
+        "market_terminal": "市場首頁",
+        "benchmark_watch": "基準觀察",
+        "dashboard_market_view": "首頁市場",
+        "taiex": "加權指數",
+        "taiwan50": "台灣50",
+        "tsmc_proxy": "台積電",
+        "sp500": "標普500",
+        "nasdaq": "納斯達克",
+        "dow": "道瓊",
         "taiwan": "台股",
         "us": "美股",
         "candidates": "候選數",
@@ -196,6 +219,15 @@ COPY = {
         "cautions": "Cautions",
         "macro_calendar": "Macro Calendar",
         "market_overview": "Market Overview",
+        "market_terminal": "Market Terminal",
+        "benchmark_watch": "Benchmark Watch",
+        "dashboard_market_view": "Home Market",
+        "taiex": "TAIEX",
+        "taiwan50": "Taiwan 50",
+        "tsmc_proxy": "TSMC",
+        "sp500": "S&P 500",
+        "nasdaq": "Nasdaq",
+        "dow": "Dow",
         "taiwan": "Taiwan",
         "us": "US",
         "candidates": "Candidates",
@@ -759,6 +791,52 @@ def _normalize_trend(values: list[float]) -> list[float]:
     return [round(((value / base) - 1.0) * 100, 2) for value in clean]
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def get_benchmark_snapshot_cached(symbol: str, label_key: str) -> dict[str, Any]:
+    history = market_data.get_price_history(symbol, period="3mo", interval="1d")
+    frame = history.copy()
+    frame["Close"] = frame["Close"].astype(float)
+    latest = float(frame["Close"].iloc[-1])
+    previous = float(frame["Close"].iloc[-2]) if len(frame) > 1 else latest
+    delta = latest - previous
+    pct = 0.0 if previous == 0 else (delta / previous) * 100
+    trend = _normalize_trend(frame["Close"].tail(30).tolist())
+    return {
+        "symbol": symbol,
+        "label_key": label_key,
+        "latest": latest,
+        "delta": delta,
+        "pct": pct,
+        "trend": trend,
+    }
+
+
+def build_benchmark_chart(series: list[float], positive: bool) -> go.Figure:
+    color = "#16a34a" if positive else "#ef4444"
+    fill = "rgba(34,197,94,0.12)" if positive else "rgba(239,68,68,0.12)"
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            y=series,
+            mode="lines",
+            line=dict(color=color, width=2),
+            fill="tozeroy",
+            fillcolor=fill,
+            hoverinfo="skip",
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=72,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        showlegend=False,
+    )
+    return fig
+
+
 def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return frame
@@ -782,6 +860,18 @@ def inject_styles() -> None:
         section[data-testid="stSidebar"] { min-width: 340px !important; max-width: 340px !important; }
         .page-title { font-size: 1.9rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #243047; }
         .section-label { font-size: 0.78rem; font-weight: 700; color: #616c7c; margin: 0.85rem 0 0.45rem; text-transform: uppercase; }
+        .hero-shell { border-bottom:1px solid rgba(118,128,145,.16); padding-bottom:16px; margin-bottom:10px; }
+        .hero-title { font-size:2.15rem; font-weight:900; color:#101828; letter-spacing:0; margin:0; }
+        .hero-sub { font-size:0.92rem; color:#667085; margin-top:4px; }
+        .hero-time { text-align:right; font-size:0.88rem; color:#98a2b3; font-weight:700; margin-top:8px; }
+        .benchmark-card { border:1px solid rgba(118,128,145,.14); border-radius:10px; background:#fff; padding:10px 12px; min-height:128px; }
+        .benchmark-name { font-size:0.98rem; font-weight:800; color:#243047; margin-bottom:2px; }
+        .benchmark-price { font-size:1.75rem; font-weight:900; line-height:1.05; margin:2px 0 4px; }
+        .benchmark-change { font-size:0.9rem; font-weight:700; }
+        .hero-side { border:1px solid rgba(118,128,145,.16); border-radius:10px; background:#f8fafc; padding:12px 14px; min-height:128px; }
+        .hero-side-title { font-size:0.8rem; font-weight:800; color:#475467; text-transform:uppercase; margin-bottom:8px; }
+        .hero-side-main { font-size:1.2rem; font-weight:900; color:#101828; margin-bottom:6px; }
+        .hero-side-copy { font-size:0.86rem; color:#667085; line-height:1.45; }
         .terminal-card, .summary-band, .decision-card { border: 1px solid rgba(118,128,145,.22); border-radius: 8px; background: #ffffff; }
         .terminal-card { padding: 14px; min-height: 174px; }
         .summary-band { padding: 12px 14px; min-height: 112px; background: #f7f9fc; }
@@ -1169,6 +1259,65 @@ def render_market_overview() -> None:
         render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
+def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
+    selected_market = st.radio(
+        t("dashboard_market_view"),
+        options=[t("taiwan"), t("us")],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="dashboard_market_view",
+    )
+    market_key = "tw" if selected_market == t("taiwan") else "us"
+    summary = summary_service.build_market_summary(market_key)
+    hero_left, hero_right = st.columns((3.2, 1.15))
+    with hero_left:
+        st.markdown(
+            f"""
+            <div class="hero-shell">
+                <div class="hero-title">{selected_market}</div>
+                <div class="hero-sub">{t("market_terminal")} · {localize_value(overview.overall_trend)}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        card_columns = st.columns(3)
+        for column, (symbol, label_key) in zip(card_columns, BENCHMARK_SETS[market_key]):
+            try:
+                benchmark = get_benchmark_snapshot_cached(symbol, label_key)
+            except Exception:
+                benchmark = {"label_key": label_key, "latest": 0.0, "delta": 0.0, "pct": 0.0, "trend": []}
+            positive = float(benchmark["delta"]) >= 0
+            change_color = "#16a34a" if positive else "#ef4444"
+            delta_prefix = "+" if float(benchmark["delta"]) >= 0 else ""
+            with column:
+                st.markdown(
+                    f"""
+                    <div class="benchmark-card">
+                        <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                        <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
+                        <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if benchmark["trend"]:
+                    st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+    with hero_right:
+        now_label = datetime.now().strftime("%m/%d %H:%M")
+        summary_text = _market_bias_copy(summary) if summary else t("no_data")
+        st.markdown(f'<div class="hero-time">{now_label} ({selected_market})</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="hero-side">
+                <div class="hero-side-title">{t("analysis_summary")}</div>
+                <div class="hero-side-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score}</div>
+                <div class="hero-side-copy">{summary_text}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def render_session_briefs() -> None:
     tw_summary = summary_service.build_market_summary("tw")
     us_summary = summary_service.build_market_summary("us")
@@ -1457,6 +1606,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     latest_summary = st.session_state.get("analysis_summary")
     if latest_summary:
         render_analysis_summary(latest_summary)
+    render_market_terminal_header(snapshot, overview)
     m1, m2, m3, m4 = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
     m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)
