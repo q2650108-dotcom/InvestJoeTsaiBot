@@ -133,6 +133,8 @@ COPY = {
         "market_pulse": "市場脈搏",
         "sector_heatmap": "類股熱區",
         "setup_distribution": "台美建議分佈",
+        "breadth_lights": "市場燈號",
+        "trend_mini": "短線走勢",
         "day1": "第 1 天",
         "day2": "第 2 天",
         "day3": "第 3 天以上",
@@ -224,6 +226,8 @@ COPY = {
         "market_pulse": "Market Pulse",
         "sector_heatmap": "Sector Heatmap",
         "setup_distribution": "Setup Distribution",
+        "breadth_lights": "Market Lights",
+        "trend_mini": "Mini Trend",
         "day1": "Day 1 Early",
         "day2": "Day 2 Building",
         "day3": "Day 3+ Safer",
@@ -651,6 +655,17 @@ def get_company_profile_cached(ticker: str) -> dict[str, str]:
     return market_data.get_company_profile(ticker)
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_ticker_trend_cached(ticker: str, limit: int = 12) -> list[float]:
+    history = repo.fetch_history(ticker, limit=limit)
+    if not history:
+        return []
+    frame = pd.DataFrame(history)
+    if "close_price" not in frame.columns:
+        return []
+    return frame["close_price"].fillna(0).astype(float).tolist()[-limit:]
+
+
 def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
     ticker = str(row.get("ticker", "")).upper()
     market_type = str(row.get("type", ""))
@@ -669,6 +684,18 @@ def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
             display_name = name_en or ticker
         display_sector = sector or ("未知" if LANG == "zh-TW" else "Unknown")
     return display_name, display_sector
+
+
+def _signal_tone(score: float) -> tuple[str, str]:
+    if score >= 75:
+        return ("#2fbf71", "偏多順風" if LANG == "zh-TW" else "Risk-on")
+    if score >= 60:
+        return ("#8bd36c", "正向" if LANG == "zh-TW" else "Constructive")
+    if score >= 45:
+        return ("#f6c84c", "中性" if LANG == "zh-TW" else "Neutral")
+    if score >= 30:
+        return ("#ff8a4c", "轉弱" if LANG == "zh-TW" else "Weakening")
+    return ("#ff5a6b", "防守" if LANG == "zh-TW" else "Defensive")
 
 
 def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
@@ -708,6 +735,13 @@ def inject_styles() -> None:
         .state-read-title { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:6px; font-weight:700; }
         .state-read-main { font-size:1rem; font-weight:800; margin-bottom:6px; color:#243047; }
         .state-read-copy { font-size:0.86rem; color:#596474; line-height:1.5; }
+        .light-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin: 8px 0 14px; }
+        .light-card { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f7f9fc; min-height:78px; }
+        .light-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+        .light-name { font-size:0.72rem; text-transform:uppercase; color:#6b7685; font-weight:700; }
+        .light-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .light-value { font-size:1rem; font-weight:800; color:#243047; margin-bottom:4px; }
+        .light-copy { font-size:0.82rem; color:#596474; line-height:1.35; }
         .mini-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
         .decision-card { padding: 14px; margin-bottom: 10px; }
         .decision-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
@@ -922,6 +956,26 @@ def render_market_overview() -> None:
 
 def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
     st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
+    lights = [
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "總體風向" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "情緒越高越敢追價" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "廣度高代表更多標的同步" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低越舒服" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+    ]
+    lights_html = "".join(
+        f"""
+        <div class="light-card">
+            <div class="light-top">
+                <div class="light-name">{name}</div>
+                <span class="light-dot" style="background:{color}"></span>
+            </div>
+            <div class="light-value">{value}</div>
+            <div class="light-copy">{tone} · {copy}</div>
+        </div>
+        """
+        for name, value, color, tone, copy in lights
+    )
+    st.markdown(f'<div class="light-strip">{lights_html}</div>', unsafe_allow_html=True)
     left, middle, right = st.columns((1, 1.1, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
@@ -944,12 +998,15 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
             display[column] = display[column].map(localize_value)
     if "suggested_action" in display.columns:
         display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
+    if "ticker" in display.columns:
+        display["trend_mini"] = display["ticker"].astype(str).map(lambda ticker: get_ticker_trend_cached(ticker))
     selected = [column for column in columns if column in display.columns]
     table = display[selected].copy()
     rename_map = {
         "ticker": t("ticker"),
         "company": t("company"),
         "sector": t("sector"),
+        "trend_mini": t("trend_mini"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
         "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
@@ -959,7 +1016,18 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "suggested_action": t("suggested_action"),
     }
     table = table.rename(columns=rename_map)
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    chart_column = st.column_config.LineChartColumn(
+        t("trend_mini"),
+        width="medium",
+        y_min=table[t("trend_mini")].explode().min() if t("trend_mini") in table.columns and not table[t("trend_mini")].empty else None,
+        y_max=table[t("trend_mini")].explode().max() if t("trend_mini") in table.columns and not table[t("trend_mini")].empty else None,
+    )
+    st.dataframe(
+        table,
+        use_container_width=True,
+        hide_index=True,
+        column_config={t("trend_mini"): chart_column} if t("trend_mini") in table.columns else None,
+    )
 
 
 def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
@@ -975,21 +1043,21 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
             latest[latest["universe_bucket"] == "core"]
             .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
             .head(12),
-            ["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
         )
     with explore_tab:
         render_terminal_table(
             latest[latest["universe_bucket"] == "explore"]
             .sort_values(by=["composite_signal_score"], ascending=[False])
             .head(12),
-            ["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
         )
     with risk_tab:
         render_terminal_table(
             latest[latest["event_risk_note"] != "clear"]
             .sort_values(by=["composite_signal_score"], ascending=[True])
             .head(12),
-            ["ticker", "company", "sector", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
         )
 
 
