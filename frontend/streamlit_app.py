@@ -399,16 +399,36 @@ def describe_vix(vix_value: float | None) -> tuple[str, str]:
     )
 
 
-def describe_fear_greed(score: int) -> tuple[str, str]:
+def describe_fear_greed(score: int) -> tuple[str, str, str]:
     if score <= 24:
-        return ("極度恐慌" if LANG == "zh-TW" else "Extreme Fear", "#ff5a6b")
+        return (
+            "極度恐慌" if LANG == "zh-TW" else "Extreme Fear",
+            "市場參與者明顯在避險，搶反彈要很挑位置。" if LANG == "zh-TW" else "Participants are clearly de-risking; only the best reversal setups deserve attention.",
+            "#ff5a6b",
+        )
     if score <= 44:
-        return ("恐慌" if LANG == "zh-TW" else "Fear", "#ff8a4c")
+        return (
+            "恐慌" if LANG == "zh-TW" else "Fear",
+            "情緒偏保守，單日反彈有機會，但延續力通常還不穩。" if LANG == "zh-TW" else "Sentiment is defensive; bounces can happen, but follow-through is still less reliable.",
+            "#ff8a4c",
+        )
     if score <= 55:
-        return ("中性" if LANG == "zh-TW" else "Neutral", "#f6c84c")
+        return (
+            "中性" if LANG == "zh-TW" else "Neutral",
+            "市場沒有明顯偏多或偏空，適合精選個股，不適合亂追。" if LANG == "zh-TW" else "The tape is balanced; stock selection matters more than aggressive chasing.",
+            "#f6c84c",
+        )
     if score <= 75:
-        return ("貪婪" if LANG == "zh-TW" else "Greed", "#8bd36c")
-    return ("極度貪婪" if LANG == "zh-TW" else "Extreme Greed", "#2fbf71")
+        return (
+            "貪婪" if LANG == "zh-TW" else "Greed",
+            "風險偏好不差，順勢策略通常比較吃香，但也要防過熱。" if LANG == "zh-TW" else "Risk appetite is healthy and trend-following tends to work, though overheating risk rises.",
+            "#8bd36c",
+        )
+    return (
+        "極度貪婪" if LANG == "zh-TW" else "Extreme Greed",
+        "資金願意追價，但這也常是短線過熱區，別把節奏搞丟。" if LANG == "zh-TW" else "Capital is chasing upside aggressively, which can also mean short-term overheating.",
+        "#2fbf71",
+    )
 
 
 def build_fear_greed_gauge(score: int) -> go.Figure:
@@ -429,6 +449,45 @@ def build_fear_greed_gauge(score: int) -> go.Figure:
                     {"range": [45, 55], "color": "#f6cf56"},
                     {"range": [56, 75], "color": "#9bd66f"},
                     {"range": [76, 100], "color": "#49c57d"},
+                ],
+            },
+        )
+    )
+    fig.update_layout(margin=dict(l=20, r=20, t=20, b=10), height=240, paper_bgcolor="white")
+    return fig
+
+
+def build_vix_gauge(vix_value: float | None) -> go.Figure:
+    value = 0 if vix_value is None else min(max(float(vix_value), 0), 60)
+    accent = "#94a3b8"
+    if vix_value is not None:
+        if vix_value < 15:
+            accent = "#2fbf71"
+        elif vix_value < 20:
+            accent = "#8bd36c"
+        elif vix_value < 25:
+            accent = "#f6c84c"
+        elif vix_value < 32:
+            accent = "#ff8a4c"
+        else:
+            accent = "#ff5a6b"
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=value,
+            number={"font": {"size": 30}},
+            title={"text": "VIX"},
+            gauge={
+                "axis": {"range": [0, 60], "tickvals": [0, 15, 20, 25, 32, 60]},
+                "bar": {"color": accent, "thickness": 0.3},
+                "bgcolor": "white",
+                "borderwidth": 0,
+                "steps": [
+                    {"range": [0, 15], "color": "#d9f7e8"},
+                    {"range": [15, 20], "color": "#ebf7cf"},
+                    {"range": [20, 25], "color": "#fff2c2"},
+                    {"range": [25, 32], "color": "#ffe0c2"},
+                    {"range": [32, 60], "color": "#ffd0d6"},
                 ],
             },
         )
@@ -611,17 +670,22 @@ def render_runtime_settings_panel() -> None:
 
 def render_market_state() -> None:
     overview = overview_service.build()
-    vix_zone, vix_copy = describe_vix(market_data.get_vix_value())
-    fear_greed_label, _, _ = describe_fear_greed(overview.fear_greed_score)
+    vix_value = market_data.get_vix_value()
+    vix_zone, vix_copy = describe_vix(vix_value)
+    fear_greed_label, fear_greed_copy, _ = describe_fear_greed(overview.fear_greed_score)
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
     momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
     macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
     caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
-    gauge_left, gauge_right = st.columns((1.05, 1))
+    gauge_left, gauge_right = st.columns(2)
     with gauge_left:
         st.markdown(f'<div class="section-label">{t("fear_greed_gauge")}</div>', unsafe_allow_html=True)
         st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
     with gauge_right:
+        st.markdown(f'<div class="section-label">{t("vix_meaning")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
+    read_left, read_right = st.columns(2)
+    with read_left:
         st.markdown(
             f"""
             <div class="state-read">
@@ -629,13 +693,16 @@ def render_market_state() -> None:
                 <div class="state-read-main">{vix_zone}</div>
                 <div class="state-read-copy">{vix_copy}</div>
             </div>
-            <div style="height:10px"></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with read_right:
+        st.markdown(
+            f"""
             <div class="state-read">
                 <div class="state-read-title">{t("market_read")}</div>
                 <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
-                <div class="state-read-copy">
-                    {"情緒分數越靠近 0 越偏恐慌，越靠近 100 越偏貪婪。現在這個區間代表市場偏願意承擔風險，但仍要搭配市場廣度一起看。" if LANG == "zh-TW" else "Lower scores indicate fear, higher scores indicate greed. This reading suggests investors are still willing to take risk, but breadth should confirm it."}
-                </div>
+                <div class="state-read-copy">{fear_greed_copy}</div>
             </div>
             """,
             unsafe_allow_html=True,
