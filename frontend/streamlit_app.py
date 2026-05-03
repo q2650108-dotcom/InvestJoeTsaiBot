@@ -62,6 +62,7 @@ COPY = {
         "dashboard": "總覽",
         "portfolio": "持股",
         "screener": "篩選",
+        "health": "健康檢查",
         "run_analysis": "執行分析",
         "run_tw": "執行台股分析",
         "run_us": "執行美股分析",
@@ -108,6 +109,8 @@ COPY = {
         "suggested_action": "建議動作",
         "rationale": "推薦理由",
         "risks": "主要風險",
+        "forward_score": "前瞻分數",
+        "forward_notes": "前瞻因子",
         "win_label": "勝率評估",
         "risk_label": "風險等級",
         "reward_risk": "風報比",
@@ -142,6 +145,7 @@ COPY = {
         "dashboard": "Dashboard",
         "portfolio": "Portfolio",
         "screener": "Screener",
+        "health": "Health",
         "run_analysis": "Run Analysis",
         "run_tw": "Run Taiwan Analysis",
         "run_us": "Run US Analysis",
@@ -188,6 +192,8 @@ COPY = {
         "suggested_action": "Suggested Action",
         "rationale": "Why It Ranks",
         "risks": "Main Risks",
+        "forward_score": "Forward Score",
+        "forward_notes": "Forward Factors",
         "win_label": "Win-Rate View",
         "risk_label": "Risk Level",
         "reward_risk": "Reward / Risk",
@@ -333,6 +339,14 @@ def maybe_translate_text(text_value: str) -> str:
         return f"{count} 檔標的帶有事件風險旗標。"
     if text_value.startswith("No major market-wide warnings are flashing right now."):
         return "目前沒有市場級重大風險警訊。"
+    if text_value.startswith("Theme support:"):
+        return text_value.replace("Theme support:", "主題支撐：")
+    if text_value.startswith("Institutional flow persistence supports the forward setup."):
+        return "法人資金延續支持前瞻設定。"
+    if text_value.startswith("Relative strength confirms demand leadership."):
+        return "相對強度確認需求領先。"
+    if text_value.startswith("Forward demand narrative is strong enough for a starter position."):
+        return "前瞻需求敘事偏強，可採試單起步。"
     if " | " in text_value and len(text_value.split(" | ")) == 3:
         dt, region, title = text_value.split(" | ", 2)
         region_map = {"US": "美國", "EU": "歐元區", "JP": "日本", "CN": "中國", "TW": "台灣"}
@@ -663,6 +677,8 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         win_label = maybe_translate_text(str(row.get("win_rate_label", "")))
         risk_label = maybe_translate_text(str(row.get("risk_level", "")))
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
+        forward_score = float(row.get("forward_score", 0))
+        forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
         st.markdown(
             f"""
             <div class="decision-card">
@@ -682,9 +698,12 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                 <span class="decision-pill">{t("win_label")}: {win_label}</span>
                 <span class="decision-pill">{t("risk_label")}: {risk_label}</span>
                 <span class="decision-pill">{t("reward_risk")}: {reward_risk}</span>
+                <span class="decision-pill">{t("forward_score")}: {forward_score:.2f}</span>
                 <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
                 <div class="decision-label">{t("suggested_action")}</div>
                 <div>{suggestion}</div>
+                <div class="decision-label">{t("forward_notes")}</div>
+                <ul class="decision-list">{forward_notes}</ul>
                 <div class="decision-label">{t("rationale")}</div>
                 <ul class="decision-list">{rationale}</ul>
                 <div class="decision-label">{t("risks")}</div>
@@ -795,6 +814,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                     "recommendation_level": "建議等級" if LANG == "zh-TW" else "Recommendation Level",
                     "win_rate_label": t("win_label"),
                     "risk_level": t("risk_label"),
+                    "forward_score": t("forward_score"),
                 }
             ),
             use_container_width=True,
@@ -841,6 +861,18 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                 st.write(f"- {maybe_translate_text(item)}")
 
 
+def render_health_check() -> None:
+    st.markdown(f'<div class="page-title">{t("health")}</div>', unsafe_allow_html=True)
+    if st.button("Run Source Diagnostics", use_container_width=True):
+        with st.spinner("Checking market-data sources..."):
+            rows = market_data.diagnose_providers()
+        frame = pd.DataFrame(rows)
+        if LANG == "zh-TW":
+            frame = frame.rename(columns={"source": "來源", "status": "狀態", "latency_ms": "延遲(ms)", "note": "說明"})
+            frame["狀態"] = frame["狀態"].map(lambda s: "正常" if s == "ok" else "失敗")
+        st.dataframe(frame, use_container_width=True, hide_index=True)
+
+
 inject_styles()
 
 language_options = {"繁體中文": "zh-TW", "English": "en"}
@@ -853,11 +885,13 @@ TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
 render_runtime_settings_panel()
 
 candidate_frame = load_candidate_frame()
-nav = st.sidebar.radio(t("view"), [t("dashboard"), t("portfolio"), t("screener")], index=0)
+nav = st.sidebar.radio(t("view"), [t("dashboard"), t("portfolio"), t("screener"), t("health")], index=0)
 
 if nav == t("dashboard"):
     render_dashboard(candidate_frame)
 elif nav == t("portfolio"):
     render_portfolio()
+elif nav == t("health"):
+    render_health_check()
 else:
     render_screener(candidate_frame)

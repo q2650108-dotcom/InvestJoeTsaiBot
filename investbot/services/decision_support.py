@@ -13,6 +13,8 @@ class DecisionExplanation:
     suggested_action: str
     rationale: list[str]
     risks: list[str]
+    forward_score: float
+    forward_notes: list[str]
 
     def to_record(self) -> dict[str, object]:
         return {
@@ -23,10 +25,21 @@ class DecisionExplanation:
             "suggested_action": self.suggested_action,
             "rationale": self.rationale,
             "risks": self.risks,
+            "forward_score": self.forward_score,
+            "forward_notes": self.forward_notes,
         }
 
 
 class DecisionSupportService:
+    THEME_LEADERS = {
+        "2454.TW": ["ASIC", "Edge AI", "Flagship SoC"],
+        "2330.TW": ["AI Foundry", "Advanced Packaging"],
+        "NVDA": ["AI Compute", "Data Center"],
+        "AVGO": ["Custom ASIC", "Networking"],
+        "MSFT": ["AI Cloud", "Copilot"],
+        "AMZN": ["Cloud AI", "Custom Silicon"],
+    }
+
     def explain(self, row: dict[str, Any]) -> DecisionExplanation:
         bucket = str(row.get("recommendation_bucket", "Watchlist"))
         universe_bucket = str(row.get("universe_bucket", "core"))
@@ -37,6 +50,7 @@ class DecisionSupportService:
         entry_quality_score = float(row.get("entry_quality_score") or 0.0)
         market_regime = str(row.get("market_regime", "Unknown"))
         event_risk_note = str(row.get("event_risk_note", "clear"))
+        ticker = str(row.get("ticker", "")).upper()
 
         rationale: list[str] = []
         risks: list[str] = []
@@ -75,6 +89,15 @@ class DecisionSupportService:
         elif event_risk_score < 65:
             risks.append("Event risk is manageable but still worth monitoring.")
 
+        forward_score, forward_notes = self._build_forward_view(
+            ticker=ticker,
+            market_regime=market_regime,
+            buy_streak=buy_streak,
+            relative_strength_score=relative_strength_score,
+            event_risk_score=event_risk_score,
+        )
+        rationale.extend(forward_notes)
+
         if composite_score >= 82 and bucket == "Safer Follow-Through":
             recommendation_level = "High Conviction Core"
             win_rate_label = "High"
@@ -94,6 +117,22 @@ class DecisionSupportService:
             reward_risk_label = "Unclear"
             suggested_action = "Observe only until the odds improve."
 
+        # Forward overlay: allow high-quality theme leaders to move from passive watch
+        # into a controlled starter stance even when backward-looking composite is mid-range.
+        if (
+            recommendation_level == "Watch and Wait"
+            and forward_score >= 72
+            and buy_streak >= 1
+            and relative_strength_score >= 58
+            and event_risk_score >= 45
+        ):
+            recommendation_level = "Actionable Setup"
+            win_rate_label = "Medium-High"
+            risk_level = "Medium"
+            reward_risk_label = "Balanced"
+            suggested_action = "Pilot size first, then add if confirmation holds."
+            rationale.append("Forward demand narrative is strong enough for a starter position.")
+
         if universe_bucket == "explore" and recommendation_level == "Actionable Setup":
             suggested_action = "Small trial size only; keep core capital focused on large caps."
 
@@ -110,6 +149,8 @@ class DecisionSupportService:
             suggested_action=suggested_action,
             rationale=rationale,
             risks=risks,
+            forward_score=forward_score,
+            forward_notes=forward_notes,
         )
 
     def enrich_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -126,3 +167,42 @@ class DecisionSupportService:
             return note
         prefix, label = note.split(":", 1)
         return f"{prefix} ({label.replace('_', ' ')})"
+
+    def _build_forward_view(
+        self,
+        ticker: str,
+        market_regime: str,
+        buy_streak: int,
+        relative_strength_score: float,
+        event_risk_score: float,
+    ) -> tuple[float, list[str]]:
+        score = 50.0
+        notes: list[str] = []
+
+        themes = self.THEME_LEADERS.get(ticker, [])
+        if themes:
+            score += 14
+            notes.append(f"Theme support: {', '.join(themes)}.")
+        if buy_streak >= 2:
+            score += 8
+            notes.append("Institutional flow persistence supports the forward setup.")
+        elif buy_streak == 1:
+            score += 4
+
+        if relative_strength_score >= 65:
+            score += 10
+            notes.append("Relative strength confirms demand leadership.")
+        elif relative_strength_score >= 58:
+            score += 5
+
+        if market_regime == "Risk-On":
+            score += 8
+        elif market_regime == "Risk-Off":
+            score -= 10
+
+        if event_risk_score < 45:
+            score -= 10
+        elif event_risk_score >= 65:
+            score += 3
+
+        return max(0.0, min(100.0, round(score, 2))), notes

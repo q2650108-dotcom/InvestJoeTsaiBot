@@ -457,6 +457,51 @@ class YahooMarketDataClient:
             return self._get_tw_company_profile(normalized)
         return self._get_us_company_profile(normalized)
 
+    def diagnose_providers(self) -> list[dict[str, str]]:
+        checks: list[tuple[str, str]] = [
+            ("TWSE Company API", "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"),
+            ("TWSE Price API", "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20240101&stockNo=2330&response=json"),
+            ("Stooq US CSV", "https://stooq.com/q/d/l/?s=aapl.us&i=d"),
+            ("Stooq TW CSV", "https://stooq.com/q/d/l/?s=2330.tw&i=d"),
+            ("Yahoo Chart", "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1mo"),
+        ]
+        results: list[dict[str, str]] = []
+        for name, url in checks:
+            started = time.monotonic()
+            status = "ok"
+            note = ""
+            try:
+                response = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+                code = response.status_code
+                if code >= 400:
+                    status = "fail"
+                    note = f"HTTP {code}"
+                else:
+                    note = f"HTTP {code}"
+            except Exception as exc:
+                status = "fail"
+                note = str(exc.__class__.__name__)
+            elapsed = int((time.monotonic() - started) * 1000)
+            results.append({"source": name, "status": status, "latency_ms": str(elapsed), "note": note})
+
+        if self._get_fmp_keys().strip():
+            started = time.monotonic()
+            status = "ok"
+            note = ""
+            try:
+                key = self._split_api_keys(self._get_fmp_keys())[0]
+                url = f"https://financialmodelingprep.com/api/v3/quote/AAPL?apikey={key}"
+                response = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                note = f"HTTP {response.status_code}"
+            except Exception as exc:
+                status = "fail"
+                note = str(exc.__class__.__name__)
+            elapsed = int((time.monotonic() - started) * 1000)
+            results.append({"source": "FMP Quote API", "status": status, "latency_ms": str(elapsed), "note": note})
+
+        return results
+
     def _build_router(self) -> QuoteProviderRouter:
         try:
             from investbot.config import get_settings
