@@ -129,6 +129,10 @@ COPY = {
         "vix_zone": "VIX 區間",
         "vix_meaning": "VIX 解讀",
         "market_read": "市場判讀",
+        "visual_scan": "視覺掃描",
+        "market_pulse": "市場脈搏",
+        "sector_heatmap": "類股熱區",
+        "setup_distribution": "台美建議分佈",
         "day1": "第 1 天",
         "day2": "第 2 天",
         "day3": "第 3 天以上",
@@ -216,6 +220,10 @@ COPY = {
         "vix_zone": "VIX Zone",
         "vix_meaning": "VIX Meaning",
         "market_read": "Market Read",
+        "visual_scan": "Visual Scan",
+        "market_pulse": "Market Pulse",
+        "sector_heatmap": "Sector Heatmap",
+        "setup_distribution": "Setup Distribution",
         "day1": "Day 1 Early",
         "day2": "Day 2 Building",
         "day3": "Day 3+ Safer",
@@ -496,6 +504,148 @@ def build_vix_gauge(vix_value: float | None) -> go.Figure:
     return fig
 
 
+def _latest_candidates(candidate_frame: pd.DataFrame) -> pd.DataFrame:
+    if candidate_frame.empty:
+        return candidate_frame.copy()
+    latest_date = candidate_frame["date"].max()
+    return candidate_frame[candidate_frame["date"] == latest_date].copy()
+
+
+def _vix_comfort_score(vix_value: float | None) -> float:
+    if vix_value is None:
+        return 50.0
+    if vix_value <= 15:
+        return 88.0
+    if vix_value <= 20:
+        return 74.0
+    if vix_value <= 25:
+        return 56.0
+    if vix_value <= 32:
+        return 34.0
+    return 16.0
+
+
+def build_market_pulse_chart(snapshot: Any, overview: Any, candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    setup_quality = 50.0
+    if not latest.empty and "composite_signal_score" in latest.columns:
+        setup_quality = float(latest["composite_signal_score"].fillna(0).mean())
+    pulse = pd.DataFrame(
+        [
+            {"metric": "VIX 舒適度" if LANG == "zh-TW" else "VIX Comfort", "score": _vix_comfort_score(snapshot.vix)},
+            {"metric": t("fear_greed"), "score": float(overview.fear_greed_score)},
+            {"metric": t("breadth"), "score": float(overview.breadth_snapshot)},
+            {"metric": "個股品質" if LANG == "zh-TW" else "Setup Quality", "score": setup_quality},
+        ]
+    )
+    pulse["color"] = pulse["score"].apply(
+        lambda value: "#2fbf71" if value >= 75 else "#8bd36c" if value >= 60 else "#f6c84c" if value >= 45 else "#ff8a4c" if value >= 30 else "#ff5a6b"
+    )
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=pulse["score"],
+            y=pulse["metric"],
+            orientation="h",
+            marker_color=pulse["color"],
+            text=[f"{value:.0f}/100" for value in pulse["score"]],
+            textposition="inside",
+            insidetextanchor="middle",
+            hovertemplate="%{y}: %{x:.1f}/100<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=8, b=8),
+        height=240,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(range=[0, 100], showgrid=True, gridcolor="#edf2f7", zeroline=False, title=None),
+        yaxis=dict(title=None, autorange="reversed"),
+        showlegend=False,
+    )
+    return fig
+
+
+def build_sector_heatmap(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        fig = go.Figure()
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+        return fig
+    enriched = enrich_with_company_metadata(latest)
+    grouped = (
+        enriched.assign(
+            market_label=enriched["type"].map(lambda value: t("taiwan") if value == "tw" else t("us")),
+            sector_label=enriched["sector"].fillna(t("unknown")),
+            score_value=enriched["composite_signal_score"].fillna(0).astype(float),
+        )
+        .groupby(["market_label", "sector_label"], as_index=False)
+        .agg(
+            avg_score=("score_value", "mean"),
+            names=("ticker", "count"),
+        )
+    )
+    fig = px.treemap(
+        grouped,
+        path=["market_label", "sector_label"],
+        values="names",
+        color="avg_score",
+        color_continuous_scale=["#ff6b7a", "#f6cf56", "#7bd88f", "#2fbf71"],
+        range_color=(40, 85),
+    )
+    fig.update_traces(
+        texttemplate="%{label}<br>%{value} 檔<br>%{color:.0f}",
+        hovertemplate="%{label}<br>" + ("檔數" if LANG == "zh-TW" else "Names") + ": %{value}<br>" + ("均分" if LANG == "zh-TW" else "Avg Score") + ": %{color:.1f}<extra></extra>",
+        root_color="white",
+    )
+    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=260, paper_bgcolor="white", coloraxis_showscale=False)
+    return fig
+
+
+def build_setup_distribution_chart(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        fig = go.Figure()
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+        return fig
+    grouped = (
+        latest.assign(
+            market_label=latest["type"].map(lambda value: t("taiwan") if value == "tw" else t("us")),
+            bucket_label=latest["recommendation_bucket"].map(localize_value),
+        )
+        .groupby(["market_label", "bucket_label"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
+    bucket_order = [t("safer"), t("actionable"), t("watchlist")]
+    color_map = {
+        t("safer"): "#2fbf71",
+        t("actionable"): "#8bd36c",
+        t("watchlist"): "#f6c84c",
+    }
+    fig = px.bar(
+        grouped,
+        x="market_label",
+        y="count",
+        color="bucket_label",
+        category_orders={"bucket_label": bucket_order},
+        color_discrete_map=color_map,
+        text="count",
+    )
+    fig.update_traces(textposition="inside", hovertemplate="%{x}<br>%{fullData.name}: %{y}<extra></extra>")
+    fig.update_layout(
+        barmode="stack",
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=260,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        legend_title_text="",
+        xaxis_title=None,
+        yaxis_title=None,
+    )
+    return fig
+
+
 @st.cache_data(ttl=21600, show_spinner=False)
 def get_company_profile_cached(ticker: str) -> dict[str, str]:
     return market_data.get_company_profile(ticker)
@@ -770,6 +920,20 @@ def render_market_overview() -> None:
         render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
+def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
+    st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
+    left, middle, right = st.columns((1, 1.1, 1))
+    with left:
+        st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with middle:
+        st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with right:
+        st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+
+
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     if frame.empty:
         st.info(t("no_data"))
@@ -899,6 +1063,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
     render_run_controls()
     render_market_state()
+    render_visual_scan(candidate_frame, snapshot, overview)
     render_market_overview()
     render_focus_lists(candidate_frame)
     render_decision_cards(candidate_frame)
