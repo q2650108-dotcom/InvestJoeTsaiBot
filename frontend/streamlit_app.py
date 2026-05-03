@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -73,6 +74,7 @@ COPY = {
         "overall_trend": "整體趨勢",
         "sentiment": "市場情緒",
         "fear_greed": "恐慌 / 貪婪",
+        "fear_greed_gauge": "情緒儀表",
         "breadth": "市場廣度",
         "momentum_zones": "動能區域",
         "cautions": "提醒",
@@ -124,6 +126,9 @@ COPY = {
         "neutral": "中性",
         "risk_off": "避險",
         "clear": "正常",
+        "vix_zone": "VIX 區間",
+        "vix_meaning": "VIX 解讀",
+        "market_read": "市場判讀",
         "day1": "第 1 天",
         "day2": "第 2 天",
         "day3": "第 3 天以上",
@@ -156,6 +161,7 @@ COPY = {
         "overall_trend": "Overall Trend",
         "sentiment": "Sentiment",
         "fear_greed": "Fear / Greed",
+        "fear_greed_gauge": "Sentiment Gauge",
         "breadth": "Breadth",
         "momentum_zones": "Momentum Zones",
         "cautions": "Cautions",
@@ -207,6 +213,9 @@ COPY = {
         "neutral": "Neutral",
         "risk_off": "Risk-Off",
         "clear": "Clear",
+        "vix_zone": "VIX Zone",
+        "vix_meaning": "VIX Meaning",
+        "market_read": "Market Read",
         "day1": "Day 1 Early",
         "day2": "Day 2 Building",
         "day3": "Day 3+ Safer",
@@ -361,6 +370,73 @@ def maybe_translate_text(text_value: str) -> str:
     return ZH_DECISION_TEXT.get(text_value, text_value)
 
 
+def describe_vix(vix_value: float | None) -> tuple[str, str]:
+    if vix_value is None:
+        return (t("unknown"), "VIX 無法取得，先以市場廣度與情緒分數輔助判讀。" if LANG == "zh-TW" else "VIX unavailable; rely on breadth and sentiment instead.")
+    if vix_value < 15:
+        return (
+            "極低波動 / 偏樂觀" if LANG == "zh-TW" else "Very low vol / optimistic",
+            "市場波動很低，資金風險偏好強，但也要留意過熱追價。" if LANG == "zh-TW" else "Volatility is very low and risk appetite is strong, but crowded longs can overheat quickly.",
+        )
+    if vix_value < 20:
+        return (
+            "低波動 / 偏正向" if LANG == "zh-TW" else "Low vol / constructive",
+            "目前屬於相對健康的風險區，順勢交易通常比較舒服。" if LANG == "zh-TW" else "This is a relatively healthy risk regime where trend-following tends to work better.",
+        )
+    if vix_value < 25:
+        return (
+            "中等波動 / 謹慎" if LANG == "zh-TW" else "Moderate vol / cautious",
+            "波動開始升高，進場可以更挑、部位可以更小。" if LANG == "zh-TW" else "Volatility is rising, so entries should be more selective and sizing should shrink.",
+        )
+    if vix_value < 32:
+        return (
+            "高波動 / 偏避險" if LANG == "zh-TW" else "High vol / defensive",
+            "市場進入偏防守狀態，單日震盪大，勝率與持有體驗都會變差。" if LANG == "zh-TW" else "Markets are defensive here, with wider daily swings and weaker holding quality.",
+        )
+    return (
+        "極高波動 / 恐慌" if LANG == "zh-TW" else "Extreme vol / panic",
+        "這通常是明顯的恐慌帶，除非是高把握逆勢交易，否則先保守。" if LANG == "zh-TW" else "This is a panic regime; stay conservative unless the reversal setup is exceptionally strong.",
+    )
+
+
+def describe_fear_greed(score: int) -> tuple[str, str]:
+    if score <= 24:
+        return ("極度恐慌" if LANG == "zh-TW" else "Extreme Fear", "#ff5a6b")
+    if score <= 44:
+        return ("恐慌" if LANG == "zh-TW" else "Fear", "#ff8a4c")
+    if score <= 55:
+        return ("中性" if LANG == "zh-TW" else "Neutral", "#f6c84c")
+    if score <= 75:
+        return ("貪婪" if LANG == "zh-TW" else "Greed", "#8bd36c")
+    return ("極度貪婪" if LANG == "zh-TW" else "Extreme Greed", "#2fbf71")
+
+
+def build_fear_greed_gauge(score: int) -> go.Figure:
+    _, _, accent = describe_fear_greed(score)
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=score,
+            number={"suffix": "/100", "font": {"size": 30}},
+            gauge={
+                "axis": {"range": [0, 100], "tickwidth": 0, "tickcolor": "rgba(0,0,0,0)"},
+                "bar": {"color": accent, "thickness": 0.3},
+                "bgcolor": "white",
+                "borderwidth": 0,
+                "steps": [
+                    {"range": [0, 24], "color": "#ff6678"},
+                    {"range": [25, 44], "color": "#ff9a5a"},
+                    {"range": [45, 55], "color": "#f6cf56"},
+                    {"range": [56, 75], "color": "#9bd66f"},
+                    {"range": [76, 100], "color": "#49c57d"},
+                ],
+            },
+        )
+    )
+    fig.update_layout(margin=dict(l=20, r=20, t=20, b=10), height=240, paper_bgcolor="white")
+    return fig
+
+
 @st.cache_data(ttl=21600, show_spinner=False)
 def get_company_profile_cached(ticker: str) -> dict[str, str]:
     return market_data.get_company_profile(ticker)
@@ -419,6 +495,10 @@ def inject_styles() -> None:
         .state-metric { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f7f9fc; min-height:72px; }
         .state-label { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:4px; font-weight:700; }
         .state-value { font-size:0.98rem; font-weight:800; line-height:1.2; }
+        .state-read { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:12px 14px; background:#f7f9fc; min-height:118px; }
+        .state-read-title { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:6px; font-weight:700; }
+        .state-read-main { font-size:1rem; font-weight:800; margin-bottom:6px; color:#243047; }
+        .state-read-copy { font-size:0.86rem; color:#596474; line-height:1.5; }
         .mini-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
         .decision-card { padding: 14px; margin-bottom: 10px; }
         .decision-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
@@ -531,10 +611,35 @@ def render_runtime_settings_panel() -> None:
 
 def render_market_state() -> None:
     overview = overview_service.build()
+    vix_zone, vix_copy = describe_vix(market_data.get_vix_value())
+    fear_greed_label, _, _ = describe_fear_greed(overview.fear_greed_score)
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
     momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
     macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
     caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
+    gauge_left, gauge_right = st.columns((1.05, 1))
+    with gauge_left:
+        st.markdown(f'<div class="section-label">{t("fear_greed_gauge")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
+    with gauge_right:
+        st.markdown(
+            f"""
+            <div class="state-read">
+                <div class="state-read-title">{t("vix_zone")}</div>
+                <div class="state-read-main">{vix_zone}</div>
+                <div class="state-read-copy">{vix_copy}</div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="state-read">
+                <div class="state-read-title">{t("market_read")}</div>
+                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
+                <div class="state-read-copy">
+                    {"情緒分數越靠近 0 越偏恐慌，越靠近 100 越偏貪婪。現在這個區間代表市場偏願意承擔風險，但仍要搭配市場廣度一起看。" if LANG == "zh-TW" else "Lower scores indicate fear, higher scores indicate greed. This reading suggests investors are still willing to take risk, but breadth should confirm it."}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     st.markdown(
         f"""
         <div class="terminal-card">
@@ -716,11 +821,13 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
 
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     snapshot = dashboard_service.build_snapshot()
+    overview = overview_service.build()
     st.title(t("app_title"))
     st.caption(t("app_caption"))
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A")
-    m2.metric(t("sentiment"), localize_value(snapshot.market_sentiment))
+    vix_zone, _ = describe_vix(snapshot.vix)
+    m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)
+    m2.metric(t("sentiment"), localize_value(snapshot.market_sentiment), delta=describe_fear_greed(overview.fear_greed_score)[0])
     m3.metric(t("open_pnl"), f"{snapshot.total_open_pnl:.2f}%")
     m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
     render_run_controls()
