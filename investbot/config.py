@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     us_explore_tickers: str = Field(default="", alias="US_EXPLORE_TICKERS")
     tw_explore_limit: int = Field(default=12, alias="TW_EXPLORE_LIMIT")
     us_explore_limit: int = Field(default=12, alias="US_EXPLORE_LIMIT")
+    enable_live_forward_signals: bool = Field(default=False, alias="ENABLE_LIVE_FORWARD_SIGNALS")
 
 
 @lru_cache(maxsize=1)

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from investbot.config import get_settings
+from investbot.services.forward_signal_service import ForwardSignalService
 
 @dataclass(slots=True)
 class DecisionExplanation:
@@ -39,6 +41,9 @@ class DecisionSupportService:
         "MSFT": ["AI Cloud", "Copilot"],
         "AMZN": ["Cloud AI", "Custom Silicon"],
     }
+
+    def __init__(self, forward_signal_service: ForwardSignalService | None = None) -> None:
+        self.forward_signal_service = forward_signal_service or self._build_forward_signal_service()
 
     def explain(self, row: dict[str, Any]) -> DecisionExplanation:
         bucket = str(row.get("recommendation_bucket", "Watchlist"))
@@ -96,6 +101,10 @@ class DecisionSupportService:
             relative_strength_score=relative_strength_score,
             event_risk_score=event_risk_score,
         )
+        live_forward = self.forward_signal_service.get_snapshot(ticker)
+        if live_forward.notes:
+            forward_notes.extend(live_forward.notes)
+        forward_score = round((forward_score * 0.6) + (live_forward.score * 0.4), 2)
         rationale.extend(forward_notes)
 
         if composite_score >= 82 and bucket == "Safer Follow-Through":
@@ -206,3 +215,13 @@ class DecisionSupportService:
             score += 3
 
         return max(0.0, min(100.0, round(score, 2))), notes
+
+    def _build_forward_signal_service(self) -> ForwardSignalService:
+        try:
+            settings = get_settings()
+            if not settings.enable_live_forward_signals:
+                return ForwardSignalService(fmp_api_keys="")
+            keys = settings.fmp_api_keys
+        except Exception:
+            keys = ""
+        return ForwardSignalService(fmp_api_keys=keys)
