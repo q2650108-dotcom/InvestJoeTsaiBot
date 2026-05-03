@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     finnhub_api_key: str = Field(default="", alias="FINNHUB_API_KEY")
     finnhub_api_keys: str = Field(default="", alias="FINNHUB_API_KEYS")
     fmp_api_keys: str = Field(default="", alias="FMP_API_KEYS")
+    finmind_api_token: str = Field(default="", alias="FINMIND_API_TOKEN")
     app_timezone: str = Field(default="Asia/Taipei", alias="APP_TIMEZONE")
     tw_market_analysis_hour: int = Field(default=17, alias="TW_MARKET_ANALYSIS_HOUR")
     us_market_analysis_hour: int = Field(default=8, alias="US_MARKET_ANALYSIS_HOUR")

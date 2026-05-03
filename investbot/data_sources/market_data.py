@@ -81,8 +81,6 @@ class YahooMarketDataClient:
         self._tw_profile_cache: dict[str, dict[str, str]] | None = None
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
-        import yfinance as yf
-
         deadline = time.monotonic() + 20.0
         if ticker.startswith("^"):
             idx_frame = self._fetch_from_stooq_csv(ticker)
@@ -92,14 +90,17 @@ class YahooMarketDataClient:
         frame = pd.DataFrame()
         is_tw_ticker = ticker.upper().endswith(".TW")
 
-        # Taiwan first: prefer official exchange source before global providers.
+        # Taiwan first: FinMind is the fastest reliable public history source;
+        # TWSE monthly pages remain as official fallback.
         if is_tw_ticker:
-            tw_deadline = time.monotonic() + 12.0
-            frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=tw_deadline)
+            tw_deadline = time.monotonic() + 16.0
+            frame = self._fetch_from_finmind_tw(ticker, period=period)
             if frame.empty and time.monotonic() <= tw_deadline:
-                frame = self._fetch_from_stooq_csv(ticker)
+                frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=tw_deadline)
             if frame.empty and time.monotonic() <= tw_deadline:
                 frame = self._fetch_from_fmp_history(ticker)
+            if frame.empty and time.monotonic() <= tw_deadline:
+                frame = self._fetch_from_yahoo_chart(ticker, period=period, interval=interval)
             if not frame.empty:
                 frame = frame.reset_index()
                 if "Date" not in frame.columns:
@@ -110,19 +111,28 @@ class YahooMarketDataClient:
                     return frame
 
         for symbol in candidates:
-            # Attempt 1: yfinance bulk downloader
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                frame = yf.download(symbol, period=period, interval=interval, auto_adjust=False, progress=False)
+            # Attempt 1: direct Yahoo chart endpoint. This is faster and quieter
+            # than yfinance in hosted Streamlit environments.
+            frame = self._fetch_from_yahoo_chart(symbol, period=period, interval=interval)
 
-            # Attempt 2: single ticker history endpoint
+            # Attempt 2: FMP history, if configured.
             if frame.empty:
+                frame = self._fetch_from_fmp_history(symbol)
+
+            # Attempt 3: yfinance bulk downloader
+            if frame.empty:
+                import yfinance as yf
+
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    frame = yf.download(symbol, period=period, interval=interval, auto_adjust=False, progress=False)
+
+            # Attempt 4: single ticker history endpoint
+            if frame.empty:
+                import yfinance as yf
+
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     history = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=False)
                 frame = history
-
-            # Attempt 3: direct Yahoo chart endpoint
-            if frame.empty:
-                frame = self._fetch_from_yahoo_chart(symbol, period=period, interval=interval)
 
             if not frame.empty:
                 break
@@ -133,13 +143,18 @@ class YahooMarketDataClient:
         if frame.empty and is_tw_ticker and time.monotonic() <= deadline:
             frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=deadline)
 
-        # Attempt 5: Stooq CSV fallback
-        if frame.empty and time.monotonic() <= deadline:
-            frame = self._fetch_from_stooq_csv(ticker)
+        # Attempt 5: FinMind Taiwan stock price fallback.
+        if frame.empty and is_tw_ticker and time.monotonic() <= deadline:
+            frame = self._fetch_from_finmind_tw(ticker, period=period)
 
         # Attempt 6: FMP historical fallback (use configured key rotation).
         if frame.empty and time.monotonic() <= deadline:
             frame = self._fetch_from_fmp_history(ticker)
+
+        # Attempt 7: Stooq CSV fallback. Stooq currently requires a per-user
+        # CSV API key for many symbols, so this is intentionally last.
+        if frame.empty and time.monotonic() <= deadline:
+            frame = self._fetch_from_stooq_csv(ticker)
 
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
@@ -171,7 +186,7 @@ class YahooMarketDataClient:
             f"{quote_plus(ticker)}?interval={interval}&range={query_range}&events=history&includePrePost=false"
         )
         try:
-            response = requests.get(url, timeout=12)
+            response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
             payload = response.json()
             result = (payload.get("chart") or {}).get("result") or []
@@ -205,7 +220,7 @@ class YahooMarketDataClient:
 
         months = self._period_to_months(period)
         max_probe_months = max(months + 3, 36)
-        today = date.today()
+        today = self._get_twse_latest_trade_date() or date.today()
         rows: list[dict[str, object]] = []
         session = requests.Session()
         consecutive_empty = 0
@@ -282,6 +297,24 @@ class YahooMarketDataClient:
                 time.sleep(0.2 * (attempt + 1))
         return []
 
+    def _get_twse_latest_trade_date(self) -> date | None:
+        try:
+            response = requests.get(
+                "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+                timeout=8,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            response.raise_for_status()
+            rows = response.json()
+            if not isinstance(rows, list) or not rows:
+                return None
+            raw = str(rows[0].get("Date", "")).strip()
+            if len(raw) != 7:
+                return None
+            return date(int(raw[:3]) + 1911, int(raw[3:5]), int(raw[5:7]))
+        except Exception:
+            return None
+
     def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
         symbol = ticker.lower()
         if "." not in symbol and symbol not in {"^vix", "^gspc", "^twii"}:
@@ -307,6 +340,57 @@ class YahooMarketDataClient:
         frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
         frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         return frame.reset_index(drop=True)
+
+    def _fetch_from_finmind_tw(self, ticker: str, period: str) -> pd.DataFrame:
+        stock_no = ticker.upper().replace(".TW", "").strip()
+        if not stock_no.isdigit():
+            return pd.DataFrame()
+
+        end_date = self._get_twse_latest_trade_date() or date.today()
+        start_date = end_date - timedelta(days=max(self._period_to_months(period) * 35, 240))
+        params = {
+            "dataset": "TaiwanStockPrice",
+            "data_id": stock_no,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+        token = self._get_finmind_token()
+        if token:
+            params["token"] = token
+
+        try:
+            response = requests.get(
+                "https://api.finmindtrade.com/api/v4/data",
+                params=params,
+                timeout=12,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = payload.get("data") or []
+        except Exception:
+            return pd.DataFrame()
+
+        if not rows:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(rows)
+        required = {"date", "open", "max", "min", "close", "Trading_Volume"}
+        if not required.issubset(set(frame.columns)):
+            return pd.DataFrame()
+        frame = frame.rename(
+            columns={
+                "date": "Date",
+                "open": "Open",
+                "max": "High",
+                "min": "Low",
+                "close": "Close",
+                "Trading_Volume": "Volume",
+            }
+        )
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+        return frame.sort_values("Date").reset_index(drop=True)
 
     def _fetch_from_fmp_history(self, ticker: str) -> pd.DataFrame:
         keys = self._split_api_keys(self._get_fmp_keys())
@@ -458,15 +542,16 @@ class YahooMarketDataClient:
         return self._get_us_company_profile(normalized)
 
     def diagnose_providers(self) -> list[dict[str, str]]:
-        checks: list[tuple[str, str]] = [
-            ("TWSE Company API", "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"),
-            ("TWSE Price API", "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20240101&stockNo=2330&response=json"),
-            ("Stooq US CSV", "https://stooq.com/q/d/l/?s=aapl.us&i=d"),
-            ("Stooq TW CSV", "https://stooq.com/q/d/l/?s=2330.tw&i=d"),
-            ("Yahoo Chart", "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1mo"),
+        checks: list[tuple[str, str, str]] = [
+            ("TWSE Company API", "https://openapi.twse.com.tw/v1/opendata/t187ap03_L", "twse_company"),
+            ("TWSE Price API", "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20240101&stockNo=2330&response=json", "twse_price"),
+            ("FinMind TW Price API", "https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=2330&start_date=2026-01-01", "finmind_tw_price"),
+            ("Stooq US CSV", "https://stooq.com/q/d/l/?s=aapl.us&i=d", "csv"),
+            ("Stooq TW CSV", "https://stooq.com/q/d/l/?s=2330.tw&i=d", "csv"),
+            ("Yahoo Chart", "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1mo", "yahoo_chart"),
         ]
         results: list[dict[str, str]] = []
-        for name, url in checks:
+        for name, url, expected_shape in checks:
             started = time.monotonic()
             status = "ok"
             note = ""
@@ -476,8 +561,11 @@ class YahooMarketDataClient:
                 if code >= 400:
                     status = "fail"
                     note = f"HTTP {code}"
+                elif not self._diagnostic_payload_has_data(response, expected_shape):
+                    status = "fail"
+                    note = "HTTP 200 but no parseable market data"
                 else:
-                    note = f"HTTP {code}"
+                    note = f"HTTP {code}, data ok"
             except Exception as exc:
                 status = "fail"
                 note = str(exc.__class__.__name__)
@@ -501,6 +589,25 @@ class YahooMarketDataClient:
             results.append({"source": "FMP Quote API", "status": status, "latency_ms": str(elapsed), "note": note})
 
         return results
+
+    def _diagnostic_payload_has_data(self, response: requests.Response, expected_shape: str) -> bool:
+        try:
+            if expected_shape == "csv":
+                frame = pd.read_csv(io.StringIO(response.text.strip()))
+                return {"Date", "Open", "High", "Low", "Close", "Volume"}.issubset(set(frame.columns)) and not frame.empty
+            payload = response.json()
+            if expected_shape == "twse_company":
+                return isinstance(payload, list) and bool(payload) and "公司代號" in payload[0]
+            if expected_shape == "twse_price":
+                return isinstance(payload, dict) and bool(payload.get("data"))
+            if expected_shape == "finmind_tw_price":
+                return isinstance(payload, dict) and bool(payload.get("data"))
+            if expected_shape == "yahoo_chart":
+                result = (payload.get("chart") or {}).get("result") or []
+                return bool(result and result[0].get("timestamp"))
+        except Exception:
+            return False
+        return False
 
     def _build_router(self) -> QuoteProviderRouter:
         try:
@@ -602,6 +709,14 @@ class YahooMarketDataClient:
             from investbot.config import get_settings
 
             return get_settings().fmp_api_keys
+        except Exception:
+            return ""
+
+    def _get_finmind_token(self) -> str:
+        try:
+            from investbot.config import get_settings
+
+            return get_settings().finmind_api_token
         except Exception:
             return ""
 
