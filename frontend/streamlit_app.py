@@ -381,6 +381,182 @@ COPY["zh-TW"].update(
     }
 )
 
+COPY["zh-TW"].update(
+    {
+        "decision_score_label": "決策分數",
+        "decision_score_help": "80+ 偏強、70-79 可試單、60-69 觀察、60 以下先不動。",
+        "decision_verdict": "結論",
+        "verdict_buy": "可買",
+        "verdict_probe": "可試單",
+        "verdict_wait": "先觀察",
+        "verdict_avoid": "先不買",
+        "leader_board_help": "這裡看的是目前最強、最接近可執行的標的。",
+        "risk_board_help": "這裡看的是事件風險高、延續性差，或暫時不適合追的標的。",
+    }
+)
+
+COPY["en"].update(
+    {
+        "decision_score_label": "Decision Score",
+        "decision_score_help": "80+ strong, 70-79 starter size, 60-69 watch, below 60 no action.",
+        "decision_verdict": "Verdict",
+        "verdict_buy": "Buy",
+        "verdict_probe": "Starter Size",
+        "verdict_wait": "Watch",
+        "verdict_avoid": "Avoid",
+        "leader_board_help": "These are the strongest names and the closest to execution right now.",
+        "risk_board_help": "These names carry higher event risk, weaker follow-through, or simply are not chaseable right now.",
+    }
+)
+
+COPY["zh-TW"].update(
+    {
+        "app_caption": "先看總體市場，再看資金流與動能，最後再看個股。",
+        "language": "語言",
+        "view": "檢視",
+        "dashboard": "總覽",
+        "portfolio": "持股",
+        "screener": "篩選",
+        "health": "健康檢查",
+        "run_analysis": "執行分析",
+        "run_tw": "執行台股分析",
+        "run_us": "執行美股分析",
+        "analysis_done": "分析完成",
+        "analysis_failed": "分析失敗",
+        "analysis_progress": "分析進度",
+        "analysis_summary": "分析摘要",
+        "analysis_options": "分析選項",
+        "force_refresh": "強制重抓歷史資料",
+        "cooldown_skip": "剛分析過，直接沿用近期結果，避免重複抓資料。",
+        "cooldown_force_hint": "如果你懷疑資料源剛更新，再勾選強制重抓。",
+        "market_state": "市場狀態",
+        "fear_greed_gauge": "恐慌 / 貪婪儀表",
+        "momentum_zones": "動能區域",
+        "cautions": "提醒",
+        "macro_calendar": "重大事件行事曆",
+        "market_overview": "市場總覽",
+        "market_terminal": "市場首頁",
+        "benchmark_watch": "基準觀察",
+        "benchmark_range": "走勢區間",
+        "today": "當天",
+        "one_month": "月",
+        "one_year": "一年",
+        "three_year": "三年",
+        "five_year": "五年",
+        "benchmark_no_data": "這個區間沒有資料。",
+        "candidates": "候選數",
+        "actionable": "可行動",
+        "safer": "相對安全延續",
+        "focus_lists": "重點名單",
+        "decision_cards": "決策卡",
+        "core_pool": "核心池",
+        "explore_pool": "觀察池",
+        "watchlist": "觀察",
+        "no_data": "目前沒有資料，先跑一次分析。",
+        "open_pnl": "未實現報酬",
+        "portfolio_curve": "資金曲線",
+        "open_positions": "持有部位",
+        "no_positions": "目前沒有持倉。",
+        "no_closed_trades": "目前還沒有已平倉交易。",
+        "bucket": "分組",
+        "all": "全部",
+        "min_score": "最低綜合分數",
+        "price_trend": "價格走勢",
+        "funnel_scores": "漏斗分數",
+        "rationale": "推薦理由",
+        "risks": "主要風險",
+        "forward_score": "前瞻分數",
+        "forward_notes": "前瞻因子",
+        "win_label": "勝率評估",
+        "risk_label": "風險等級",
+        "reward_risk": "風報比",
+        "event_risk": "事件風險",
+        "next_event": "下一個事件",
+        "signal_type": "訊號",
+        "unknown": "未知",
+        "calm": "平穩",
+        "neutral": "中性",
+        "risk_off": "防守",
+        "clear": "無明顯風險",
+        "vix_zone": "VIX 區間",
+        "vix_meaning": "VIX 判讀",
+        "market_read": "市場判讀",
+        "visual_scan": "視覺掃描",
+        "market_pulse": "市場脈搏",
+        "sector_heatmap": "類股熱區",
+        "setup_distribution": "訊號分布",
+        "breadth_lights": "市場燈號",
+        "trend_mini": "短線走勢",
+        "score_trend": "分數節奏",
+        "session_brief": "開盤摘要",
+        "tw_brief": "台股摘要",
+        "us_brief": "美股摘要",
+        "rank_board": "熱度榜",
+        "leader_board": "領先名單",
+        "risk_board": "風險名單",
+        "best_score": "最佳分數",
+        "avg_score": "平均分數",
+        "market_bias": "市場偏向",
+        "core_tab": "核心",
+        "explore_tab": "觀察",
+        "risk_tab": "風險",
+        "why_tab": "理由",
+        "detail_tab": "明細",
+        "settings_panel": "偏好設定",
+        "save_settings": "儲存設定",
+        "settings_saved": "設定已寫入資料庫",
+        "high_risk_dates": "手動高風險事件日期",
+        "data_freshness": "資料時間",
+        "snapshot_as_of": "快照日期",
+        "data_window": "資料區間",
+        "page_rendered_at": "頁面抓取時間",
+        "latest_analysis_date": "最新分析日期",
+        "intraday_source_note": "如果拿不到真正當日分時，就直接顯示沒有資料，不會偷偷放寬成更長區間。",
+        "decision_score_label": "綜合判讀分數",
+        "decision_score_help": "80 分以上偏強，可正常看待；70-79 分可先小部位試單；60-69 分先觀察；60 分以下先避開。",
+        "decision_verdict": "結論",
+        "verdict_buy": "可買",
+        "verdict_probe": "可試單",
+        "verdict_wait": "先觀察",
+        "verdict_avoid": "先避開",
+        "leader_board_help": "這裡放的是目前最強、最接近可執行的標的。",
+        "risk_board_help": "這裡放的是事件風險較高、容易影響勝率或不適合追價的標的。",
+    }
+)
+
+ZH_DECISION_TEXT.update(
+    {
+        "Institutional buying has just turned positive.": "法人買盤剛轉正。",
+        "Institutional buying is building into a second session.": "法人買盤延續到第 2 天。",
+        "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
+        "Relative strength is supportive versus the benchmark.": "相對強度仍比市場基準健康。",
+        "Price location is constructive and not excessively extended.": "價位位置健康，且未過度乖離。",
+        "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
+        "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
+        "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
+        "The broader market is risk-off, so hit rates can fall quickly.": "大盤偏防守，勝率容易快速下降。",
+        "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於觀察池，不應高於核心大型股的優先順序。",
+        "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
+        "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得持續追蹤。",
+        "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有重大風險警示，但停損紀律仍要保留。",
+        "The current signal does not yet have enough stacked evidence.": "目前訊號還沒有堆出足夠證據。",
+        "Normal position sizing or staged entries on minor pullbacks.": "可用正常部位，或等待小拉回分批進場。",
+        "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
+        "Observe only until the odds improve.": "先觀察，等勝率提升再行動。",
+        "Small trial size only; keep core capital focused on large caps.": "僅適合小部位試單，核心資金仍應聚焦大型股。",
+        "High Conviction Core": "核心可買",
+        "Actionable Setup": "可試單",
+        "Watch and Wait": "先觀察",
+        "High": "高",
+        "Medium-High": "中高",
+        "Medium-Low": "中低",
+        "Medium": "中",
+        "Favorable": "報酬優勢",
+        "Balanced": "風報平衡",
+        "Unclear": "風報不明",
+    }
+)
+
 
 ZH_DECISION_TEXT = {
     "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
@@ -525,14 +701,14 @@ def localize_value(value: object) -> str:
         "Calm": t("calm"),
         "Neutral": t("neutral"),
         "Risk-Off": t("risk_off"),
-        "Risk-On": "偏多" if LANG == "zh-TW" else "Risk-On",
-        "Risk-On Uptrend": "偏多上升趨勢" if LANG == "zh-TW" else "Risk-On Uptrend",
-        "Balanced / Selective": "平衡 / 精選" if LANG == "zh-TW" else "Balanced / Selective",
-        "Defensive / Risk-Off": "防守 / 避險" if LANG == "zh-TW" else "Defensive / Risk-Off",
-        "Greed": "貪婪" if LANG == "zh-TW" else "Greed",
-        "Constructive": "正向" if LANG == "zh-TW" else "Constructive",
-        "Cautious": "謹慎" if LANG == "zh-TW" else "Cautious",
-        "Fear": "恐慌" if LANG == "zh-TW" else "Fear",
+        "Risk-On": "??" if LANG == "zh-TW" else "Risk-On",
+        "Risk-On Uptrend": "??????" if LANG == "zh-TW" else "Risk-On Uptrend",
+        "Balanced / Selective": "?? / ??" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "?? / ????" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Greed": "??" if LANG == "zh-TW" else "Greed",
+        "Constructive": "????" if LANG == "zh-TW" else "Constructive",
+        "Cautious": "??" if LANG == "zh-TW" else "Cautious",
+        "Fear": "??" if LANG == "zh-TW" else "Fear",
         "Watchlist": t("watchlist"),
         "Actionable": t("actionable"),
         "Safer Follow-Through": t("safer"),
@@ -542,23 +718,26 @@ def localize_value(value: object) -> str:
         "DAY_1_EARLY": t("day1"),
         "DAY_2_BUILDING": t("day2"),
         "DAY_3_PLUS_SAFER": t("day3"),
-        "Institutional Accumulation": "法人買盤累積" if LANG == "zh-TW" else "Institutional Accumulation",
-        "Panic Reversal": "恐慌反轉" if LANG == "zh-TW" else "Panic Reversal",
-        "High": "高" if LANG == "zh-TW" else "High",
-        "Medium": "中" if LANG == "zh-TW" else "Medium",
-        "Medium-High": "中高" if LANG == "zh-TW" else "Medium-High",
-        "Medium-Low": "中低" if LANG == "zh-TW" else "Medium-Low",
-        "Favorable": "風報偏佳" if LANG == "zh-TW" else "Favorable",
-        "Balanced": "風報平衡" if LANG == "zh-TW" else "Balanced",
-        "Unclear": "風報不明" if LANG == "zh-TW" else "Unclear",
+        "Institutional Accumulation": "??????" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "????" if LANG == "zh-TW" else "Panic Reversal",
+        "High": "?" if LANG == "zh-TW" else "High",
+        "Medium": "?" if LANG == "zh-TW" else "Medium",
+        "Medium-High": "??" if LANG == "zh-TW" else "Medium-High",
+        "Medium-Low": "??" if LANG == "zh-TW" else "Medium-Low",
+        "Favorable": "????" if LANG == "zh-TW" else "Favorable",
+        "Balanced": "????" if LANG == "zh-TW" else "Balanced",
+        "Unclear": "????" if LANG == "zh-TW" else "Unclear",
+        "High Conviction Core": "????" if LANG == "zh-TW" else "High Conviction Core",
+        "Actionable Setup": "???" if LANG == "zh-TW" else "Actionable Setup",
+        "Watch and Wait": "???" if LANG == "zh-TW" else "Watch and Wait",
     }
     if text_value in mapping:
         return mapping[text_value]
     if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
         prefix, label = text_value.split(":", 1)
-        prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
+        prefix_label = "??????" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
         if prefix == "macro_event_near":
-            prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
+            prefix_label = "??????" if LANG == "zh-TW" else "Macro near"
         return f"{prefix_label}: {_translate_macro_event_label(label)}"
     if LANG == "zh-TW" and text_value in ZH_DECISION_TEXT:
         return ZH_DECISION_TEXT[text_value]
@@ -570,39 +749,38 @@ def maybe_translate_text(text_value: str) -> str:
         return text_value
     if text_value.startswith("Institutional buying has persisted for ") and text_value.endswith(" sessions."):
         days = text_value.replace("Institutional buying has persisted for ", "").replace(" sessions.", "").strip()
-        return f"法人買超已連續 {days} 天。"
+        return f"??????? {days} ??"
     if text_value.startswith("Event risk is elevated:"):
         detail = text_value.replace("Event risk is elevated:", "").strip()
-        return f"事件風險偏高：{_translate_macro_event_label(detail)}"
+        return f"???????{_translate_macro_event_label(detail)}"
     if text_value.startswith("macro_event_imminent ("):
         inner = text_value.replace("macro_event_imminent (", "").rstrip(")")
-        return f"總經事件臨近：{_translate_macro_event_label(inner)}。"
+        return f"???????{_translate_macro_event_label(inner)}?"
     if text_value.startswith("macro_event_near ("):
         inner = text_value.replace("macro_event_near (", "").rstrip(")")
-        return f"總經事件接近：{_translate_macro_event_label(inner)}。"
+        return f"???????{_translate_macro_event_label(inner)}?"
     if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
-        return "波動升高，部位控管應更保守。"
+        return "?????????????"
     if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
-        return "市場廣度偏弱，單一個股突破失敗率可能較高。"
+        return "?????????????????????"
     if text_value.endswith(" names are carrying event-risk flags."):
         count = text_value.split(" ", 1)[0]
-        return f"{count} 檔標的帶有事件風險標記。"
+        return f"{count} ??????????????"
     if text_value.startswith("No major market-wide warnings are flashing right now."):
-        return "目前沒有明顯的市場級風險警訊。"
+        return "???????????????"
     if text_value.startswith("Theme support:"):
-        return text_value.replace("Theme support:", "主題支撐：")
+        return text_value.replace("Theme support:", "?????")
     if text_value.startswith("Institutional flow persistence supports the forward setup."):
-        return "法人資金延續性支持前瞻設定。"
+        return "??????????????????"
     if text_value.startswith("Relative strength confirms demand leadership."):
-        return "相對強度確認需求領先。"
+        return "??????????????"
     if text_value.startswith("Forward demand narrative is strong enough for a starter position."):
-        return "前瞻需求敘事夠強，可先建立試單部位。"
+        return "????????????????????"
     if " | " in text_value and len(text_value.split(" | ")) == 3:
         dt, region, title = text_value.split(" | ", 2)
-        region_map = {"US": "美國", "EU": "歐洲", "JP": "日本", "CN": "中國", "TW": "台灣"}
+        region_map = {"US": "??", "EU": "??", "JP": "??", "CN": "??", "TW": "??"}
         return f"{dt} | {region_map.get(region, region)} | {_translate_macro_event_label(title)}"
     return ZH_DECISION_TEXT.get(text_value, text_value)
-
 
 def describe_vix(vix_value: float | None) -> tuple[str, str]:
     if vix_value is None:
@@ -758,10 +936,10 @@ def build_market_pulse_chart(snapshot: Any, overview: Any, candidate_frame: pd.D
         setup_quality = float(latest["composite_signal_score"].fillna(0).mean())
     pulse = pd.DataFrame(
         [
-            {"metric": "VIX 舒適度" if LANG == "zh-TW" else "VIX Comfort", "score": _vix_comfort_score(snapshot.vix)},
+            {"metric": "VIX ???" if LANG == "zh-TW" else "VIX Comfort", "score": _vix_comfort_score(snapshot.vix)},
             {"metric": t("fear_greed"), "score": float(overview.fear_greed_score)},
             {"metric": t("breadth"), "score": float(overview.breadth_snapshot)},
-            {"metric": "個股品質" if LANG == "zh-TW" else "Setup Quality", "score": setup_quality},
+            {"metric": "????" if LANG == "zh-TW" else "Setup Quality", "score": setup_quality},
         ]
     )
     pulse["color"] = pulse["score"].apply(
@@ -820,8 +998,8 @@ def build_sector_heatmap(candidate_frame: pd.DataFrame) -> go.Figure:
         range_color=(40, 85),
     )
     fig.update_traces(
-        texttemplate="%{label}<br>%{value} 檔<br>%{color:.0f}",
-        hovertemplate="%{label}<br>" + ("檔數" if LANG == "zh-TW" else "Names") + ": %{value}<br>" + ("均分" if LANG == "zh-TW" else "Avg Score") + ": %{color:.1f}<extra></extra>",
+        texttemplate="%{label}<br>%{value} ?<br>%{color:.0f}",
+        hovertemplate="%{label}<br>" + ("??" if LANG == "zh-TW" else "Names") + ": %{value}<br>" + ("????" if LANG == "zh-TW" else "Avg Score") + ": %{color:.1f}<extra></extra>",
         root_color="white",
     )
     fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=260, paper_bgcolor="white", coloraxis_showscale=False)
@@ -909,26 +1087,26 @@ def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
 
     if market_type == "tw":
         display_name = name_zh or name_en or ticker
-        display_sector = sector or "未知"
+        display_sector = sector or "??"
     else:
         if LANG == "zh-TW" and name_zh:
-            display_name = f"{name_en}（{name_zh}）" if name_en else name_zh
+            display_name = f"{name_en}?{name_zh}?" if name_en else name_zh
         else:
             display_name = name_en or ticker
-        display_sector = sector or ("未知" if LANG == "zh-TW" else "Unknown")
+        display_sector = sector or ("??" if LANG == "zh-TW" else "Unknown")
     return display_name, display_sector
 
 
 def _signal_tone(score: float) -> tuple[str, str]:
     if score >= 75:
-        return ("#2fbf71", "偏多順風" if LANG == "zh-TW" else "Risk-on")
+        return ("#2fbf71", "????" if LANG == "zh-TW" else "Risk-on")
     if score >= 60:
-        return ("#8bd36c", "正向" if LANG == "zh-TW" else "Constructive")
+        return ("#8bd36c", "????" if LANG == "zh-TW" else "Constructive")
     if score >= 45:
-        return ("#f6c84c", "中性" if LANG == "zh-TW" else "Neutral")
+        return ("#f6c84c", "??" if LANG == "zh-TW" else "Neutral")
     if score >= 30:
-        return ("#ff8a4c", "轉弱" if LANG == "zh-TW" else "Weakening")
-    return ("#ff5a6b", "防守" if LANG == "zh-TW" else "Defensive")
+        return ("#ff8a4c", "??" if LANG == "zh-TW" else "Weakening")
+    return ("#ff5a6b", "??" if LANG == "zh-TW" else "Defensive")
 
 
 def _market_bias_copy(summary: Any) -> str:
@@ -936,8 +1114,20 @@ def _market_bias_copy(summary: Any) -> str:
         return t("no_data")
     regime = localize_value(summary.regime)
     if LANG == "zh-TW":
-        return f"{regime}，候選 {summary.candidate_count} 檔，可行動 {summary.actionable_count} 檔，相對安全延續 {summary.safer_count} 檔。"
+        return f"{regime}??? {summary.candidate_count} ????? {summary.actionable_count} ???????? {summary.safer_count} ??"
     return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
+
+
+def _decision_verdict(row: pd.Series) -> tuple[str, str]:
+    bucket = str(row.get("recommendation_bucket", "Watchlist"))
+    score = float(row.get("composite_signal_score", 0) or 0)
+    if bucket == "Safer Follow-Through" or score >= 80:
+        return t("verdict_buy"), "#16a34a"
+    if bucket == "Actionable" or score >= 70:
+        return t("verdict_probe"), "#65a30d"
+    if score >= 60:
+        return t("verdict_wait"), "#d97706"
+    return t("verdict_avoid"), "#dc2626"
 
 
 def _normalize_trend(values: list[float]) -> list[float]:
@@ -1707,14 +1897,11 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
     if latest_date:
         _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
-    latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
-    if latest_date:
-        _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
-        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "總體風向" if LANG == "zh-TW" else "Macro tape"),
-        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "情緒越高越敢追價" if LANG == "zh-TW" else "Higher means more risk appetite"),
-        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "廣度高代表更多標的同步" if LANG == "zh-TW" else "Higher breadth means broader participation"),
-        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低越舒服" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "?????????" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "????????????" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "???????????" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX ???????????" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
     light_columns = st.columns(4)
     for column, (name, value, color, tone, copy) in zip(light_columns, lights):
@@ -1727,7 +1914,7 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
                         <span class="light-dot" style="background:{color}"></span>
                     </div>
                     <div class="light-value">{value}</div>
-                    <div class="light-copy">{tone} · {copy}</div>
+                    <div class="light-copy">{tone} | {copy}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1786,7 +1973,11 @@ def render_rank_boards() -> None:
         leader_rows.extend(summary.top_rows)
         risk_rows.extend(summary.risk_rows)
     leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
-    risk_rows = sorted(risk_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0))[:6]
+    leader_tickers = {str(row.get("ticker", "")) for row in leader_rows}
+    risk_rows = sorted(
+        [row for row in risk_rows if str(row.get("ticker", "")) not in leader_tickers],
+        key=lambda row: (float(row.get("event_risk_score", 50) or 50), float(row.get("composite_signal_score", 0) or 0)),
+    )[:6]
     st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
     dates = []
     for summary in (tw_summary, us_summary):
@@ -1797,12 +1988,17 @@ def render_rank_boards() -> None:
     left, right = st.columns(2)
     with left:
         st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("leader_board_help"))
         with st.container(border=True):
             _render_rank_items(leader_rows, meta_mode="leader")
     with right:
         st.markdown(f'<div class="section-label">{t("risk_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("risk_board_help"))
         with st.container(border=True):
-            _render_rank_items(risk_rows, meta_mode="risk")
+            if risk_rows:
+                _render_rank_items(risk_rows, meta_mode="risk")
+            else:
+                st.info("??????????????????" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -1828,7 +2024,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -1892,6 +2088,7 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
 
 def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
+    st.caption(f'{t("decision_score_label")}?{t("decision_score_help")}')
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -1904,6 +2101,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     )
     for _, row in latest.iterrows():
         company_name, sector_name = _display_name_for_row(row)
+        verdict_label, verdict_color = _decision_verdict(row)
         rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
         risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
         suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
@@ -1913,6 +2111,15 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
         forward_score = float(row.get("forward_score", 0))
         forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
+        if LANG == "zh-TW":
+            verdict_copy = {
+                t("verdict_buy"): "?????????????????",
+                t("verdict_probe"): "??????????????????",
+                t("verdict_wait"): "????????????",
+                t("verdict_avoid"): "????????????",
+            }.get(verdict_label, "")
+        else:
+            verdict_copy = ""
         st.markdown(
             f"""
             <div class="decision-card">
@@ -1926,7 +2133,12 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                             {localize_value(row.get("recommendation_bucket", "Watchlist"))}
                         </div>
                     </div>
-                    <div class="decision-meta">{t("score")} {float(row.get("composite_signal_score", 0)):.2f}</div>
+                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
+                </div>
+                <div class="decision-meta" style="margin-bottom:8px;">
+                    {t("decision_verdict")}?
+                    <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
+                    {verdict_copy}
                 </div>
                 <span class="decision-pill">{level}</span>
                 <span class="decision-pill">{t("win_label")}: {win_label}</span>
@@ -1948,6 +2160,487 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         )
 
 
+
+COPY["zh-TW"].update(
+    {
+        "decision_score_label": "綜合判讀分數",
+        "decision_score_help": "80 分以上偏強，可正常看待；70-79 分可先小部位試單；60-69 分先觀察；60 分以下先避開。",
+        "decision_verdict": "結論",
+        "verdict_buy": "可買",
+        "verdict_probe": "可試單",
+        "verdict_wait": "先觀察",
+        "verdict_avoid": "先避開",
+        "leader_board_help": "這裡放的是目前最強、最接近可執行的標的。",
+        "risk_board_help": "這裡放的是事件風險較高、容易影響勝率或不適合追價的標的。",
+        "trend_mini": "短線走勢",
+        "score_trend": "分數節奏",
+        "rank_board": "熱度榜",
+        "leader_board": "領先名單",
+        "risk_board": "風險名單",
+        "market_pulse": "市場脈搏",
+        "sector_heatmap": "類股熱區",
+        "setup_distribution": "訊號分布",
+    }
+)
+TEXT = COPY["zh-TW"] | COPY.get(LANG, {})
+
+ZH_DECISION_TEXT.update(
+    {
+        "Institutional buying has just turned positive.": "法人買盤剛轉正。",
+        "Institutional buying is building into a second session.": "法人買盤延續到第 2 天。",
+        "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
+        "Relative strength is supportive versus the benchmark.": "相對強度仍比市場基準健康。",
+        "Price location is constructive and not excessively extended.": "價位位置健康，且未過度乖離。",
+        "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
+        "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
+        "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
+        "The broader market is risk-off, so hit rates can fall quickly.": "大盤偏防守，勝率容易快速下降。",
+        "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於觀察池，不應高於核心大型股的優先順序。",
+        "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
+        "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得持續追蹤。",
+        "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有重大風險警示，但停損紀律仍要保留。",
+        "The current signal does not yet have enough stacked evidence.": "目前訊號還沒有堆出足夠證據。",
+        "Normal position sizing or staged entries on minor pullbacks.": "可用正常部位，或等待小拉回分批進場。",
+        "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
+        "Observe only until the odds improve.": "先觀察，等勝率提升再行動。",
+        "Small trial size only; keep core capital focused on large caps.": "僅適合小部位試單，核心資金仍應聚焦大型股。",
+        "High Conviction Core": "核心可買",
+        "Actionable Setup": "可試單",
+        "Watch and Wait": "先觀察",
+        "High": "高",
+        "Medium-High": "中高",
+        "Medium-Low": "中低",
+        "Medium": "中",
+        "Favorable": "報酬優勢",
+        "Balanced": "風報平衡",
+        "Unclear": "風報不明",
+    }
+)
+
+
+def _translate_macro_event_label(label: str) -> str:
+    cleaned = str(label or "").strip().replace("_", " ").lower()
+    if not cleaned:
+        return ""
+    if LANG != "zh-TW":
+        return cleaned
+    direct_map = {
+        "cftc eur speculative net positions": "CFTC 歐元投機淨部位",
+        "cftc eur speculative net position": "CFTC 歐元投機淨部位",
+        "annual report": "年報",
+        "ecb cipollone speech": "ECB Cipollone 談話",
+        "ecb de guindos speech": "ECB De Guindos 談話",
+        "ecb survey of monetary analysts": "ECB 貨幣分析師調查",
+        "ecb survey of professional forecasters": "ECB 專業預測調查",
+    }
+    if cleaned in direct_map:
+        return direct_map[cleaned]
+    replacements = {
+        "cftc": "CFTC",
+        "eur": "歐元",
+        "usd": "美元",
+        "jpy": "日圓",
+        "gbp": "英鎊",
+        "speculative": "投機",
+        "net": "淨",
+        "position": "部位",
+        "positions": "部位",
+        "survey": "調查",
+        "speech": "談話",
+        "annual": "年度",
+        "report": "報告",
+        "earnings": "財報",
+        "inflation": "通膨",
+        "payrolls": "非農就業",
+        "minutes": "會議紀要",
+    }
+    translated = cleaned
+    for source, target in replacements.items():
+        translated = translated.replace(source, target)
+    return translated
+
+
+def localize_value(value: object) -> str:
+    text_value = str(value)
+    mapping = {
+        "Unknown": t("unknown"),
+        "Calm": t("calm"),
+        "Neutral": t("neutral"),
+        "Risk-Off": t("risk_off"),
+        "Risk-On": "偏多" if LANG == "zh-TW" else "Risk-On",
+        "Risk-On Uptrend": "偏多上升趨勢" if LANG == "zh-TW" else "Risk-On Uptrend",
+        "Balanced / Selective": "平衡 / 挑選" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "防守 / 風險降低" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Greed": "貪婪" if LANG == "zh-TW" else "Greed",
+        "Constructive": "結構健康" if LANG == "zh-TW" else "Constructive",
+        "Cautious": "謹慎" if LANG == "zh-TW" else "Cautious",
+        "Fear": "恐慌" if LANG == "zh-TW" else "Fear",
+        "Watchlist": t("watchlist"),
+        "Actionable": t("actionable"),
+        "Safer Follow-Through": t("safer"),
+        "core": t("core_pool"),
+        "explore": t("explore_pool"),
+        "clear": t("clear"),
+        "DAY_1_EARLY": t("day1"),
+        "DAY_2_BUILDING": t("day2"),
+        "DAY_3_PLUS_SAFER": t("day3"),
+        "Institutional Accumulation": "法人買盤累積" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "恐慌反轉" if LANG == "zh-TW" else "Panic Reversal",
+        "High": "高" if LANG == "zh-TW" else "High",
+        "Medium": "中" if LANG == "zh-TW" else "Medium",
+        "Medium-High": "中高" if LANG == "zh-TW" else "Medium-High",
+        "Medium-Low": "中低" if LANG == "zh-TW" else "Medium-Low",
+        "Favorable": "報酬優勢" if LANG == "zh-TW" else "Favorable",
+        "Balanced": "風報平衡" if LANG == "zh-TW" else "Balanced",
+        "Unclear": "風報不明" if LANG == "zh-TW" else "Unclear",
+        "High Conviction Core": "核心可買" if LANG == "zh-TW" else "High Conviction Core",
+        "Actionable Setup": "可試單" if LANG == "zh-TW" else "Actionable Setup",
+        "Watch and Wait": "先觀察" if LANG == "zh-TW" else "Watch and Wait",
+    }
+    if text_value in mapping:
+        return mapping[text_value]
+    if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
+        prefix, label = text_value.split(":", 1)
+        prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
+        if prefix == "macro_event_near":
+            prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
+        return f"{prefix_label}: {_translate_macro_event_label(label)}"
+    if LANG == "zh-TW" and text_value in ZH_DECISION_TEXT:
+        return ZH_DECISION_TEXT[text_value]
+    return text_value
+
+
+def maybe_translate_text(text_value: str) -> str:
+    if LANG != "zh-TW":
+        return text_value
+    if text_value.startswith("Institutional buying has persisted for ") and text_value.endswith(" sessions."):
+        days = text_value.replace("Institutional buying has persisted for ", "").replace(" sessions.", "").strip()
+        return f"法人買盤已連續 {days} 天。"
+    if text_value.startswith("Event risk is elevated:"):
+        detail = text_value.replace("Event risk is elevated:", "").strip()
+        return f"事件風險偏高：{_translate_macro_event_label(detail)}"
+    if text_value.startswith("macro_event_imminent ("):
+        inner = text_value.replace("macro_event_imminent (", "").rstrip(")")
+        return f"總經事件臨近：{_translate_macro_event_label(inner)}。"
+    if text_value.startswith("macro_event_near ("):
+        inner = text_value.replace("macro_event_near (", "").rstrip(")")
+        return f"總經事件接近：{_translate_macro_event_label(inner)}。"
+    if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
+        return "波動偏高，部位大小要保守。"
+    if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
+        return "市場廣度偏弱，單一個股突破的失敗率會提高。"
+    if text_value.endswith(" names are carrying event-risk flags."):
+        count = text_value.split(" ", 1)[0]
+        return f"{count} 檔股票目前帶有事件風險標記。"
+    if text_value.startswith("No major market-wide warnings are flashing right now."):
+        return "目前沒有明顯的市場級風險警報。"
+    if text_value.startswith("Theme support:"):
+        return text_value.replace("Theme support:", "主題支撐：")
+    if text_value.startswith("Institutional flow persistence supports the forward setup."):
+        return "法人資金的延續性，支撐這筆前瞻設定。"
+    if text_value.startswith("Relative strength confirms demand leadership."):
+        return "相對強度確認了資金需求領先。"
+    if text_value.startswith("Forward demand narrative is strong enough for a starter position."):
+        return "前瞻需求敘事夠強，可以先用試單部位介入。"
+    if " | " in text_value and len(text_value.split(" | ")) == 3:
+        dt, region, title = text_value.split(" | ", 2)
+        region_map = {"US": "美國", "EU": "歐洲", "JP": "日本", "CN": "中國", "TW": "台灣"}
+        return f"{dt} | {region_map.get(region, region)} | {_translate_macro_event_label(title)}"
+    return ZH_DECISION_TEXT.get(text_value, text_value)
+
+
+def build_market_pulse_chart(snapshot: Any, overview: Any, candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    setup_quality = 50.0
+    if not latest.empty and "composite_signal_score" in latest.columns:
+        setup_quality = float(latest["composite_signal_score"].fillna(0).mean())
+    pulse = pd.DataFrame(
+        [
+            {"metric": "VIX 舒適度" if LANG == "zh-TW" else "VIX Comfort", "score": _vix_comfort_score(snapshot.vix)},
+            {"metric": t("fear_greed"), "score": float(overview.fear_greed_score)},
+            {"metric": t("breadth"), "score": float(overview.breadth_snapshot)},
+            {"metric": "個股品質" if LANG == "zh-TW" else "Setup Quality", "score": setup_quality},
+        ]
+    )
+    pulse["color"] = pulse["score"].apply(
+        lambda value: "#2fbf71" if value >= 75 else "#8bd36c" if value >= 60 else "#f6c84c" if value >= 45 else "#ff8a4c" if value >= 30 else "#ff5a6b"
+    )
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=pulse["score"],
+            y=pulse["metric"],
+            orientation="h",
+            marker_color=pulse["color"],
+            text=[f"{value:.0f}/100" for value in pulse["score"]],
+            textposition="inside",
+            insidetextanchor="middle",
+            hovertemplate="%{y}: %{x:.1f}/100<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=8, b=8),
+        height=240,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(range=[0, 100], showgrid=True, gridcolor="#edf2f7", zeroline=False, title=None),
+        yaxis=dict(title=None, autorange="reversed"),
+        showlegend=False,
+    )
+    return fig
+
+
+def build_sector_heatmap(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        fig = go.Figure()
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+        return fig
+    enriched = enrich_with_company_metadata(latest)
+    grouped = (
+        enriched.assign(
+            market_label=enriched["type"].map(lambda value: t("taiwan") if value == "tw" else t("us")),
+            sector_label=enriched["sector"].fillna(t("unknown")),
+            score_value=enriched["composite_signal_score"].fillna(0).astype(float),
+        )
+        .groupby(["market_label", "sector_label"], as_index=False)
+        .agg(avg_score=("score_value", "mean"), names=("ticker", "count"))
+    )
+    fig = px.treemap(
+        grouped,
+        path=["market_label", "sector_label"],
+        values="names",
+        color="avg_score",
+        color_continuous_scale=["#ff6b7a", "#f6cf56", "#7bd88f", "#2fbf71"],
+        range_color=(40, 85),
+    )
+    fig.update_traces(
+        texttemplate="%{label}<br>%{value} 檔<br>%{color:.0f}",
+        hovertemplate="%{label}<br>" + ("檔數" if LANG == "zh-TW" else "Names") + ": %{value}<br>" + ("平均分數" if LANG == "zh-TW" else "Avg Score") + ": %{color:.1f}<extra></extra>",
+        root_color="white",
+    )
+    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=260, paper_bgcolor="white", coloraxis_showscale=False)
+    return fig
+
+
+def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
+    ticker = str(row.get("ticker", "")).upper()
+    market_type = str(row.get("type", ""))
+    profile = get_company_profile_cached(ticker)
+    name_zh = str(profile.get("name_zh", "")).strip()
+    name_en = str(profile.get("name_en", "")).strip()
+    sector = str(profile.get("sector", "")).strip()
+    if market_type == "tw":
+        return name_zh or name_en or ticker, sector or "未知"
+    if LANG == "zh-TW" and name_zh:
+        return (f"{name_en}（{name_zh}）" if name_en else name_zh, sector or "未知")
+    return name_en or ticker, sector or ("未知" if LANG == "zh-TW" else "Unknown")
+
+
+def _signal_tone(score: float) -> tuple[str, str]:
+    if score >= 75:
+        return ("#2fbf71", "偏多順風" if LANG == "zh-TW" else "Risk-on")
+    if score >= 60:
+        return ("#8bd36c", "結構健康" if LANG == "zh-TW" else "Constructive")
+    if score >= 45:
+        return ("#f6c84c", "中性" if LANG == "zh-TW" else "Neutral")
+    if score >= 30:
+        return ("#ff8a4c", "轉弱" if LANG == "zh-TW" else "Weakening")
+    return ("#ff5a6b", "防守" if LANG == "zh-TW" else "Defensive")
+
+
+def _market_bias_copy(summary: Any) -> str:
+    if summary is None:
+        return t("no_data")
+    regime = localize_value(summary.regime)
+    if LANG == "zh-TW":
+        return f"{regime}，候選 {summary.candidate_count} 檔，可行動 {summary.actionable_count} 檔，相對安全延續 {summary.safer_count} 檔。"
+    return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
+
+
+def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
+    st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
+    latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
+    if latest_date:
+        _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
+    lights = [
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "看整體市場順不順風" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "分數越高代表市場越敢冒險" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "越高代表上漲參與面越廣" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低通常越容易順勢操作" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+    ]
+    light_columns = st.columns(4)
+    for column, (name, value, color, tone, copy) in zip(light_columns, lights):
+        with column:
+            st.markdown(
+                f"""
+                <div class="light-card">
+                    <div class="light-top">
+                        <div class="light-name">{name}</div>
+                        <span class="light-dot" style="background:{color}"></span>
+                    </div>
+                    <div class="light-value">{value}</div>
+                    <div class="light-copy">{tone} | {copy}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    left, middle, right = st.columns((1, 1.1, 1))
+    with left:
+        st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with middle:
+        st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with right:
+        st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+
+
+def render_rank_boards() -> None:
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    leader_rows: list[dict[str, object]] = []
+    risk_rows: list[dict[str, object]] = []
+    for summary in (tw_summary, us_summary):
+        if summary is None:
+            continue
+        leader_rows.extend(summary.top_rows)
+        risk_rows.extend(summary.risk_rows)
+    leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
+    leader_tickers = {str(row.get("ticker", "")) for row in leader_rows}
+    risk_rows = sorted(
+        [row for row in risk_rows if str(row.get("ticker", "")) not in leader_tickers],
+        key=lambda row: (float(row.get("event_risk_score", 50) or 50), float(row.get("composite_signal_score", 0) or 0)),
+    )[:6]
+    st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
+    dates = []
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    if dates:
+        _render_data_caption(*dates)
+    left, right = st.columns(2)
+    with left:
+        st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("leader_board_help"))
+        with st.container(border=True):
+            _render_rank_items(leader_rows, meta_mode="leader")
+    with right:
+        st.markdown(f'<div class="section-label">{t("risk_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("risk_board_help"))
+        with st.container(border=True):
+            if risk_rows:
+                _render_rank_items(risk_rows, meta_mode="risk")
+            else:
+                st.info("目前沒有與領先名單不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
+
+
+def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
+    if frame.empty:
+        st.info(t("no_data"))
+        return
+    display = enrich_with_company_metadata(frame)
+    for column in ["universe_bucket", "recommendation_bucket", "event_risk_note"]:
+        if column in display.columns:
+            display[column] = display[column].map(localize_value)
+    if "suggested_action" in display.columns:
+        display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
+    if "ticker" in display.columns:
+        display["trend_mini"] = display["ticker"].astype(str).map(lambda ticker: _normalize_trend(get_ticker_trend_cached(ticker)))
+        display["score_trend"] = display["ticker"].astype(str).map(lambda ticker: get_ticker_score_trend_cached(ticker))
+    selected = [column for column in columns if column in display.columns]
+    table = display[selected].copy()
+    rename_map = {
+        "ticker": t("ticker"),
+        "company": t("company"),
+        "sector": t("sector"),
+        "trend_mini": t("trend_mini"),
+        "score_trend": t("score_trend"),
+        "recommendation_bucket": t("bucket"),
+        "composite_signal_score": t("score"),
+        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "risk_level": t("risk_label"),
+        "event_risk_note": t("event_risk"),
+        "next_event_date": t("next_event"),
+        "suggested_action": t("suggested_action"),
+    }
+    table = table.rename(columns=rename_map)
+    chart_config: dict[str, Any] = {}
+    if t("trend_mini") in table.columns:
+        chart_config[t("trend_mini")] = st.column_config.LineChartColumn(t("trend_mini"), width="medium", y_min=-12, y_max=12)
+    if t("score_trend") in table.columns:
+        chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
+    st.dataframe(table, use_container_width=True, hide_index=True, column_config=chart_config or None)
+
+
+def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
+    st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
+    st.caption(f'{t("decision_score_label")}：{t("decision_score_help")}')
+    if candidate_frame.empty:
+        st.info(t("no_data"))
+        return
+    latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
+    latest = candidate_frame[candidate_frame["date"] == latest_date].sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False]).head(8)
+    for _, row in latest.iterrows():
+        company_name, sector_name = _display_name_for_row(row)
+        verdict_label, verdict_color = _decision_verdict(row)
+        rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
+        risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
+        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
+        level = maybe_translate_text(str(row.get("recommendation_level", "")))
+        win_label = maybe_translate_text(str(row.get("win_rate_label", "")))
+        risk_label = maybe_translate_text(str(row.get("risk_level", "")))
+        reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
+        forward_score = float(row.get("forward_score", 0))
+        forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
+        verdict_copy = ""
+        if LANG == "zh-TW":
+            verdict_copy = {
+                t("verdict_buy"): "偏向可買，可用正常部位或分批布局。",
+                t("verdict_probe"): "可以先小部位試單，等確認延續再加碼。",
+                t("verdict_wait"): "條件還沒齊，先等更明確。",
+                t("verdict_avoid"): "目前勝率或風報比不划算。",
+            }.get(verdict_label, "")
+        st.markdown(
+            f"""
+            <div class="decision-card">
+                <div class="decision-head">
+                    <div>
+                        <div class="decision-ticker">{row["ticker"]}</div>
+                        <div class="decision-meta">
+                            {company_name} | {t("sector")} {sector_name} <br/>
+                            {t("signal_type")} {localize_value(row.get("signal_type", ""))} |
+                            {localize_value(row.get("universe_bucket", "core"))} |
+                            {localize_value(row.get("recommendation_bucket", "Watchlist"))}
+                        </div>
+                    </div>
+                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
+                </div>
+                <div class="decision-meta" style="margin-bottom:8px;">
+                    {t("decision_verdict")}：
+                    <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
+                    {verdict_copy}
+                </div>
+                <span class="decision-pill">{level}</span>
+                <span class="decision-pill">{t("win_label")}: {win_label}</span>
+                <span class="decision-pill">{t("risk_label")}: {risk_label}</span>
+                <span class="decision-pill">{t("reward_risk")}: {reward_risk}</span>
+                <span class="decision-pill">{t("forward_score")}: {forward_score:.2f}</span>
+                <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
+                <div class="decision-label">{t("suggested_action")}</div>
+                <div>{suggestion}</div>
+                <div class="decision-label">{t("forward_notes")}</div>
+                <ul class="decision-list">{forward_notes}</ul>
+                <div class="decision-label">{t("rationale")}</div>
+                <ul class="decision-list">{rationale}</ul>
+                <div class="decision-label">{t("risks")}</div>
+                <ul class="decision-list">{risks}</ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     snapshot = dashboard_service.build_snapshot()
     overview = overview_service.build()

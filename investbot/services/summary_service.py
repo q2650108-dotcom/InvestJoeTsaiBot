@@ -51,6 +51,8 @@ class SummaryService:
             frame["institutional_buy_streak"] = 0
         if "composite_signal_score" not in frame:
             frame["composite_signal_score"] = 0.0
+        if "event_risk_score" not in frame:
+            frame["event_risk_score"] = 50.0
         top_rows = (
             frame.sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
             .head(limit)
@@ -70,7 +72,10 @@ class SummaryService:
         )
         risk_rows = (
             frame[frame["event_risk_note"] != "clear"]
-            .sort_values(by=["composite_signal_score"], ascending=[True])
+            .sort_values(
+                by=["event_risk_score", "composite_signal_score"],
+                ascending=[True, True],
+            )
             .head(limit)
             .to_dict("records")
         )
