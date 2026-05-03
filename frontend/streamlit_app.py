@@ -348,6 +348,28 @@ COPY["en"].update(
     }
 )
 
+COPY["zh-TW"].update(
+    {
+        "data_freshness": "資料時間",
+        "snapshot_as_of": "快照日期",
+        "data_window": "資料區間",
+        "page_rendered_at": "頁面抓取時間",
+        "latest_analysis_date": "最新分析日期",
+        "intraday_source_note": "當日分時若來源不足，會顯示沒有資料，不自動冒充較長區間。",
+    }
+)
+
+COPY["en"].update(
+    {
+        "data_freshness": "Data Timing",
+        "snapshot_as_of": "Snapshot Date",
+        "data_window": "Data Window",
+        "page_rendered_at": "Page Fetch Time",
+        "latest_analysis_date": "Latest Analysis Date",
+        "intraday_source_note": "If intraday data is unavailable, the app shows no data instead of silently widening the range.",
+    }
+)
+
 
 ZH_DECISION_TEXT = {
     "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
@@ -869,6 +891,26 @@ def _format_benchmark_datetime(value: pd.Timestamp | None) -> str:
     return stamp.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _format_snapshot_date(value: object) -> str:
+    if value in (None, "", "nan"):
+        return ""
+    try:
+        stamp = pd.to_datetime(value, errors="coerce")
+    except Exception:
+        return str(value)
+    if pd.isna(stamp):
+        return str(value)
+    if isinstance(stamp, pd.Series):
+        return str(value)
+    return pd.Timestamp(stamp).strftime("%Y-%m-%d")
+
+
+def _render_data_caption(*parts: str) -> None:
+    items = [part.strip() for part in parts if part and str(part).strip()]
+    if items:
+        st.caption(" | ".join(items))
+
+
 def _render_segmented_control(label: str, options: list[str], format_func, key: str) -> str:
     segmented = getattr(st, "segmented_control", None)
     if callable(segmented):
@@ -1182,6 +1224,9 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
     c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
+    summary_at = str(st.session_state.get("analysis_summary_at") or "")
+    if summary_at:
+        _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if skipped_reason_counts:
         st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if signal_count == 0:
@@ -1237,6 +1282,7 @@ def render_run_controls() -> None:
             else:
                 _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             st.session_state["analysis_summary"] = summary
+            st.session_state["analysis_summary_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.rerun()
         except Exception as exc:
             _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
@@ -1255,6 +1301,7 @@ def render_run_controls() -> None:
             else:
                 _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             st.session_state["analysis_summary"] = summary
+            st.session_state["analysis_summary_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.rerun()
         except Exception as exc:
             _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
@@ -1303,9 +1350,17 @@ def render_runtime_settings_panel() -> None:
 def render_market_state() -> None:
     overview = overview_service.build()
     vix_value = market_data.get_vix_value()
+    render_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
     vix_zone, vix_copy = describe_vix(vix_value)
     fear_greed_label, fear_greed_copy, _ = describe_fear_greed(overview.fear_greed_score)
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
+    freshness_bits = [f'{t("page_rendered_at")}: {render_time}', t("intraday_source_note")]
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            freshness_bits.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    _render_data_caption(*freshness_bits)
     momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
     macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
     caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
@@ -1376,6 +1431,7 @@ def render_summary_band(label: str, summary: Any) -> None:
     if summary is None:
         st.info(t("no_data"))
         return
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(getattr(summary, "summary_date", ""))}')
     st.markdown(
         f"""
         <div class="summary-band">
@@ -1482,6 +1538,7 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
     with hero_right:
         now_label = datetime.now().strftime("%m/%d %H:%M")
         summary_text = _market_bias_copy(summary) if summary else t("no_data")
+        summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else ""
         st.markdown(f'<div class="hero-time">{now_label} ({selected_market})</div>', unsafe_allow_html=True)
         st.markdown(
             f"""
@@ -1493,12 +1550,20 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
             """,
             unsafe_allow_html=True,
         )
+        if summary_date:
+            _render_data_caption(f'{t("latest_analysis_date")}: {summary_date}')
 
 
 def render_session_briefs() -> None:
     tw_summary = summary_service.build_market_summary("tw")
     us_summary = summary_service.build_market_summary("us")
     st.markdown(f'<div class="section-label">{t("session_brief")}</div>', unsafe_allow_html=True)
+    dates = []
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    if dates:
+        _render_data_caption(*dates)
     left, right = st.columns(2)
     for column, title, summary in (
         (left, t("tw_brief"), tw_summary),
@@ -1544,6 +1609,12 @@ def render_session_briefs() -> None:
 
 def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
     st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
+    latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
+    if latest_date:
+        _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
+    latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
+    if latest_date:
+        _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
         (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "總體風向" if LANG == "zh-TW" else "Macro tape"),
         (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "情緒越高越敢追價" if LANG == "zh-TW" else "Higher means more risk appetite"),
@@ -1622,6 +1693,12 @@ def render_rank_boards() -> None:
     leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
     risk_rows = sorted(risk_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0))[:6]
     st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
+    dates = []
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    if dates:
+        _render_data_caption(*dates)
     left, right = st.columns(2)
     with left:
         st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
@@ -1692,6 +1769,7 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
         st.info(t("no_data"))
         return
     latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
     latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
     core_tab, explore_tab, risk_tab = st.tabs([t("core_tab"), t("explore_tab"), t("risk_tab")])
     with core_tab:
@@ -1723,6 +1801,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         st.info(t("no_data"))
         return
     latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
     latest = (
         candidate_frame[candidate_frame["date"] == latest_date]
         .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
@@ -1833,6 +1912,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
         st.info(t("no_data"))
         return
     latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
     latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
     latest = enrich_with_company_metadata(latest)
     c1, c2, c3 = st.columns(3)
@@ -1897,6 +1977,10 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
             st.info(t("no_data"))
             return
         history = pd.DataFrame(decision_support.enrich_rows(history.to_dict("records")))
+        history_start = _format_snapshot_date(history["date"].min()) if "date" in history.columns else ""
+        history_end = _format_snapshot_date(history["date"].max()) if "date" in history.columns else ""
+        if history_start or history_end:
+            _render_data_caption(f'{t("data_window")}: {history_start} -> {history_end}')
         latest_row = history.iloc[-1]
         top1, top2 = st.columns(2)
         top1.metric(t("score"), f"{float(latest_row.get('composite_signal_score', 0)):.2f}")
