@@ -83,6 +83,11 @@ class YahooMarketDataClient:
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
+        deadline = time.monotonic() + 18.0
+        if ticker.startswith("^"):
+            idx_frame = self._fetch_from_stooq_csv(ticker)
+            if not idx_frame.empty:
+                return idx_frame
         candidates = self._ticker_candidates(ticker)
         frame = pd.DataFrame()
 
@@ -103,17 +108,19 @@ class YahooMarketDataClient:
 
             if not frame.empty:
                 break
+            if time.monotonic() > deadline:
+                break
 
         # Attempt 4: TWSE official endpoint fallback for Taiwan listed stocks.
-        if frame.empty and ticker.upper().endswith(".TW"):
-            frame = self._fetch_from_twse_monthly(ticker, period=period)
+        if frame.empty and ticker.upper().endswith(".TW") and time.monotonic() <= deadline:
+            frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=deadline)
 
         # Attempt 5: Stooq CSV fallback
-        if frame.empty:
+        if frame.empty and time.monotonic() <= deadline:
             frame = self._fetch_from_stooq_csv(ticker)
 
         # Attempt 6: FMP historical fallback (use configured key rotation).
-        if frame.empty:
+        if frame.empty and time.monotonic() <= deadline:
             frame = self._fetch_from_fmp_history(ticker)
 
         if frame.empty:
@@ -173,19 +180,21 @@ class YahooMarketDataClient:
         frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         return frame.reset_index(drop=True)
 
-    def _fetch_from_twse_monthly(self, ticker: str, period: str) -> pd.DataFrame:
+    def _fetch_from_twse_monthly(self, ticker: str, period: str, deadline: float | None = None) -> pd.DataFrame:
         stock_no = ticker.upper().replace(".TW", "").strip()
         if not stock_no.isdigit():
             return pd.DataFrame()
 
         months = self._period_to_months(period)
-        max_probe_months = max(months + 3, 120)
+        max_probe_months = max(months + 3, 36)
         today = date.today()
         rows: list[dict[str, object]] = []
         session = requests.Session()
         consecutive_empty = 0
 
         for offset in range(max_probe_months + 1):
+            if deadline is not None and time.monotonic() > deadline:
+                break
             month_date = self._month_back(today, offset)
             ym = month_date.strftime("%Y%m01")
             data = self._fetch_twse_stock_day_month(session=session, month_anchor=ym, stock_no=stock_no)
@@ -234,7 +243,7 @@ class YahooMarketDataClient:
         ]
         for endpoint in endpoints:
             url = f"{endpoint}?date={month_anchor}&stockNo={stock_no}&response=json"
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     response = session.get(
                         url,
@@ -252,7 +261,7 @@ class YahooMarketDataClient:
                         return data
                 except Exception:
                     pass
-                time.sleep(0.25 * (attempt + 1))
+                time.sleep(0.2 * (attempt + 1))
         return []
 
     def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
