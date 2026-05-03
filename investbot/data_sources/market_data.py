@@ -4,6 +4,7 @@ import io
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date, timedelta
 import math
+import time
 from urllib.parse import quote_plus
 
 import pandas as pd
@@ -43,6 +44,10 @@ class YahooMarketDataClient:
         # Attempt 4: TWSE official endpoint fallback for Taiwan listed stocks.
         if frame.empty and ticker.upper().endswith(".TW"):
             frame = self._fetch_from_twse_monthly(ticker, period=period)
+
+        # Attempt 5: Stooq CSV fallback
+        if frame.empty:
+            frame = self._fetch_from_stooq_csv(ticker)
 
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
@@ -118,13 +123,26 @@ class YahooMarketDataClient:
                 "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
                 f"?date={ym}&stockNo={stock_no}&response=json"
             )
-            try:
-                response = session.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
-                response.raise_for_status()
-                payload = response.json()
-                data = payload.get("data") or []
-            except Exception:
-                continue
+            data: list[list[object]] = []
+            for attempt in range(3):
+                try:
+                    response = session.get(
+                        url,
+                        timeout=12,
+                        headers={
+                            "User-Agent": "Mozilla/5.0",
+                            "Accept": "application/json,text/plain,*/*",
+                            "Referer": "https://www.twse.com.tw/",
+                        },
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    data = payload.get("data") or []
+                    if data:
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.35 * (attempt + 1))
 
             for item in data:
                 # [date, volume, amount, open, high, low, close, change, transactions]
@@ -151,6 +169,30 @@ class YahooMarketDataClient:
         frame = pd.DataFrame(rows).dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         frame = frame.sort_values("Date").drop_duplicates(subset=["Date"], keep="last").reset_index(drop=True)
         return frame
+
+    def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
+        symbol = ticker.lower()
+        url = f"https://stooq.com/q/d/l/?s={quote_plus(symbol)}&i=d"
+        try:
+            response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+            response.raise_for_status()
+            text = response.text.strip()
+        except Exception:
+            return pd.DataFrame()
+
+        if not text or text.lower().startswith("no data"):
+            return pd.DataFrame()
+        try:
+            frame = pd.read_csv(io.StringIO(text))
+        except Exception:
+            return pd.DataFrame()
+
+        required = {"Date", "Open", "High", "Low", "Close", "Volume"}
+        if not required.issubset(set(frame.columns)):
+            return pd.DataFrame()
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+        return frame.reset_index(drop=True)
 
     def _period_to_months(self, period: str) -> int:
         mapping = {"1d": 1, "5d": 1, "1mo": 2, "3mo": 4, "6mo": 8, "1y": 14, "2y": 26}
