@@ -442,7 +442,7 @@ class YahooMarketDataClient:
     def _period_to_months(self, period: str) -> int:
         # Keep a long fallback window because hosted environments can have
         # date offsets and TWSE may return "no data" for future months.
-        mapping = {"1d": 6, "5d": 6, "1mo": 12, "3mo": 18, "6mo": 24, "1y": 30, "2y": 36}
+        mapping = {"1d": 6, "5d": 6, "1mo": 12, "3mo": 18, "6mo": 24, "1y": 30, "2y": 36, "3y": 48, "5y": 72}
         return mapping.get(period, 24)
 
     def _month_back(self, source: date, offset: int) -> date:

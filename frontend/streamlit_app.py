@@ -68,6 +68,14 @@ BENCHMARK_SETS = {
     ],
 }
 
+BENCHMARK_RANGE_OPTIONS = [
+    ("1d", "today"),
+    ("1mo", "one_month"),
+    ("1y", "one_year"),
+    ("3y", "three_year"),
+    ("5y", "five_year"),
+]
+
 
 COPY = {
     "zh-TW": {
@@ -222,6 +230,13 @@ COPY = {
         "market_terminal": "Market Terminal",
         "benchmark_watch": "Benchmark Watch",
         "dashboard_market_view": "Home Market",
+        "benchmark_range": "Chart Range",
+        "today": "Today",
+        "one_month": "1M",
+        "one_year": "1Y",
+        "three_year": "3Y",
+        "five_year": "5Y",
+        "benchmark_no_data": "No data for this range.",
         "taiex": "TAIEX",
         "taiwan50": "Taiwan 50",
         "tsmc_proxy": "TSMC",
@@ -307,6 +322,30 @@ COPY = {
         "high_risk_dates": "Manual Fallback Event Dates",
     },
 }
+
+COPY["zh-TW"].update(
+    {
+        "benchmark_range": "走勢區間",
+        "today": "當天",
+        "one_month": "月",
+        "one_year": "一年",
+        "three_year": "三年",
+        "five_year": "五年",
+        "benchmark_no_data": "這個區間沒有資料。",
+    }
+)
+
+COPY["en"].update(
+    {
+        "benchmark_range": "Chart Range",
+        "today": "Today",
+        "one_month": "1M",
+        "one_year": "1Y",
+        "three_year": "3Y",
+        "five_year": "5Y",
+        "benchmark_no_data": "No data for this range.",
+    }
+)
 
 
 ZH_DECISION_TEXT = {
@@ -791,19 +830,70 @@ def _normalize_trend(values: list[float]) -> list[float]:
     return [round(((value / base) - 1.0) * 100, 2) for value in clean]
 
 
+def _benchmark_config(range_key: str) -> tuple[str, str, int]:
+    mapping = {
+        "1d": ("1d", "5m", 78),
+        "1mo": ("1mo", "1d", 22),
+        "1y": ("1y", "1wk", 52),
+        "3y": ("3y", "1wk", 156),
+        "5y": ("5y", "1mo", 60),
+    }
+    return mapping.get(range_key, ("1d", "5m", 78))
+
+
+def _benchmark_range_caption(range_key: str, trend_window: int) -> str:
+    if LANG == "zh-TW":
+        mapping = {
+            "1d": "當日分時走勢",
+            "1mo": f"近 {trend_window} 個交易日收盤趨勢",
+            "1y": f"近 {trend_window} 週走勢",
+            "3y": f"近 {trend_window} 週走勢",
+            "5y": f"近 {trend_window} 個月走勢",
+        }
+    else:
+        mapping = {
+            "1d": "Intraday trend",
+            "1mo": f"Last {trend_window} daily closes",
+            "1y": f"Last {trend_window} weekly closes",
+            "3y": f"Last {trend_window} weekly closes",
+            "5y": f"Last {trend_window} monthly closes",
+        }
+    return mapping.get(range_key, mapping["1d"])
+
+
 @st.cache_data(ttl=900, show_spinner=False)
-def get_benchmark_snapshot_cached(symbol: str, label_key: str) -> dict[str, Any]:
-    history = market_data.get_price_history(symbol, period="3mo", interval="1d")
+def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -> dict[str, Any]:
+    period, interval, default_window = _benchmark_config(range_key)
+    history = pd.DataFrame()
+    if range_key == "1d":
+        try:
+            history = market_data._fetch_from_yahoo_chart(symbol, period=period, interval=interval)
+        except Exception:
+            history = pd.DataFrame()
+    if history.empty:
+        history = market_data.get_price_history(symbol, period=period, interval=interval)
     frame = history.copy()
     if "Date" in frame.columns:
         frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
         frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+    if frame.empty or "Close" not in frame.columns:
+        return {
+            "symbol": symbol,
+            "label_key": label_key,
+            "latest": None,
+            "delta": None,
+            "pct": None,
+            "trend": [],
+            "trend_window": 0,
+            "range_key": range_key,
+            "has_data": False,
+        }
     frame["Close"] = frame["Close"].astype(float)
     latest = float(frame["Close"].iloc[-1])
-    previous = float(frame["Close"].iloc[-2]) if len(frame) > 1 else latest
+    previous = float(frame["Close"].iloc[0]) if len(frame) > 1 else latest
     delta = latest - previous
     pct = 0.0 if previous == 0 else (delta / previous) * 100
-    trend_window = min(len(frame), 20)
+    trend_window = min(len(frame), default_window)
     trend = _normalize_trend(frame["Close"].tail(trend_window).tolist())
     return {
         "symbol": symbol,
@@ -813,6 +903,8 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str) -> dict[str, Any]
         "pct": pct,
         "trend": trend,
         "trend_window": trend_window,
+        "range_key": range_key,
+        "has_data": True,
     }
 
 
@@ -1273,6 +1365,14 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
         key="dashboard_market_view",
     )
     market_key = "tw" if selected_market == t("taiwan") else "us"
+    selected_range_key = st.radio(
+        t("benchmark_range"),
+        options=[key for key, _ in BENCHMARK_RANGE_OPTIONS],
+        format_func=lambda key: t(dict(BENCHMARK_RANGE_OPTIONS)[key]),
+        horizontal=True,
+        label_visibility="collapsed",
+        key=f"benchmark_range_{market_key}",
+    )
     summary = summary_service.build_market_summary(market_key)
     hero_left, hero_right = st.columns((3.2, 1.15))
     with hero_left:
@@ -1280,7 +1380,7 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
             f"""
             <div class="hero-shell">
                 <div class="hero-title">{selected_market}</div>
-                <div class="hero-sub">{t("market_terminal")} · {localize_value(overview.overall_trend)}</div>
+                <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1288,30 +1388,46 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
         card_columns = st.columns(3)
         for column, (symbol, label_key) in zip(card_columns, BENCHMARK_SETS[market_key]):
             try:
-                benchmark = get_benchmark_snapshot_cached(symbol, label_key)
+                benchmark = get_benchmark_snapshot_cached(symbol, label_key, selected_range_key)
             except Exception:
-                benchmark = {"label_key": label_key, "latest": 0.0, "delta": 0.0, "pct": 0.0, "trend": []}
-            positive = float(benchmark["delta"]) >= 0
+                benchmark = {
+                    "label_key": label_key,
+                    "latest": None,
+                    "delta": None,
+                    "pct": None,
+                    "trend": [],
+                    "trend_window": 0,
+                    "range_key": selected_range_key,
+                    "has_data": False,
+                }
+            positive = float(benchmark["delta"] or 0) >= 0
             change_color = "#16a34a" if positive else "#ef4444"
-            delta_prefix = "+" if float(benchmark["delta"]) >= 0 else ""
+            delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
             with column:
-                st.markdown(
-                    f"""
-                    <div class="benchmark-card">
-                        <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
-                        <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
-                        <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                if benchmark["trend"]:
+                if benchmark.get("has_data"):
+                    st.markdown(
+                        f"""
+                        <div class="benchmark-card">
+                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                            <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
+                            <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                     st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
-                    trend_window = int(benchmark.get("trend_window", 0) or 0)
-                    if LANG == "zh-TW":
-                        st.caption(f"近 {trend_window} 個交易日收盤趨勢，非當日分時線。")
-                    else:
-                        st.caption(f"Last {trend_window} daily closes, not an intraday chart.")
+                    st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
+                else:
+                    st.markdown(
+                        f"""
+                        <div class="benchmark-card">
+                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                            <div class="benchmark-price">N/A</div>
+                            <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
     with hero_right:
         now_label = datetime.now().strftime("%m/%d %H:%M")
         summary_text = _market_bias_copy(summary) if summary else t("no_data")
