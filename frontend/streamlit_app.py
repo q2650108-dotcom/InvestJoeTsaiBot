@@ -215,6 +215,7 @@ COPY = {
 
 ZH_DECISION_TEXT = {}
 
+
 def current_language() -> str:
     runtime_language = getattr(runtime_settings, "app_language", "")
     if runtime_language:
@@ -257,9 +258,8 @@ def localize_value(value: object) -> str:
         return mapping[text_value]
     if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
         prefix, label = text_value.split(":", 1)
-        if prefix == "macro_event_imminent":
-            prefix_label = "總經事件臨近" if LANG == "zh-TW" else "Macro imminent"
-        else:
+        prefix_label = "總經事件臨近" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
+        if prefix == "macro_event_near":
             prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
         return f"{prefix_label}: {label.replace('_', ' ')}"
     return text_value
@@ -709,4 +709,3 @@ elif nav == t("portfolio"):
     render_portfolio()
 else:
     render_screener(candidate_frame)
-

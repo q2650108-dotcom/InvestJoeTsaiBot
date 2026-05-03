@@ -3,8 +3,10 @@ from __future__ import annotations
 import io
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date, timedelta
+from urllib.parse import quote_plus
 
 import pandas as pd
+import requests
 
 from investbot.data_sources.provider_router import ProviderError, QuoteProviderRouter
 
@@ -16,22 +18,26 @@ class YahooMarketDataClient:
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
-        # Attempt 1: yfinance bulk downloader
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            frame = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+        candidates = self._ticker_candidates(ticker)
+        frame = pd.DataFrame()
 
-        # Attempt 2: single ticker history endpoint (sometimes succeeds when download() returns empty)
-        if frame.empty:
+        for symbol in candidates:
+            # Attempt 1: yfinance bulk downloader
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                history = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
-            frame = history
+                frame = yf.download(symbol, period=period, interval=interval, auto_adjust=False, progress=False)
 
-        # Attempt 3: Taiwan ticker normalization fallback
-        if frame.empty and ticker.upper().endswith(".TW"):
-            numeric_symbol = ticker.upper().replace(".TW", ".TWO")
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                history = yf.Ticker(numeric_symbol).history(period=period, interval=interval, auto_adjust=False)
-            frame = history
+            # Attempt 2: single ticker history endpoint
+            if frame.empty:
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    history = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=False)
+                frame = history
+
+            # Attempt 3: direct Yahoo chart endpoint
+            if frame.empty:
+                frame = self._fetch_from_yahoo_chart(symbol, period=period, interval=interval)
+
+            if not frame.empty:
+                break
 
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
@@ -45,6 +51,50 @@ class YahooMarketDataClient:
         if missing:
             raise ValueError(f"Incomplete market data for ticker={ticker}, missing={sorted(missing)}")
         return frame
+
+    def _ticker_candidates(self, ticker: str) -> list[str]:
+        normalized = ticker.upper().strip()
+        candidates = [normalized]
+        if normalized.endswith(".TW"):
+            candidates.append(normalized.replace(".TW", ".TWO"))
+        elif normalized.endswith(".TWO"):
+            candidates.append(normalized.replace(".TWO", ".TW"))
+        return list(dict.fromkeys(candidates))
+
+    def _fetch_from_yahoo_chart(self, ticker: str, period: str, interval: str) -> pd.DataFrame:
+        range_map = {"1d": "5d", "5d": "1mo", "1mo": "6mo", "3mo": "1y", "6mo": "2y", "1y": "5y"}
+        query_range = range_map.get(period, period)
+        url = (
+            "https://query1.finance.yahoo.com/v8/finance/chart/"
+            f"{quote_plus(ticker)}?interval={interval}&range={query_range}&events=history&includePrePost=false"
+        )
+        try:
+            response = requests.get(url, timeout=12)
+            response.raise_for_status()
+            payload = response.json()
+            result = (payload.get("chart") or {}).get("result") or []
+            if not result:
+                return pd.DataFrame()
+            block = result[0]
+            timestamps = block.get("timestamp") or []
+            quote = ((block.get("indicators") or {}).get("quote") or [{}])[0]
+            frame = pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(timestamps, unit="s", utc=True).tz_convert(None),
+                    "Open": quote.get("open", []),
+                    "High": quote.get("high", []),
+                    "Low": quote.get("low", []),
+                    "Close": quote.get("close", []),
+                    "Volume": quote.get("volume", []),
+                }
+            )
+        except Exception:
+            return pd.DataFrame()
+
+        if frame.empty:
+            return frame
+        frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+        return frame.reset_index(drop=True)
 
     def get_latest_price(self, ticker: str) -> float:
         try:
