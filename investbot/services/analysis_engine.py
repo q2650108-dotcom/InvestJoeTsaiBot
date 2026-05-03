@@ -139,7 +139,7 @@ class AnalysisEngine:
                 benchmark_return_20d=benchmark_return_20d,
                 vix_value=vix_value,
             )
-        except ValueError:
+        except Exception:
             return MarketContext(
                 regime="Neutral",
                 regime_score=50.0,
