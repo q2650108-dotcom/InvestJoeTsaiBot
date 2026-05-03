@@ -16,13 +16,34 @@ class YahooMarketDataClient:
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
+        # Attempt 1: yfinance bulk downloader
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             frame = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+
+        # Attempt 2: single ticker history endpoint (sometimes succeeds when download() returns empty)
+        if frame.empty:
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                history = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
+            frame = history
+
+        # Attempt 3: Taiwan ticker normalization fallback
+        if frame.empty and ticker.upper().endswith(".TW"):
+            numeric_symbol = ticker.upper().replace(".TW", ".TWO")
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                history = yf.Ticker(numeric_symbol).history(period=period, interval=interval, auto_adjust=False)
+            frame = history
+
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
+
         frame = frame.reset_index()
         if "Date" not in frame.columns:
             frame.rename(columns={"Datetime": "Date"}, inplace=True)
+
+        required = {"Open", "High", "Low", "Close", "Volume", "Date"}
+        missing = required - set(frame.columns)
+        if missing:
+            raise ValueError(f"Incomplete market data for ticker={ticker}, missing={sorted(missing)}")
         return frame
 
     def get_latest_price(self, ticker: str) -> float:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import logging
 
 import pandas as pd
 
@@ -45,6 +46,7 @@ class MarketContext:
 class AnalysisEngine:
     INSTITUTIONAL_ACCUMULATION_SIGNAL = "Institutional Accumulation"
     PANIC_REVERSAL_SIGNAL = "Panic Reversal"
+    logger = logging.getLogger(__name__)
 
     def __init__(
         self,
@@ -67,8 +69,12 @@ class AnalysisEngine:
         enriched_frames: dict[str, pd.DataFrame] = {}
 
         for ticker in all_tickers:
-            history = self.market_data.get_price_history(ticker)
-            enriched = self._build_indicators(history)
+            try:
+                history = self.market_data.get_price_history(ticker)
+                enriched = self._build_indicators(history)
+            except Exception:
+                self.logger.warning("Skip ticker with unavailable market data: %s", ticker, exc_info=True)
+                continue
             if not enriched.empty:
                 enriched_frames[ticker.upper()] = enriched
 

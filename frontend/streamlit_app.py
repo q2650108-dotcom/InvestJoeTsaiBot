@@ -56,85 +56,85 @@ overview_service = MarketOverviewService(repository=repo, summary_service=summar
 COPY = {
     "zh-TW": {
         "app_title": "Smart Swing Agent",
-        "app_caption": "先看總體市場，再看資金流與動能，最後才下鑽到個股。",
-        "language": "語言",
-        "view": "檢視",
-        "dashboard": "總覽",
-        "portfolio": "持股",
-        "screener": "篩選",
-        "run_analysis": "執行分析",
-        "run_tw": "執行台股分析",
-        "run_us": "執行美股分析",
-        "analysis_done": "分析完成",
-        "analysis_failed": "分析失敗",
-        "records": "寫入筆數",
-        "market_state": "市場狀態",
-        "overall_trend": "整體趨勢",
-        "sentiment": "市場情緒",
-        "fear_greed": "恐慌 / 貪婪",
-        "breadth": "市場廣度",
-        "momentum_zones": "重點動能區域",
-        "cautions": "整體提醒",
-        "macro_calendar": "重大事件行事曆",
-        "market_overview": "市場總覽",
-        "taiwan": "台股",
-        "us": "美股",
-        "candidates": "候選數",
-        "actionable": "可行動",
-        "safer": "相對安全延續",
-        "focus_lists": "重點名單",
-        "decision_cards": "決策卡",
-        "core_pool": "Core 主池",
-        "explore_pool": "Explore 觀察池",
-        "watchlist": "觀察",
-        "no_data": "目前還沒有資料，先跑一次分析。",
+        "app_caption": "Start with market context, then capital flow and momentum, then single names.",
+        "language": "Language",
+        "view": "View",
+        "dashboard": "Dashboard",
+        "portfolio": "Portfolio",
+        "screener": "Screener",
+        "run_analysis": "Run Analysis",
+        "run_tw": "Run Taiwan Analysis",
+        "run_us": "Run US Analysis",
+        "analysis_done": "Analysis completed",
+        "analysis_failed": "Analysis failed",
+        "records": "Records written",
+        "market_state": "Market State",
+        "overall_trend": "Overall Trend",
+        "sentiment": "Sentiment",
+        "fear_greed": "Fear / Greed",
+        "breadth": "Breadth",
+        "momentum_zones": "Momentum Zones",
+        "cautions": "Cautions",
+        "macro_calendar": "Macro Calendar",
+        "market_overview": "Market Overview",
+        "taiwan": "Taiwan",
+        "us": "US",
+        "candidates": "Candidates",
+        "actionable": "Actionable",
+        "safer": "Safer Follow-Through",
+        "focus_lists": "Focus Lists",
+        "decision_cards": "Decision Cards",
+        "core_pool": "Core Pool",
+        "explore_pool": "Explore Pool",
+        "watchlist": "Watchlist",
+        "no_data": "No data yet. Run an analysis first.",
         "vix": "VIX",
-        "open_pnl": "未實現報酬",
-        "win_rate": "勝率",
-        "portfolio_curve": "資金曲線",
-        "open_positions": "持有部位",
-        "no_positions": "目前沒有持倉。",
-        "no_closed_trades": "目前還沒有已平倉交易。",
-        "stop_buffer": "停損緩衝",
-        "market": "市場",
-        "bucket": "分組",
-        "all": "全部",
-        "min_score": "最低綜合分數",
-        "ticker": "代號",
-        "price_trend": "價格趨勢",
-        "funnel_scores": "漏斗分數",
-        "suggested_action": "建議動作",
-        "rationale": "推薦理由",
-        "risks": "主要風險",
-        "win_label": "勝率評估",
-        "risk_label": "風險等級",
-        "reward_risk": "風報比",
-        "event_risk": "事件風險",
-        "next_event": "下一個事件",
-        "universe": "池別",
-        "score": "分數",
-        "signal_type": "訊號",
-        "unknown": "未知",
-        "calm": "平穩",
-        "neutral": "中性",
-        "risk_off": "避險",
-        "clear": "正常",
-        "day1": "第 1 天提前卡位",
-        "day2": "第 2 天持續建倉",
-        "day3": "第 3 天以上較穩",
+        "open_pnl": "Open PnL",
+        "win_rate": "Win Rate",
+        "portfolio_curve": "Portfolio Curve",
+        "open_positions": "Open Positions",
+        "no_positions": "No open positions.",
+        "no_closed_trades": "No closed trades yet.",
+        "stop_buffer": "Stop Buffer",
+        "market": "Market",
+        "bucket": "Bucket",
+        "all": "All",
+        "min_score": "Minimum Composite Score",
+        "ticker": "Ticker",
+        "price_trend": "Price Trend",
+        "funnel_scores": "Funnel Scores",
+        "suggested_action": "Suggested Action",
+        "rationale": "Why It Ranks",
+        "risks": "Main Risks",
+        "win_label": "Win-Rate View",
+        "risk_label": "Risk Level",
+        "reward_risk": "Reward / Risk",
+        "event_risk": "Event Risk",
+        "next_event": "Next Event",
+        "universe": "Universe",
+        "score": "Score",
+        "signal_type": "Signal",
+        "unknown": "Unknown",
+        "calm": "Calm",
+        "neutral": "Neutral",
+        "risk_off": "Risk-Off",
+        "clear": "Clear",
+        "day1": "Day 1 Early",
+        "day2": "Day 2 Building",
+        "day3": "Day 3+ Safer",
         "core_tab": "Core",
         "explore_tab": "Explore",
-        "risk_tab": "風險",
-        "why_tab": "原因",
-        "detail_tab": "細節",
-        "settings_panel": "偏好設定",
-        "save_settings": "儲存設定",
-        "settings_saved": "設定已寫入資料庫",
-        "high_risk_dates": "手動補充事件日期",
+        "risk_tab": "Risk",
+        "why_tab": "Why",
+        "detail_tab": "Detail",
+        "settings_panel": "Preferences",
+        "save_settings": "Save Settings",
+        "settings_saved": "Settings saved to database",
+        "high_risk_dates": "Manual Fallback Event Dates",
     },
     "en": {
         "app_title": "Smart Swing Agent",
-        "app_caption": "Start with the market, then capital flow and momentum, then single names.",
+        "app_caption": "Start with market context, then capital flow and momentum, then single names.",
         "language": "Language",
         "view": "View",
         "dashboard": "Dashboard",
@@ -213,39 +213,7 @@ COPY = {
 }
 
 
-ZH_DECISION_TEXT = {
-    "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
-    "Institutional buying has persisted for 4 sessions.": "法人買超已連續 4 天。",
-    "Institutional buying has persisted for 5 sessions.": "法人買超已連續 5 天以上。",
-    "Institutional buying is building into a second session.": "法人買超延續到第 2 天，正在建立倉位。",
-    "Institutional buying has just turned positive.": "法人買超剛轉正，屬於早期訊號。",
-    "Relative strength is decisively above the market benchmark.": "相對強弱明顯高於市場基準。",
-    "Relative strength is supportive versus the benchmark.": "相對強弱優於基準，屬於正向加分。",
-    "Price location is constructive and not excessively extended.": "價格位置健康，尚未明顯乖離。",
-    "Entry quality is acceptable if execution stays disciplined.": "進場位置尚可，但需要守紀律執行。",
-    "The market regime is supportive for trend-following entries.": "目前市場環境有利於順勢交易。",
-    "The broader market is neutral, so follow-through may be slower.": "整體市場偏中性，後續續強速度可能較慢。",
-    "The broader market is risk-off, so hit rates can fall quickly.": "整體市場偏避險，成功率可能快速下降。",
-    "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於 Explore 觀察池，不應高於核心大型股的優先級。",
-    "This name belongs to the core monitoring pool.": "這檔屬於 Core 主池。",
-    "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得留意。",
-    "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有明顯風險警示，但停損紀律仍要維持。",
-    "Normal position sizing or staged entries on minor pullbacks.": "可以正常部位，或等小幅拉回分批進場。",
-    "Pilot size first, then add if confirmation holds.": "先小部位試單，確認延續後再加碼。",
-    "Observe only until the odds improve.": "先觀察，等勝率條件更完整。",
-    "Small trial size only; keep core capital focused on large caps.": "僅適合小倉位試單，主資金仍以大型股為主。",
-    "High Conviction Core": "高信心核心標的",
-    "Actionable Setup": "可執行型態",
-    "Watch and Wait": "觀察等待",
-    "High": "高",
-    "Medium-High": "中高",
-    "Medium-Low": "中低",
-    "Medium": "中",
-    "Favorable": "偏有利",
-    "Balanced": "均衡",
-    "Unclear": "不明朗",
-}
-
+ZH_DECISION_TEXT = {}
 
 def current_language() -> str:
     runtime_language = getattr(runtime_settings, "app_language", "")
@@ -290,9 +258,9 @@ def localize_value(value: object) -> str:
     if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
         prefix, label = text_value.split(":", 1)
         if prefix == "macro_event_imminent":
-            prefix_label = "總經事件臨近" if LANG == "zh-TW" else "Macro imminent"
+            prefix_label = "???????憸???" if LANG == "zh-TW" else "Macro imminent"
         else:
-            prefix_label = "總經事件接近" if LANG == "zh-TW" else "Macro near"
+            prefix_label = "???????憸???" if LANG == "zh-TW" else "Macro near"
         return f"{prefix_label}: {label.replace('_', ' ')}"
     return text_value
 
@@ -307,7 +275,7 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        .block-container { max-width: 1450px; padding-top: 1.35rem; padding-bottom: 1.8rem; }
+        .block-container { max-width: 1450px; padding-top: 2.15rem; padding-bottom: 1.8rem; }
         section[data-testid="stSidebar"] { min-width: 340px !important; max-width: 340px !important; }
         .page-title { font-size: 1.9rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #243047; }
         .section-label { font-size: 0.78rem; font-weight: 700; color: #616c7c; margin: 0.85rem 0 0.45rem; text-transform: uppercase; }
@@ -334,6 +302,7 @@ def inject_styles() -> None:
         @media (max-width: 1200px) {
             section[data-testid="stSidebar"] { min-width: 290px !important; max-width: 290px !important; }
             .page-title { font-size: 1.55rem; }
+            .block-container { padding-top: 2.4rem; }
         }
         </style>
         """,
@@ -722,7 +691,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 
 inject_styles()
 
-language_options = {"繁體中文": "zh-TW", "English": "en"}
+language_options = {"Chinese": "zh-TW", "English": "en"}
 selected_label = st.sidebar.selectbox(
     f'Language / {COPY["zh-TW"]["language"]}',
     options=list(language_options.keys()),
@@ -740,3 +709,4 @@ elif nav == t("portfolio"):
     render_portfolio()
 else:
     render_screener(candidate_frame)
+
