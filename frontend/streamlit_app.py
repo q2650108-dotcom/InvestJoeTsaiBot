@@ -936,16 +936,23 @@ def render_analysis_feedback() -> None:
 
 def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     st.markdown(f'<div class="section-label">{t("analysis_summary")}</div>', unsafe_allow_html=True)
+    scanned_tickers = int(getattr(summary, "scanned_tickers", 0) or 0)
+    data_ready_tickers = int(getattr(summary, "data_ready_tickers", 0) or 0)
+    skipped_data_tickers = int(getattr(summary, "skipped_data_tickers", 0) or 0)
+    no_signal_tickers = int(getattr(summary, "no_signal_tickers", 0) or 0)
+    signal_count = int(getattr(summary, "signal_count", 0) or 0)
+    skipped_reason_counts = getattr(summary, "skipped_reason_counts", {}) or {}
+
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("掃描檔數" if LANG == "zh-TW" else "Scanned", summary.scanned_tickers)
-    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", summary.data_ready_tickers)
-    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", summary.skipped_data_tickers)
-    c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", summary.no_signal_tickers)
-    c5.metric(t("records"), summary.signal_count)
-    if summary.skipped_reason_counts:
-        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(summary.skipped_reason_counts))
-    if summary.signal_count == 0:
-        if summary.data_ready_tickers == 0:
+    c1.metric("掃描檔數" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c5.metric(t("records"), signal_count)
+    if skipped_reason_counts:
+        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+    if signal_count == 0:
+        if data_ready_tickers == 0:
             st.warning("本次有執行，但沒有任何可分析資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
