@@ -257,6 +257,8 @@ class YahooMarketDataClient:
 
     def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
         symbol = ticker.lower()
+        if "." not in symbol and symbol not in {"^vix", "^gspc", "^twii"}:
+            symbol = f"{symbol}.us"
         url = f"https://stooq.com/q/d/l/?s={quote_plus(symbol)}&i=d"
         try:
             response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
