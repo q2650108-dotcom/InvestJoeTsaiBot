@@ -49,6 +49,10 @@ class YahooMarketDataClient:
         if frame.empty:
             frame = self._fetch_from_stooq_csv(ticker)
 
+        # Attempt 6: FMP historical fallback (use configured key rotation).
+        if frame.empty:
+            frame = self._fetch_from_fmp_history(ticker)
+
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
 
@@ -194,6 +198,51 @@ class YahooMarketDataClient:
         frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         return frame.reset_index(drop=True)
 
+    def _fetch_from_fmp_history(self, ticker: str) -> pd.DataFrame:
+        keys = self._split_api_keys(self._get_fmp_keys())
+        if not keys:
+            return pd.DataFrame()
+
+        symbols = [ticker.upper().strip()]
+        if ticker.upper().endswith(".TW"):
+            symbols.append(ticker.upper().replace(".TW", ".TWO"))
+
+        for symbol in symbols:
+            for key in keys:
+                url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{quote_plus(symbol)}?apikey={key}"
+                try:
+                    response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+                    response.raise_for_status()
+                    payload = response.json()
+                    rows = payload.get("historical") or []
+                except Exception:
+                    continue
+
+                if not rows:
+                    continue
+
+                frame = pd.DataFrame(rows)
+                required = {"date", "open", "high", "low", "close", "volume"}
+                if not required.issubset(set(frame.columns)):
+                    continue
+                frame = frame.rename(
+                    columns={
+                        "date": "Date",
+                        "open": "Open",
+                        "high": "High",
+                        "low": "Low",
+                        "close": "Close",
+                        "volume": "Volume",
+                    }
+                )
+                frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+                frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+                if frame.empty:
+                    continue
+                frame = frame.sort_values("Date").reset_index(drop=True)
+                return frame
+        return pd.DataFrame()
+
     def _period_to_months(self, period: str) -> int:
         # Keep a long fallback window because hosted environments can have
         # date offsets and TWSE may return "no data" for future months.
@@ -302,3 +351,14 @@ class YahooMarketDataClient:
             finnhub_keys = ""
             fmp_keys = ""
         return QuoteProviderRouter(finnhub_keys=finnhub_keys, fmp_keys=fmp_keys)
+
+    def _get_fmp_keys(self) -> str:
+        try:
+            from investbot.config import get_settings
+
+            return get_settings().fmp_api_keys
+        except Exception:
+            return ""
+
+    def _split_api_keys(self, raw: str) -> list[str]:
+        return [item.strip() for item in str(raw).split(",") if item.strip()]

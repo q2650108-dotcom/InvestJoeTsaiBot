@@ -213,7 +213,40 @@ COPY = {
 }
 
 
-ZH_DECISION_TEXT = {}
+ZH_DECISION_TEXT = {
+    "Institutional buying has persisted for 3 sessions.": "法人買超已連續 3 天。",
+    "Institutional buying has persisted for 4 sessions.": "法人買超已連續 4 天。",
+    "Institutional buying has persisted for 5 sessions.": "法人買超已連續 5 天。",
+    "Institutional buying is building into a second session.": "法人買超延續到第 2 天，動能正在建立。",
+    "Institutional buying has just turned positive.": "法人買盤剛轉正。",
+    "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
+    "Relative strength is supportive versus the benchmark.": "相對強度優於基準，屬於正向支持。",
+    "Price location is constructive and not excessively extended.": "價格位階健康，且未過度乖離。",
+    "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
+    "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
+    "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
+    "The broader market is risk-off, so hit rates can fall quickly.": "市場偏避險，命中率可能快速下滑。",
+    "This idea is in the Explore pool, so it should not outrank core large-cap names.": "此標的屬於觀察池，不應優先於核心大型股。",
+    "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
+    "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍需持續追蹤。",
+    "No major risk flags are active right now, but standard stop discipline still applies.": "目前無重大風險警訊，但仍需遵守停損紀律。",
+    "The current signal does not yet have enough stacked evidence.": "目前訊號累積證據仍不足。",
+    "Normal position sizing or staged entries on minor pullbacks.": "可採正常部位，或在小幅拉回時分批進場。",
+    "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
+    "Observe only until the odds improve.": "先觀察，等待勝率提升再行動。",
+    "Small trial size only; keep core capital focused on large caps.": "僅小部位試單，核心資金維持在大型股。",
+    "High Conviction Core": "高把握核心標的",
+    "Actionable Setup": "可執行設定",
+    "Watch and Wait": "觀望等待",
+    "High": "高",
+    "Medium-High": "中高",
+    "Medium-Low": "中低",
+    "Medium": "中",
+    "Medium-High": "中高",
+    "Favorable": "風報比佳",
+    "Balanced": "風報平衡",
+    "Unclear": "風報不明",
+}
 
 
 def current_language() -> str:
@@ -268,6 +301,15 @@ def localize_value(value: object) -> str:
 def maybe_translate_text(text_value: str) -> str:
     if LANG != "zh-TW":
         return text_value
+    if text_value.startswith("Institutional buying has persisted for ") and text_value.endswith(" sessions."):
+        days = text_value.replace("Institutional buying has persisted for ", "").replace(" sessions.", "").strip()
+        return f"法人買超已連續 {days} 天。"
+    if text_value.startswith("Event risk is elevated:"):
+        return text_value.replace("Event risk is elevated:", "事件風險偏高：")
+    if text_value.startswith("macro_event_imminent ("):
+        return text_value.replace("macro_event_imminent (", "總經事件臨近（").replace(")", "）")
+    if text_value.startswith("macro_event_near ("):
+        return text_value.replace("macro_event_near (", "總經事件接近（").replace(")", "）")
     return ZH_DECISION_TEXT.get(text_value, text_value)
 
 
