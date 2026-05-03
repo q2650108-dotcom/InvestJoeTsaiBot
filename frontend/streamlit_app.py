@@ -135,6 +135,16 @@ COPY = {
         "setup_distribution": "台美建議分佈",
         "breadth_lights": "市場燈號",
         "trend_mini": "短線走勢",
+        "score_trend": "分數節奏",
+        "session_brief": "開盤摘要",
+        "tw_brief": "台股摘要",
+        "us_brief": "美股摘要",
+        "rank_board": "熱度榜",
+        "leader_board": "領先名單",
+        "risk_board": "風險名單",
+        "best_score": "最佳分數",
+        "avg_score": "平均分數",
+        "market_bias": "市場偏向",
         "day1": "第 1 天",
         "day2": "第 2 天",
         "day3": "第 3 天以上",
@@ -228,6 +238,16 @@ COPY = {
         "setup_distribution": "Setup Distribution",
         "breadth_lights": "Market Lights",
         "trend_mini": "Mini Trend",
+        "score_trend": "Score Rhythm",
+        "session_brief": "Session Brief",
+        "tw_brief": "Taiwan Brief",
+        "us_brief": "US Brief",
+        "rank_board": "Heat Board",
+        "leader_board": "Leaders",
+        "risk_board": "Risks",
+        "best_score": "Best Score",
+        "avg_score": "Average Score",
+        "market_bias": "Market Bias",
         "day1": "Day 1 Early",
         "day2": "Day 2 Building",
         "day3": "Day 3+ Safer",
@@ -666,6 +686,17 @@ def get_ticker_trend_cached(ticker: str, limit: int = 12) -> list[float]:
     return frame["close_price"].fillna(0).astype(float).tolist()[-limit:]
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_ticker_score_trend_cached(ticker: str, limit: int = 12) -> list[float]:
+    history = repo.fetch_history(ticker, limit=limit)
+    if not history:
+        return []
+    frame = pd.DataFrame(history)
+    if "composite_signal_score" not in frame.columns:
+        return []
+    return frame["composite_signal_score"].fillna(0).astype(float).tolist()[-limit:]
+
+
 def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
     ticker = str(row.get("ticker", "")).upper()
     market_type = str(row.get("type", ""))
@@ -696,6 +727,15 @@ def _signal_tone(score: float) -> tuple[str, str]:
     if score >= 30:
         return ("#ff8a4c", "轉弱" if LANG == "zh-TW" else "Weakening")
     return ("#ff5a6b", "防守" if LANG == "zh-TW" else "Defensive")
+
+
+def _market_bias_copy(summary: Any) -> str:
+    if summary is None:
+        return t("no_data")
+    regime = localize_value(summary.regime)
+    if LANG == "zh-TW":
+        return f"{regime}，候選 {summary.candidate_count} 檔，可行動 {summary.actionable_count} 檔，相對安全延續 {summary.safer_count} 檔。"
+    return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
 
 
 def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
@@ -743,6 +783,22 @@ def inject_styles() -> None:
         .light-value { font-size:1rem; font-weight:800; color:#243047; margin-bottom:4px; }
         .light-copy { font-size:0.82rem; color:#596474; line-height:1.35; }
         .mini-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
+        .brief-card { border:1px solid rgba(118,128,145,.18); border-radius:8px; background:#f7f9fc; padding:12px 14px; min-height:132px; }
+        .brief-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px; }
+        .brief-title { font-size:0.78rem; font-weight:800; color:#243047; }
+        .brief-bias { font-size:0.76rem; font-weight:700; color:#647080; text-transform:uppercase; }
+        .brief-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:8px; }
+        .brief-kpi { background:#fff; border:1px solid rgba(118,128,145,.14); border-radius:8px; padding:8px 10px; }
+        .brief-kpi-label { font-size:0.7rem; color:#6b7685; text-transform:uppercase; margin-bottom:3px; font-weight:700; }
+        .brief-kpi-value { font-size:0.95rem; font-weight:800; color:#243047; }
+        .brief-copy { font-size:0.84rem; color:#596474; line-height:1.45; }
+        .rank-card { border:1px solid rgba(118,128,145,.18); border-radius:8px; background:#fff; padding:12px 14px; min-height:240px; }
+        .rank-item { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid rgba(118,128,145,.1); }
+        .rank-item:last-child { border-bottom:none; }
+        .rank-left { min-width:0; }
+        .rank-name { font-size:0.86rem; font-weight:800; color:#243047; margin-bottom:2px; }
+        .rank-meta { font-size:0.78rem; color:#647080; line-height:1.35; }
+        .rank-score { font-size:0.9rem; font-weight:800; color:#243047; white-space:nowrap; }
         .decision-card { padding: 14px; margin-bottom: 10px; }
         .decision-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
         .decision-ticker { font-size: 0.98rem; font-weight: 800; }
@@ -954,6 +1010,53 @@ def render_market_overview() -> None:
         render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
+def render_session_briefs() -> None:
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    st.markdown(f'<div class="section-label">{t("session_brief")}</div>', unsafe_allow_html=True)
+    left, right = st.columns(2)
+    for column, title, summary in (
+        (left, t("tw_brief"), tw_summary),
+        (right, t("us_brief"), us_summary),
+    ):
+        with column:
+            if summary is None:
+                st.info(t("no_data"))
+                continue
+            best_score = max((float(row.get("composite_signal_score", 0)) for row in summary.top_rows), default=0.0)
+            avg_signal_score = (
+                sum(float(row.get("composite_signal_score", 0)) for row in summary.top_rows) / len(summary.top_rows)
+                if summary.top_rows
+                else 0.0
+            )
+            st.markdown(
+                f"""
+                <div class="brief-card">
+                    <div class="brief-head">
+                        <div class="brief-title">{title}</div>
+                        <div class="brief-bias">{localize_value(summary.regime)}</div>
+                    </div>
+                    <div class="brief-grid">
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("avg_score")}</div>
+                            <div class="brief-kpi-value">{avg_signal_score:.1f}</div>
+                        </div>
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("actionable")}</div>
+                            <div class="brief-kpi-value">{summary.actionable_count}</div>
+                        </div>
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("best_score")}</div>
+                            <div class="brief-kpi-value">{best_score:.1f}</div>
+                        </div>
+                    </div>
+                    <div class="brief-copy">{_market_bias_copy(summary)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
 def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
     st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
     lights = [
@@ -986,6 +1089,59 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     with right:
         st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
         st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+
+
+def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> str:
+    if not rows:
+        return f'<div class="rank-meta">{t("no_data")}</div>'
+    chunks: list[str] = []
+    for row in rows[:6]:
+        company, sector = _display_name_for_row(pd.Series(row))
+        score = float(row.get(score_key, 0) or 0)
+        trend = get_ticker_score_trend_cached(str(row.get("ticker", "")))
+        delta = ""
+        if len(trend) >= 2:
+            change = trend[-1] - trend[-2]
+            delta = f" | {'+' if change >= 0 else ''}{change:.1f}"
+        meta = (
+            f"{sector} | {localize_value(row.get('recommendation_bucket', 'Watchlist'))}"
+            if meta_mode == "leader"
+            else f"{sector} | {localize_value(row.get('event_risk_note', 'clear'))}"
+        )
+        chunks.append(
+            f"""
+            <div class="rank-item">
+                <div class="rank-left">
+                    <div class="rank-name">{company}</div>
+                    <div class="rank-meta">{row.get('ticker', '')} | {meta}</div>
+                </div>
+                <div class="rank-score">{score:.1f}{delta}</div>
+            </div>
+            """
+        )
+    return "".join(chunks)
+
+
+def render_rank_boards() -> None:
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    leader_rows: list[dict[str, object]] = []
+    risk_rows: list[dict[str, object]] = []
+    for summary in (tw_summary, us_summary):
+        if summary is None:
+            continue
+        leader_rows.extend(summary.top_rows)
+        risk_rows.extend(summary.risk_rows)
+    leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
+    risk_rows = sorted(risk_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0))[:6]
+    st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
+    left, right = st.columns(2)
+    with left:
+        st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="rank-card">{_render_rank_items(leader_rows, meta_mode="leader")}</div>', unsafe_allow_html=True)
+    with right:
+        st.markdown(f'<div class="section-label">{t("risk_board")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="rank-card">{_render_rank_items(risk_rows, meta_mode="risk")}</div>', unsafe_allow_html=True)
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -1131,8 +1287,10 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
     render_run_controls()
     render_market_state()
+    render_session_briefs()
     render_visual_scan(candidate_frame, snapshot, overview)
     render_market_overview()
+    render_rank_boards()
     render_focus_lists(candidate_frame)
     render_decision_cards(candidate_frame)
     left, right = st.columns((1.55, 1))
