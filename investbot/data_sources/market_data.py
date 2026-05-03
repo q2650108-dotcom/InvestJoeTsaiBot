@@ -181,7 +181,7 @@ class YahooMarketDataClient:
         return list(dict.fromkeys(candidates))
 
     def _fetch_from_yahoo_chart(self, ticker: str, period: str, interval: str) -> pd.DataFrame:
-        range_map = {"1d": "5d", "5d": "1mo", "1mo": "6mo", "3mo": "1y", "6mo": "2y", "1y": "5y"}
+        range_map = {"1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "3y": "3y", "5y": "5y"}
         query_range = range_map.get(period, period)
         url = (
             "https://query1.finance.yahoo.com/v8/finance/chart/"
