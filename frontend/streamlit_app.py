@@ -738,6 +738,14 @@ def _market_bias_copy(summary: Any) -> str:
     return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
 
 
+def _normalize_trend(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    clean = [float(value) for value in values]
+    base = clean[0] if clean[0] != 0 else 1.0
+    return [round(((value / base) - 1.0) * 100, 2) for value in clean]
+
+
 def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return frame
@@ -1065,20 +1073,22 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
         (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "廣度高代表更多標的同步" if LANG == "zh-TW" else "Higher breadth means broader participation"),
         ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低越舒服" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
-    lights_html = "".join(
-        f"""
-        <div class="light-card">
-            <div class="light-top">
-                <div class="light-name">{name}</div>
-                <span class="light-dot" style="background:{color}"></span>
-            </div>
-            <div class="light-value">{value}</div>
-            <div class="light-copy">{tone} · {copy}</div>
-        </div>
-        """
-        for name, value, color, tone, copy in lights
-    )
-    st.markdown(f'<div class="light-strip">{lights_html}</div>', unsafe_allow_html=True)
+    light_columns = st.columns(4)
+    for column, (name, value, color, tone, copy) in zip(light_columns, lights):
+        with column:
+            st.markdown(
+                f"""
+                <div class="light-card">
+                    <div class="light-top">
+                        <div class="light-name">{name}</div>
+                        <span class="light-dot" style="background:{color}"></span>
+                    </div>
+                    <div class="light-value">{value}</div>
+                    <div class="light-copy">{tone} · {copy}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
     left, middle, right = st.columns((1, 1.1, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
@@ -1091,10 +1101,10 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
         st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
 
 
-def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> str:
+def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> None:
     if not rows:
-        return f'<div class="rank-meta">{t("no_data")}</div>'
-    chunks: list[str] = []
+        st.info(t("no_data"))
+        return
     for row in rows[:6]:
         company, sector = _display_name_for_row(pd.Series(row))
         score = float(row.get(score_key, 0) or 0)
@@ -1108,7 +1118,7 @@ def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composit
             if meta_mode == "leader"
             else f"{sector} | {localize_value(row.get('event_risk_note', 'clear'))}"
         )
-        chunks.append(
+        st.markdown(
             f"""
             <div class="rank-item">
                 <div class="rank-left">
@@ -1117,9 +1127,9 @@ def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composit
                 </div>
                 <div class="rank-score">{score:.1f}{delta}</div>
             </div>
-            """
+            """,
+            unsafe_allow_html=True,
         )
-    return "".join(chunks)
 
 
 def render_rank_boards() -> None:
@@ -1138,10 +1148,12 @@ def render_rank_boards() -> None:
     left, right = st.columns(2)
     with left:
         st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="rank-card">{_render_rank_items(leader_rows, meta_mode="leader")}</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            _render_rank_items(leader_rows, meta_mode="leader")
     with right:
         st.markdown(f'<div class="section-label">{t("risk_board")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="rank-card">{_render_rank_items(risk_rows, meta_mode="risk")}</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            _render_rank_items(risk_rows, meta_mode="risk")
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -1155,7 +1167,8 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     if "suggested_action" in display.columns:
         display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
     if "ticker" in display.columns:
-        display["trend_mini"] = display["ticker"].astype(str).map(lambda ticker: get_ticker_trend_cached(ticker))
+        display["trend_mini"] = display["ticker"].astype(str).map(lambda ticker: _normalize_trend(get_ticker_trend_cached(ticker)))
+        display["score_trend"] = display["ticker"].astype(str).map(lambda ticker: get_ticker_score_trend_cached(ticker))
     selected = [column for column in columns if column in display.columns]
     table = display[selected].copy()
     rename_map = {
@@ -1163,6 +1176,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "company": t("company"),
         "sector": t("sector"),
         "trend_mini": t("trend_mini"),
+        "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
         "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
@@ -1172,17 +1186,26 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "suggested_action": t("suggested_action"),
     }
     table = table.rename(columns=rename_map)
-    chart_column = st.column_config.LineChartColumn(
-        t("trend_mini"),
-        width="medium",
-        y_min=table[t("trend_mini")].explode().min() if t("trend_mini") in table.columns and not table[t("trend_mini")].empty else None,
-        y_max=table[t("trend_mini")].explode().max() if t("trend_mini") in table.columns and not table[t("trend_mini")].empty else None,
-    )
+    chart_config: dict[str, Any] = {}
+    if t("trend_mini") in table.columns:
+        chart_config[t("trend_mini")] = st.column_config.LineChartColumn(
+            t("trend_mini"),
+            width="medium",
+            y_min=-12,
+            y_max=12,
+        )
+    if t("score_trend") in table.columns:
+        chart_config[t("score_trend")] = st.column_config.LineChartColumn(
+            t("score_trend"),
+            width="medium",
+            y_min=0,
+            y_max=100,
+        )
     st.dataframe(
         table,
         use_container_width=True,
         hide_index=True,
-        column_config={t("trend_mini"): chart_column} if t("trend_mini") in table.columns else None,
+        column_config=chart_config or None,
     )
 
 
@@ -1199,21 +1222,21 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
             latest[latest["universe_bucket"] == "core"]
             .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
         )
     with explore_tab:
         render_terminal_table(
             latest[latest["universe_bucket"] == "explore"]
             .sort_values(by=["composite_signal_score"], ascending=[False])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
         )
     with risk_tab:
         render_terminal_table(
             latest[latest["event_risk_note"] != "clear"]
             .sort_values(by=["composite_signal_score"], ascending=[True])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
         )
 
 
