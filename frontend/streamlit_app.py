@@ -29,7 +29,7 @@ hydrate_env_from_streamlit_secrets()
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
-from investbot.services.analysis_engine import AnalysisEngine
+from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary
 from investbot.services.dashboard_service import DashboardService
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.event_risk_service import EventRiskService
@@ -69,6 +69,8 @@ COPY = {
         "run_us": "執行美股分析",
         "analysis_done": "分析完成",
         "analysis_failed": "分析失敗",
+        "analysis_progress": "分析進度",
+        "analysis_summary": "分析摘要",
         "records": "寫入筆數",
         "market_state": "市場狀態",
         "overall_trend": "整體趨勢",
@@ -172,6 +174,8 @@ COPY = {
         "run_us": "Run US Analysis",
         "analysis_done": "Analysis completed",
         "analysis_failed": "Analysis failed",
+        "analysis_progress": "Analysis Progress",
+        "analysis_summary": "Analysis Summary",
         "records": "Records written",
         "market_state": "Market State",
         "overall_trend": "Overall Trend",
@@ -827,12 +831,44 @@ def inject_styles() -> None:
     )
 
 
-def run_market_analysis(market_type: str) -> int:
+def format_analysis_summary(summary: AnalysisRunSummary) -> str:
+    if LANG == "zh-TW":
+        return (
+            f"掃描 {summary.scanned_tickers} 檔 | "
+            f"有資料 {summary.data_ready_tickers} 檔 | "
+            f"資料不足 {summary.skipped_data_tickers} 檔 | "
+            f"無訊號 {summary.no_signal_tickers} 檔 | "
+            f"寫入 {summary.signal_count} 筆"
+        )
+    return (
+        f"Scanned {summary.scanned_tickers} | "
+        f"Data-ready {summary.data_ready_tickers} | "
+        f"Data-missing {summary.skipped_data_tickers} | "
+        f"No-signal {summary.no_signal_tickers} | "
+        f"Written {summary.signal_count}"
+    )
+
+
+def run_market_analysis(market_type: str, progress_bar: Any | None = None, status_box: Any | None = None) -> AnalysisRunSummary:
     universe = UniverseBuilder(runtime_settings).build(market_type)
-    signals = AnalysisEngine(
+    engine = AnalysisEngine(
         event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
-    ).run(universe.to_analysis_universe())
-    return len(signals)
+    )
+
+    def on_progress(stage: str, current: int, total: int, detail: str) -> None:
+        if progress_bar is not None:
+            if stage == "done":
+                progress_bar.progress(100)
+            else:
+                pct = 5 if total <= 0 else min(95, max(5, int((current / max(total, 1)) * 100)))
+                progress_bar.progress(pct)
+        if status_box is not None:
+            status_box.info(f"{t('analysis_progress')} | {detail}")
+
+    summary = engine.run_with_summary(universe.to_analysis_universe(), progress_callback=on_progress)
+    if progress_bar is not None:
+        progress_bar.progress(100)
+    return summary
 
 
 def _set_analysis_feedback(kind: str, message: str) -> None:
@@ -853,6 +889,25 @@ def render_analysis_feedback() -> None:
         st.error(message)
     else:
         st.info(message)
+
+
+def render_analysis_summary(summary: AnalysisRunSummary) -> None:
+    st.markdown(f'<div class="section-label">{t("analysis_summary")}</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("掃描檔數" if LANG == "zh-TW" else "Scanned", summary.scanned_tickers)
+    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", summary.data_ready_tickers)
+    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", summary.skipped_data_tickers)
+    c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", summary.no_signal_tickers)
+    c5.metric(t("records"), summary.signal_count)
+    if summary.signal_count == 0:
+        if summary.data_ready_tickers == 0:
+            st.warning("本次有執行，但沒有任何可分析資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+        else:
+            st.info(
+                "本次有執行成功，但目前沒有標的通過進場條件。常見原因是市場廣度不足、連買天數不夠，或分數未達門檻。"
+                if LANG == "zh-TW"
+                else "Execution completed successfully, but no names passed the entry rules. Common reasons: weak breadth, insufficient buy streak, or scores below threshold."
+            )
 
 
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
@@ -883,24 +938,32 @@ def render_run_controls() -> None:
     left, right = st.columns(2)
     if left.button(t("run_tw"), use_container_width=True):
         try:
-            with st.spinner("正在執行台股分析..." if LANG == "zh-TW" else "Running Taiwan analysis..."):
-                count = run_market_analysis("tw")
-            if count > 0:
-                _set_analysis_feedback("success", f'{t("analysis_done")} | {t("records")}: {count}')
+            progress_bar = st.progress(0)
+            status_box = st.empty()
+            summary = run_market_analysis("tw", progress_bar=progress_bar, status_box=status_box)
+            status_box.empty()
+            progress_bar.empty()
+            if summary.signal_count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             else:
-                _set_analysis_feedback("warning", f'{t("analysis_done")} | {t("records")}: 0')
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            st.session_state["analysis_summary"] = summary
             st.rerun()
         except Exception as exc:
             _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
             st.rerun()
     if right.button(t("run_us"), use_container_width=True):
         try:
-            with st.spinner("正在執行美股分析..." if LANG == "zh-TW" else "Running US analysis..."):
-                count = run_market_analysis("us")
-            if count > 0:
-                _set_analysis_feedback("success", f'{t("analysis_done")} | {t("records")}: {count}')
+            progress_bar = st.progress(0)
+            status_box = st.empty()
+            summary = run_market_analysis("us", progress_bar=progress_bar, status_box=status_box)
+            status_box.empty()
+            progress_bar.empty()
+            if summary.signal_count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
             else:
-                _set_analysis_feedback("warning", f'{t("analysis_done")} | {t("records")}: 0')
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            st.session_state["analysis_summary"] = summary
             st.rerun()
         except Exception as exc:
             _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
@@ -1333,6 +1396,9 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     st.title(t("app_title"))
     st.caption(t("app_caption"))
     render_analysis_feedback()
+    latest_summary = st.session_state.get("analysis_summary")
+    if latest_summary:
+        render_analysis_summary(latest_summary)
     m1, m2, m3, m4 = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
     m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)

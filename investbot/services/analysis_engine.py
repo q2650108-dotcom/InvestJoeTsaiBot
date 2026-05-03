@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 import logging
+from typing import Callable
 
 import pandas as pd
 
@@ -43,6 +44,17 @@ class MarketContext:
     vix_value: float | None
 
 
+@dataclass(slots=True)
+class AnalysisRunSummary:
+    market_type: str
+    scanned_tickers: int
+    data_ready_tickers: int
+    skipped_data_tickers: int
+    no_signal_tickers: int
+    signal_count: int
+    signals: list[MarketSignal]
+
+
 class AnalysisEngine:
     INSTITUTIONAL_ACCUMULATION_SIGNAL = "Institutional Accumulation"
     PANIC_REVERSAL_SIGNAL = "Panic Reversal"
@@ -61,27 +73,47 @@ class AnalysisEngine:
         self.event_risk_service = event_risk_service or EventRiskService(market_data=self.market_data)
 
     def run(self, universe: AnalysisUniverse, target_date: date | None = None) -> list[MarketSignal]:
+        return self.run_with_summary(universe, target_date=target_date).signals
+
+    def run_with_summary(
+        self,
+        universe: AnalysisUniverse,
+        target_date: date | None = None,
+        progress_callback: Callable[[str, int, int, str], None] | None = None,
+    ) -> AnalysisRunSummary:
         trade_date = target_date or self.market_data.get_last_trading_date()
         large_caps = self.twse_client.get_large_cap_tickers()
         all_tickers = universe.all_tickers()
         net_buy_map = self.twse_client.get_institutional_net_buy_map(all_tickers)
         buy_history_map = self.twse_client.get_institutional_buy_history(all_tickers, lookback_days=5)
         enriched_frames: dict[str, pd.DataFrame] = {}
+        skipped_data_tickers = 0
+        no_signal_tickers = 0
 
-        for ticker in all_tickers:
+        if progress_callback:
+            progress_callback("init", 0, len(all_tickers), "準備分析宇宙" if universe.market_type == "tw" else "Preparing analysis universe")
+
+        for index, ticker in enumerate(all_tickers, start=1):
+            if progress_callback:
+                progress_callback("fetch", index, len(all_tickers), f"抓取 {ticker}" if universe.market_type == "tw" else f"Fetching {ticker}")
             try:
                 history = self.market_data.get_price_history(ticker)
                 enriched = self._build_indicators(history)
             except Exception:
                 self.logger.warning("Skip ticker with unavailable market data: %s", ticker, exc_info=True)
+                skipped_data_tickers += 1
                 continue
             if not enriched.empty:
                 enriched_frames[ticker.upper()] = enriched
 
+        if progress_callback:
+            progress_callback("context", len(enriched_frames), len(all_tickers), "建立市場環境" if universe.market_type == "tw" else "Building market context")
         market_context = self._build_market_context(universe.market_type, enriched_frames)
 
         signals: list[MarketSignal] = []
-        for ticker in all_tickers:
+        for index, ticker in enumerate(all_tickers, start=1):
+            if progress_callback:
+                progress_callback("score", index, len(all_tickers), f"評分 {ticker}" if universe.market_type == "tw" else f"Scoring {ticker}")
             enriched = enriched_frames.get(ticker.upper())
             if enriched is None or enriched.empty:
                 continue
@@ -100,10 +132,27 @@ class AnalysisEngine:
                 universe_bucket=universe_bucket,
                 market_context=market_context,
             )
+            if not ticker_signals:
+                no_signal_tickers += 1
             signals.extend(ticker_signals)
 
         self.repository.upsert_many([signal.to_record() for signal in signals])
-        return signals
+        if progress_callback:
+            progress_callback(
+                "done",
+                len(signals),
+                len(all_tickers),
+                "分析完成" if universe.market_type == "tw" else "Analysis complete",
+            )
+        return AnalysisRunSummary(
+            market_type=universe.market_type,
+            scanned_tickers=len(all_tickers),
+            data_ready_tickers=len(enriched_frames),
+            skipped_data_tickers=skipped_data_tickers,
+            no_signal_tickers=no_signal_tickers,
+            signal_count=len(signals),
+            signals=signals,
+        )
 
     def _build_indicators(self, frame: pd.DataFrame) -> pd.DataFrame:
         frame = frame.copy()

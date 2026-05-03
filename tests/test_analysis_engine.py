@@ -302,3 +302,34 @@ class AnalysisEngineTests(TestCase):
         )
 
         self.assertEqual(signals, [])
+
+    def test_run_with_summary_reports_scan_counts(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 300},
+            buy_history_map={"2330.TW": [-50, 80]},
+        )
+
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(summary.scanned_tickers, 1)
+        self.assertEqual(summary.data_ready_tickers, 1)
+        self.assertEqual(summary.skipped_data_tickers, 0)
+        self.assertEqual(summary.no_signal_tickers, 0)
+        self.assertEqual(summary.signal_count, 1)
+
+    def test_run_with_summary_counts_no_signal_ticker(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
+        engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": -50},
+            buy_history_map={"2330.TW": [100, 80, -10]},
+        )
+
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(summary.scanned_tickers, 1)
+        self.assertEqual(summary.data_ready_tickers, 1)
+        self.assertEqual(summary.no_signal_tickers, 1)
+        self.assertEqual(summary.signal_count, 0)
