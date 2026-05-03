@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date, timedelta
+import math
 from urllib.parse import quote_plus
 
 import pandas as pd
@@ -38,6 +39,10 @@ class YahooMarketDataClient:
 
             if not frame.empty:
                 break
+
+        # Attempt 4: TWSE official endpoint fallback for Taiwan listed stocks.
+        if frame.empty and ticker.upper().endswith(".TW"):
+            frame = self._fetch_from_twse_monthly(ticker, period=period)
 
         if frame.empty:
             raise ValueError(f"No market data found for ticker={ticker}")
@@ -95,6 +100,85 @@ class YahooMarketDataClient:
             return frame
         frame = frame.dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
         return frame.reset_index(drop=True)
+
+    def _fetch_from_twse_monthly(self, ticker: str, period: str) -> pd.DataFrame:
+        stock_no = ticker.upper().replace(".TW", "").strip()
+        if not stock_no.isdigit():
+            return pd.DataFrame()
+
+        months = self._period_to_months(period)
+        today = date.today()
+        rows: list[dict[str, object]] = []
+        session = requests.Session()
+
+        for offset in range(months + 1):
+            month_date = self._month_back(today, offset)
+            ym = month_date.strftime("%Y%m01")
+            url = (
+                "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
+                f"?date={ym}&stockNo={stock_no}&response=json"
+            )
+            try:
+                response = session.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                payload = response.json()
+                data = payload.get("data") or []
+            except Exception:
+                continue
+
+            for item in data:
+                # [date, volume, amount, open, high, low, close, change, transactions]
+                if len(item) < 9:
+                    continue
+                try:
+                    row_date = self._parse_minguo_date(str(item[0]))
+                    rows.append(
+                        {
+                            "Date": pd.to_datetime(row_date),
+                            "Open": self._parse_tw_number(item[3]),
+                            "High": self._parse_tw_number(item[4]),
+                            "Low": self._parse_tw_number(item[5]),
+                            "Close": self._parse_tw_number(item[6]),
+                            "Volume": self._parse_tw_number(item[1]),
+                        }
+                    )
+                except Exception:
+                    continue
+
+        if not rows:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(rows).dropna(subset=["Date", "Open", "High", "Low", "Close", "Volume"])
+        frame = frame.sort_values("Date").drop_duplicates(subset=["Date"], keep="last").reset_index(drop=True)
+        return frame
+
+    def _period_to_months(self, period: str) -> int:
+        mapping = {"1d": 1, "5d": 1, "1mo": 2, "3mo": 4, "6mo": 8, "1y": 14, "2y": 26}
+        return mapping.get(period, 8)
+
+    def _month_back(self, source: date, offset: int) -> date:
+        year = source.year
+        month = source.month - offset
+        while month <= 0:
+            month += 12
+            year -= 1
+        return date(year, month, 1)
+
+    def _parse_minguo_date(self, value: str) -> date:
+        # 114/05/02 -> 2025-05-02
+        parts = value.strip().split("/")
+        if len(parts) != 3:
+            raise ValueError("invalid minguo date")
+        year = int(parts[0]) + 1911
+        month = int(parts[1])
+        day = int(parts[2])
+        return date(year, month, day)
+
+    def _parse_tw_number(self, value: object) -> float:
+        text = str(value).replace(",", "").strip()
+        if not text or text in {"--", "---", "X0.00"}:
+            return math.nan
+        return float(text)
 
     def get_latest_price(self, ticker: str) -> float:
         try:
