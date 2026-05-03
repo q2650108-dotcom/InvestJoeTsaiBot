@@ -795,12 +795,16 @@ def _normalize_trend(values: list[float]) -> list[float]:
 def get_benchmark_snapshot_cached(symbol: str, label_key: str) -> dict[str, Any]:
     history = market_data.get_price_history(symbol, period="3mo", interval="1d")
     frame = history.copy()
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
     frame["Close"] = frame["Close"].astype(float)
     latest = float(frame["Close"].iloc[-1])
     previous = float(frame["Close"].iloc[-2]) if len(frame) > 1 else latest
     delta = latest - previous
     pct = 0.0 if previous == 0 else (delta / previous) * 100
-    trend = _normalize_trend(frame["Close"].tail(30).tolist())
+    trend_window = min(len(frame), 20)
+    trend = _normalize_trend(frame["Close"].tail(trend_window).tolist())
     return {
         "symbol": symbol,
         "label_key": label_key,
@@ -808,6 +812,7 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str) -> dict[str, Any]
         "delta": delta,
         "pct": pct,
         "trend": trend,
+        "trend_window": trend_window,
     }
 
 
@@ -1302,6 +1307,11 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
                 )
                 if benchmark["trend"]:
                     st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+                    trend_window = int(benchmark.get("trend_window", 0) or 0)
+                    if LANG == "zh-TW":
+                        st.caption(f"近 {trend_window} 個交易日收盤趨勢，非當日分時線。")
+                    else:
+                        st.caption(f"Last {trend_window} daily closes, not an intraday chart.")
     with hero_right:
         now_label = datetime.now().strftime("%m/%d %H:%M")
         summary_text = _market_bias_copy(summary) if summary else t("no_data")

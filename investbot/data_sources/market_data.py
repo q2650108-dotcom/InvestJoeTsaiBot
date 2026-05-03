@@ -162,6 +162,8 @@ class YahooMarketDataClient:
         frame = frame.reset_index()
         if "Date" not in frame.columns:
             frame.rename(columns={"Datetime": "Date"}, inplace=True)
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 
         required = {"Open", "High", "Low", "Close", "Volume", "Date"}
         missing = required - set(frame.columns)
