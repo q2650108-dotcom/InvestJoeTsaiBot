@@ -16,6 +16,7 @@ from investbot.data_sources.provider_router import ProviderError, QuoteProviderR
 class YahooMarketDataClient:
     def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
         self.quote_router = quote_router or self._build_router()
+        self._tw_profile_cache: dict[str, dict[str, str]] | None = None
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
@@ -340,6 +341,13 @@ class YahooMarketDataClient:
             candidate -= timedelta(days=1)
         return candidate
 
+    def get_company_profile(self, ticker: str) -> dict[str, str]:
+        normalized = ticker.upper().strip()
+        market = "tw" if normalized.endswith(".TW") or normalized.endswith(".TWO") else "us"
+        if market == "tw":
+            return self._get_tw_company_profile(normalized)
+        return self._get_us_company_profile(normalized)
+
     def _build_router(self) -> QuoteProviderRouter:
         try:
             from investbot.config import get_settings
@@ -351,6 +359,86 @@ class YahooMarketDataClient:
             finnhub_keys = ""
             fmp_keys = ""
         return QuoteProviderRouter(finnhub_keys=finnhub_keys, fmp_keys=fmp_keys)
+
+    def _get_tw_company_profile(self, ticker: str) -> dict[str, str]:
+        symbol = ticker.replace(".TW", "").replace(".TWO", "")
+        cache = self._load_tw_profile_cache()
+        row = cache.get(symbol, {})
+        return {
+            "name_zh": row.get("name_zh", symbol),
+            "name_en": row.get("name_en", symbol),
+            "sector": row.get("sector", "未知"),
+        }
+
+    def _load_tw_profile_cache(self) -> dict[str, dict[str, str]]:
+        if self._tw_profile_cache is not None:
+            return self._tw_profile_cache
+
+        endpoints = [
+            "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+            "https://openapi.twse.com.tw/v1/opendata/t187ap03_O",
+        ]
+        cache: dict[str, dict[str, str]] = {}
+        for endpoint in endpoints:
+            try:
+                response = requests.get(endpoint, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                rows = response.json()
+            except Exception:
+                continue
+            if not isinstance(rows, list):
+                continue
+            for item in rows:
+                symbol = str(item.get("公司代號") or item.get("SecuritiesCompanyCode") or "").strip()
+                if not symbol:
+                    continue
+                name_zh = str(item.get("公司名稱") or item.get("CompanyName") or "").strip() or symbol
+                name_en = str(item.get("英文簡稱") or item.get("CompanyAbbreviation") or "").strip() or name_zh
+                sector = str(item.get("產業別") or item.get("Industry") or "").strip() or "未知"
+                cache[symbol] = {"name_zh": name_zh, "name_en": name_en, "sector": sector}
+
+        self._tw_profile_cache = cache
+        return self._tw_profile_cache
+
+    def _get_us_company_profile(self, ticker: str) -> dict[str, str]:
+        zh_hint = {
+            "AAPL": "蘋果",
+            "MSFT": "微軟",
+            "NVDA": "輝達",
+            "AMZN": "亞馬遜",
+            "META": "Meta",
+            "GOOGL": "Alphabet",
+            "SPY": "標普500 ETF",
+            "QQQ": "那斯達克100 ETF",
+        }
+
+        # Prefer FMP profile first.
+        keys = self._split_api_keys(self._get_fmp_keys())
+        for key in keys:
+            url = f"https://financialmodelingprep.com/api/v3/profile/{quote_plus(ticker)}?apikey={key}"
+            try:
+                response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                payload = response.json()
+            except Exception:
+                continue
+            if isinstance(payload, list) and payload:
+                item = payload[0]
+                name_en = str(item.get("companyName") or ticker).strip() or ticker
+                sector = str(item.get("sector") or "Unknown").strip() or "Unknown"
+                return {"name_zh": zh_hint.get(ticker, ""), "name_en": name_en, "sector": sector}
+
+        # Fallback to yfinance info.
+        try:
+            import yfinance as yf
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                info = yf.Ticker(ticker).info
+            name_en = str(info.get("longName") or info.get("shortName") or ticker).strip() or ticker
+            sector = str(info.get("sector") or "Unknown").strip() or "Unknown"
+            return {"name_zh": zh_hint.get(ticker, ""), "name_en": name_en, "sector": sector}
+        except Exception:
+            return {"name_zh": zh_hint.get(ticker, ""), "name_en": ticker, "sector": "Unknown"}
 
     def _get_fmp_keys(self) -> str:
         try:

@@ -101,6 +101,8 @@ COPY = {
         "all": "全部",
         "min_score": "最低綜合分數",
         "ticker": "代號",
+        "company": "公司",
+        "sector": "類股",
         "price_trend": "價格趨勢",
         "funnel_scores": "漏斗分數",
         "suggested_action": "建議動作",
@@ -179,6 +181,8 @@ COPY = {
         "all": "All",
         "min_score": "Minimum Composite Score",
         "ticker": "Ticker",
+        "company": "Company",
+        "sector": "Sector",
         "price_trend": "Price Trend",
         "funnel_scores": "Funnel Scores",
         "suggested_action": "Suggested Action",
@@ -311,6 +315,46 @@ def maybe_translate_text(text_value: str) -> str:
     if text_value.startswith("macro_event_near ("):
         return text_value.replace("macro_event_near (", "總經事件接近（").replace(")", "）")
     return ZH_DECISION_TEXT.get(text_value, text_value)
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def get_company_profile_cached(ticker: str) -> dict[str, str]:
+    return market_data.get_company_profile(ticker)
+
+
+def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
+    ticker = str(row.get("ticker", "")).upper()
+    market_type = str(row.get("type", ""))
+    profile = get_company_profile_cached(ticker)
+    name_zh = str(profile.get("name_zh", "")).strip()
+    name_en = str(profile.get("name_en", "")).strip()
+    sector = str(profile.get("sector", "")).strip()
+
+    if market_type == "tw":
+        display_name = name_zh or name_en or ticker
+        display_sector = sector or "未知"
+    else:
+        if LANG == "zh-TW" and name_zh:
+            display_name = f"{name_en}（{name_zh}）" if name_en else name_zh
+        else:
+            display_name = name_en or ticker
+        display_sector = sector or ("未知" if LANG == "zh-TW" else "Unknown")
+    return display_name, display_sector
+
+
+def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    enriched = frame.copy()
+    names: list[str] = []
+    sectors: list[str] = []
+    for _, row in enriched.iterrows():
+        company_name, sector = _display_name_for_row(row)
+        names.append(company_name)
+        sectors.append(sector)
+    enriched["company"] = names
+    enriched["sector"] = sectors
+    return enriched
 
 
 def inject_styles() -> None:
@@ -514,11 +558,28 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     if frame.empty:
         st.info(t("no_data"))
         return
-    display = frame.copy()
+    display = enrich_with_company_metadata(frame)
     for column in ["universe_bucket", "recommendation_bucket", "event_risk_note"]:
         if column in display.columns:
             display[column] = display[column].map(localize_value)
-    st.dataframe(display[[column for column in columns if column in display.columns]], use_container_width=True, hide_index=True)
+    if "suggested_action" in display.columns:
+        display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
+    selected = [column for column in columns if column in display.columns]
+    table = display[selected].copy()
+    rename_map = {
+        "ticker": t("ticker"),
+        "company": t("company"),
+        "sector": t("sector"),
+        "recommendation_bucket": t("bucket"),
+        "composite_signal_score": t("score"),
+        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "risk_level": t("risk_label"),
+        "event_risk_note": t("event_risk"),
+        "next_event_date": t("next_event"),
+        "suggested_action": t("suggested_action"),
+    }
+    table = table.rename(columns=rename_map)
+    st.dataframe(table, use_container_width=True, hide_index=True)
 
 
 def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
@@ -534,21 +595,21 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
             latest[latest["universe_bucket"] == "core"]
             .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
             .head(12),
-            ["ticker", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+            ["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
         )
     with explore_tab:
         render_terminal_table(
             latest[latest["universe_bucket"] == "explore"]
             .sort_values(by=["composite_signal_score"], ascending=[False])
             .head(12),
-            ["ticker", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+            ["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
         )
     with risk_tab:
         render_terminal_table(
             latest[latest["event_risk_note"] != "clear"]
             .sort_values(by=["composite_signal_score"], ascending=[True])
             .head(12),
-            ["ticker", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+            ["ticker", "company", "sector", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
         )
 
 
@@ -564,6 +625,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         .head(8)
     )
     for _, row in latest.iterrows():
+        company_name, sector_name = _display_name_for_row(row)
         rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
         risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
         suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
@@ -578,6 +640,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                     <div>
                         <div class="decision-ticker">{row["ticker"]}</div>
                         <div class="decision-meta">
+                            {company_name} | {t("sector")} {sector_name} <br/>
                             {t("signal_type")} {row.get("signal_type", "")} |
                             {localize_value(row.get("universe_bucket", "core"))} |
                             {localize_value(row.get("recommendation_bucket", "Watchlist"))}
@@ -652,6 +715,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
         return
     latest_date = candidate_frame["date"].max()
     latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    latest = enrich_with_company_metadata(latest)
     c1, c2, c3 = st.columns(3)
     selected_market = c1.selectbox(t("market"), [t("all"), "tw", "us"])
     selected_bucket = c2.selectbox(t("bucket"), [t("all"), "Safer Follow-Through", "Actionable", "Watchlist"])
@@ -675,6 +739,8 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                     column
                     for column in [
                         "ticker",
+                        "company",
+                        "sector",
                         "type",
                         "universe_bucket",
                         "signal_type",
@@ -686,7 +752,21 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                     ]
                     if column in display.columns
                 ]
-            ],
+            ].rename(
+                columns={
+                    "ticker": t("ticker"),
+                    "company": t("company"),
+                    "sector": t("sector"),
+                    "type": t("market"),
+                    "universe_bucket": t("universe"),
+                    "signal_type": t("signal_type"),
+                    "recommendation_bucket": t("bucket"),
+                    "composite_signal_score": t("score"),
+                    "recommendation_level": "建議等級" if LANG == "zh-TW" else "Recommendation Level",
+                    "win_rate_label": t("win_label"),
+                    "risk_level": t("risk_label"),
+                }
+            ),
             use_container_width=True,
             hide_index=True,
         )
