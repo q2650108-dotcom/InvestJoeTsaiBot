@@ -835,6 +835,26 @@ def run_market_analysis(market_type: str) -> int:
     return len(signals)
 
 
+def _set_analysis_feedback(kind: str, message: str) -> None:
+    st.session_state["analysis_feedback"] = {"kind": kind, "message": message}
+
+
+def render_analysis_feedback() -> None:
+    feedback = st.session_state.pop("analysis_feedback", None)
+    if not feedback:
+        return
+    kind = feedback.get("kind", "info")
+    message = str(feedback.get("message", ""))
+    if kind == "success":
+        st.success(message)
+    elif kind == "warning":
+        st.warning(message)
+    elif kind == "error":
+        st.error(message)
+    else:
+        st.info(message)
+
+
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
     frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
     if frame.empty:
@@ -863,18 +883,28 @@ def render_run_controls() -> None:
     left, right = st.columns(2)
     if left.button(t("run_tw"), use_container_width=True):
         try:
-            count = run_market_analysis("tw")
-            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
+            with st.spinner("正在執行台股分析..." if LANG == "zh-TW" else "Running Taiwan analysis..."):
+                count = run_market_analysis("tw")
+            if count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {t("records")}: {count}')
+            else:
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {t("records")}: 0')
             st.rerun()
         except Exception as exc:
-            st.error(f'{t("analysis_failed")}: {exc}')
+            _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
+            st.rerun()
     if right.button(t("run_us"), use_container_width=True):
         try:
-            count = run_market_analysis("us")
-            st.success(f'{t("analysis_done")} | {t("records")}: {count}')
+            with st.spinner("正在執行美股分析..." if LANG == "zh-TW" else "Running US analysis..."):
+                count = run_market_analysis("us")
+            if count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {t("records")}: {count}')
+            else:
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {t("records")}: 0')
             st.rerun()
         except Exception as exc:
-            st.error(f'{t("analysis_failed")}: {exc}')
+            _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
+            st.rerun()
 
 
 def render_runtime_settings_panel() -> None:
@@ -1302,6 +1332,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     overview = overview_service.build()
     st.title(t("app_title"))
     st.caption(t("app_caption"))
+    render_analysis_feedback()
     m1, m2, m3, m4 = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
     m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)
