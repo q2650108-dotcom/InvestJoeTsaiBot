@@ -83,13 +83,31 @@ class YahooMarketDataClient:
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         import yfinance as yf
 
-        deadline = time.monotonic() + 18.0
+        deadline = time.monotonic() + 20.0
         if ticker.startswith("^"):
             idx_frame = self._fetch_from_stooq_csv(ticker)
             if not idx_frame.empty:
                 return idx_frame
         candidates = self._ticker_candidates(ticker)
         frame = pd.DataFrame()
+        is_tw_ticker = ticker.upper().endswith(".TW")
+
+        # Taiwan first: prefer official exchange source before global providers.
+        if is_tw_ticker:
+            tw_deadline = time.monotonic() + 12.0
+            frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=tw_deadline)
+            if frame.empty and time.monotonic() <= tw_deadline:
+                frame = self._fetch_from_stooq_csv(ticker)
+            if frame.empty and time.monotonic() <= tw_deadline:
+                frame = self._fetch_from_fmp_history(ticker)
+            if not frame.empty:
+                frame = frame.reset_index()
+                if "Date" not in frame.columns:
+                    frame.rename(columns={"Datetime": "Date"}, inplace=True)
+                required = {"Open", "High", "Low", "Close", "Volume", "Date"}
+                missing = required - set(frame.columns)
+                if not missing:
+                    return frame
 
         for symbol in candidates:
             # Attempt 1: yfinance bulk downloader
@@ -112,7 +130,7 @@ class YahooMarketDataClient:
                 break
 
         # Attempt 4: TWSE official endpoint fallback for Taiwan listed stocks.
-        if frame.empty and ticker.upper().endswith(".TW") and time.monotonic() <= deadline:
+        if frame.empty and is_tw_ticker and time.monotonic() <= deadline:
             frame = self._fetch_from_twse_monthly(ticker, period=period, deadline=deadline)
 
         # Attempt 5: Stooq CSV fallback
