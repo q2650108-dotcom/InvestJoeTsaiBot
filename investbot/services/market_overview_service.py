@@ -47,6 +47,9 @@ class MarketOverview:
     overall_trend: str
     sentiment_label: str
     fear_greed_score: int
+    fear_greed_rating: str
+    fear_greed_source: str
+    fear_greed_updated_at: str
     breadth_snapshot: float
     momentum_zones: list[str]
     caution_items: list[str]
@@ -72,6 +75,7 @@ class MarketOverviewService:
         all_rows = self.repository.fetch_recent_candidates(limit=200)
         frame = pd.DataFrame(all_rows)
         vix = self.market_data.get_vix_value()
+        fear_greed_snapshot = self.market_data.get_fear_greed_snapshot()
 
         breadth_values = []
         if tw_summary is not None:
@@ -80,9 +84,18 @@ class MarketOverviewService:
             breadth_values.append(us_summary.average_breadth)
         breadth_snapshot = round(sum(breadth_values) / len(breadth_values), 2) if breadth_values else 50.0
 
-        fear_greed_score = self._score_fear_greed(vix=vix, breadth_snapshot=breadth_snapshot, frame=frame)
+        if fear_greed_snapshot is not None:
+            fear_greed_score = int(max(0, min(round(fear_greed_snapshot.score), 100)))
+            fear_greed_rating = fear_greed_snapshot.rating
+            fear_greed_source = fear_greed_snapshot.source
+            fear_greed_updated_at = fear_greed_snapshot.updated_at.isoformat() if fear_greed_snapshot.updated_at else ""
+        else:
+            fear_greed_score = self._score_fear_greed(vix=vix, breadth_snapshot=breadth_snapshot, frame=frame)
+            fear_greed_rating = self._label_sentiment(fear_greed_score)
+            fear_greed_source = "Internal fallback"
+            fear_greed_updated_at = ""
         overall_trend = self._label_overall_trend(fear_greed_score)
-        sentiment_label = self._label_sentiment(fear_greed_score)
+        sentiment_label = fear_greed_rating
         momentum_zones = self._top_momentum_zones(frame)
         caution_items = self._build_cautions(vix=vix, breadth_snapshot=breadth_snapshot, frame=frame)
         upcoming_macro_events = self._build_upcoming_macro_events()
@@ -91,6 +104,9 @@ class MarketOverviewService:
             overall_trend=overall_trend,
             sentiment_label=sentiment_label,
             fear_greed_score=fear_greed_score,
+            fear_greed_rating=fear_greed_rating,
+            fear_greed_source=fear_greed_source,
+            fear_greed_updated_at=fear_greed_updated_at,
             breadth_snapshot=breadth_snapshot,
             momentum_zones=momentum_zones,
             caution_items=caution_items,

@@ -1718,6 +1718,18 @@ def render_market_state() -> None:
     us_summary = summary_service.build_market_summary("us")
     vix_zone, vix_copy = describe_vix(vix_value)
     fear_greed_label, fear_greed_copy, _ = describe_fear_greed(overview.fear_greed_score)
+    fear_greed_source = getattr(overview, "fear_greed_source", "CNN Fear & Greed Index")
+    fear_greed_updated_at = getattr(overview, "fear_greed_updated_at", "")
+
+    def _format_detail_time(value: str) -> str:
+        if not value:
+            return "—"
+        try:
+            parsed = pd.to_datetime(value)
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return value
+
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
     freshness_bits = [f'{t("page_rendered_at")}: {render_time}', t("intraday_source_note")]
     for summary in (tw_summary, us_summary):
@@ -1727,36 +1739,51 @@ def render_market_state() -> None:
     momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
     macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
     caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
-    gauge_left, gauge_right = st.columns(2)
-    with gauge_left:
-        st.markdown(f'<div class="section-label">{t("fear_greed_gauge")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
-    with gauge_right:
-        st.markdown(f'<div class="section-label">{t("vix_meaning")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
-    read_left, read_right = st.columns(2)
-    with read_left:
-        st.markdown(
-            f"""
-            <div class="state-read">
-                <div class="state-read-title">{t("vix_zone")}</div>
-                <div class="state-read-main">{vix_zone}</div>
-                <div class="state-read-copy">{vix_copy}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with read_right:
-        st.markdown(
-            f"""
-            <div class="state-read">
-                <div class="state-read-title">{t("market_read")}</div>
-                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
-                <div class="state-read-copy">{fear_greed_copy}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    left_card, right_card = st.columns(2)
+    with left_card:
+        with st.container(border=True):
+            st.markdown(f"**{t('fear_greed')}**")
+            _render_data_caption(
+                f"來源: {fear_greed_source}" if LANG == "zh-TW" else f"Source: {fear_greed_source}",
+                f"更新時間: {_format_detail_time(fear_greed_updated_at)}" if LANG == "zh-TW" else f"Updated: {_format_detail_time(fear_greed_updated_at)}",
+            )
+            st.plotly_chart(
+                build_fear_greed_gauge(overview.fear_greed_score),
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+            st.markdown(
+                f"""
+                <div class="state-read">
+                    <div class="state-read-title">{t("market_read")}</div>
+                    <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
+                    <div class="state-read-copy">{fear_greed_copy}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    with right_card:
+        with st.container(border=True):
+            st.markdown("**VIX**")
+            _render_data_caption(
+                "來源: CBOE / Yahoo Finance" if LANG == "zh-TW" else "Source: CBOE / Yahoo Finance",
+                f"頁面抓取時間: {render_time}" if LANG == "zh-TW" else f"Fetched: {render_time}",
+            )
+            st.plotly_chart(
+                build_vix_gauge(vix_value),
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+            st.markdown(
+                f"""
+                <div class="state-read">
+                    <div class="state-read-title">{t("vix_zone")}</div>
+                    <div class="state-read-main">{vix_zone}</div>
+                    <div class="state-read-copy">{vix_copy}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
     st.markdown(
         f"""
         <div class="terminal-card">

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from unittest import TestCase
 
+from investbot.data_sources.market_data import FearGreedSnapshot
 from investbot.data_sources.economic_calendar import EconomicCalendarEvent
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.market_overview_service import MarketOverviewService
@@ -69,6 +70,14 @@ class FakeOverviewMarketData:
     def get_vix_value(self) -> float:
         return 16.5
 
+    def get_fear_greed_snapshot(self) -> FearGreedSnapshot:
+        return FearGreedSnapshot(
+            score=70.0,
+            rating="Greed",
+            updated_at=datetime(2026, 5, 6, 13, 37, 15),
+            previous_close=66.9,
+        )
+
 
 class FakeCalendarClient:
     def get_upcoming_events(self, **kwargs) -> list[EconomicCalendarEvent]:
@@ -111,6 +120,7 @@ class DecisionSupportAndOverviewTests(TestCase):
 
         self.assertGreaterEqual(overview.fear_greed_score, 50)
         self.assertEqual(overview.overall_trend, "Risk-On Uptrend")
+        self.assertEqual(overview.fear_greed_rating, "Greed")
         self.assertTrue(overview.momentum_zones)
         self.assertTrue(overview.caution_items)
         self.assertTrue(overview.upcoming_macro_events)

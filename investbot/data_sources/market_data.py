@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import io
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 import math
 import time
 from urllib.parse import quote_plus
@@ -75,11 +76,22 @@ TW_INDUSTRY_CODE_MAP = {
 }
 
 
+@dataclass(slots=True)
+class FearGreedSnapshot:
+    score: float
+    rating: str
+    updated_at: datetime | None
+    previous_close: float | None
+    source: str = "CNN Fear & Greed Index"
+
+
 class YahooMarketDataClient:
     def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
         self.quote_router = quote_router or self._build_router()
         self._tw_profile_cache: dict[str, dict[str, str]] | None = None
         self._growth_cache: dict[str, dict[str, object]] = {}
+        self._fear_greed_cache: FearGreedSnapshot | None = None
+        self._fear_greed_cache_at: float = 0.0
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         deadline = time.monotonic() + 20.0
@@ -486,6 +498,49 @@ class YahooMarketDataClient:
             return self.get_latest_price("^VIX")
         except Exception:
             return None
+
+    def get_fear_greed_snapshot(self, max_age_seconds: int = 900) -> FearGreedSnapshot | None:
+        if self._fear_greed_cache is not None and (time.monotonic() - self._fear_greed_cache_at) < max_age_seconds:
+            return self._fear_greed_cache
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://edition.cnn.com/",
+            "Accept": "application/json",
+        }
+        try:
+            response = requests.get(
+                "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+                headers=headers,
+                timeout=15,
+            )
+            response.raise_for_status()
+            payload = response.json().get("fear_and_greed", {})
+            score = float(payload["score"])
+            rating = str(payload.get("rating", "")).strip().title() or "Unknown"
+            updated_at = None
+            raw_timestamp = payload.get("timestamp")
+            if raw_timestamp:
+                try:
+                    updated_at = datetime.fromisoformat(str(raw_timestamp))
+                except ValueError:
+                    updated_at = None
+            previous_close = payload.get("previous_close")
+            snapshot = FearGreedSnapshot(
+                score=score,
+                rating=rating,
+                updated_at=updated_at,
+                previous_close=float(previous_close) if previous_close is not None else None,
+            )
+            self._fear_greed_cache = snapshot
+            self._fear_greed_cache_at = time.monotonic()
+            return snapshot
+        except Exception:
+            return self._fear_greed_cache
 
     def get_next_earnings_date(self, ticker: str) -> date | None:
         try:
