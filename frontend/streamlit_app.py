@@ -1086,6 +1086,10 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
     frame["Close"] = frame["Close"].astype(float)
     latest = float(frame["Close"].iloc[-1])
     previous = float(frame["Close"].iloc[0]) if len(frame) > 1 else latest
+    if range_key == "1d":
+        previous_close = _get_previous_session_close(symbol, frame)
+        if previous_close is not None:
+            previous = previous_close
     delta = latest - previous
     pct = 0.0 if previous == 0 else (delta / previous) * 100
     trend_window = min(len(frame), default_window)
@@ -1103,6 +1107,37 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
         "start_at": _format_benchmark_datetime(frame["Date"].iloc[0] if "Date" in frame.columns and not frame.empty else None),
         "end_at": _format_benchmark_datetime(frame["Date"].iloc[-1] if "Date" in frame.columns and not frame.empty else None),
     }
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_previous_session_close(symbol: str, intraday_frame: pd.DataFrame) -> float | None:
+    try:
+        daily_frame = market_data.get_price_history(symbol, period="5d", interval="1d")
+    except Exception:
+        return None
+    if daily_frame.empty or "Close" not in daily_frame.columns:
+        return None
+    frame = daily_frame.copy()
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+    if frame.empty:
+        return None
+    frame["Close"] = frame["Close"].astype(float)
+    intraday_date = None
+    if "Date" in intraday_frame.columns and not intraday_frame.empty:
+        intraday_date = pd.Timestamp(intraday_frame["Date"].iloc[-1]).normalize()
+    if intraday_date is not None:
+        frame["NormDate"] = frame["Date"].dt.normalize()
+        older_rows = frame[frame["NormDate"] < intraday_date]
+        if not older_rows.empty:
+            return float(older_rows["Close"].iloc[-1])
+        same_day_rows = frame[frame["NormDate"] == intraday_date]
+        if not same_day_rows.empty and len(frame) >= 2:
+            return float(frame["Close"].iloc[-2])
+    if len(frame) >= 2:
+        return float(frame["Close"].iloc[-2])
+    return float(frame["Close"].iloc[-1]) if not frame.empty else None
 
 
 def load_benchmark_snapshots(symbol_pairs: list[tuple[str, str]], range_key: str) -> dict[str, dict[str, Any]]:
@@ -2733,6 +2768,10 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
     frame["Close"] = frame["Close"].astype(float)
     latest = float(frame["Close"].iloc[-1])
     previous = float(frame["Close"].iloc[0]) if len(frame) > 1 else latest
+    if range_key == "1d":
+        previous_close = _get_previous_session_close(symbol, frame)
+        if previous_close is not None:
+            previous = previous_close
     delta = latest - previous
     pct = 0.0 if previous == 0 else (delta / previous) * 100
     trend_window = min(len(frame), default_window)
@@ -2750,6 +2789,37 @@ def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -
         "start_at": _format_benchmark_datetime(frame["Date"].iloc[0] if "Date" in frame.columns and not frame.empty else None),
         "end_at": _format_benchmark_datetime(frame["Date"].iloc[-1] if "Date" in frame.columns and not frame.empty else None),
     }
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_previous_session_close(symbol: str, intraday_frame: pd.DataFrame) -> float | None:
+    try:
+        daily_frame = market_data.get_price_history(symbol, period="5d", interval="1d")
+    except Exception:
+        return None
+    if daily_frame.empty or "Close" not in daily_frame.columns:
+        return None
+    frame = daily_frame.copy()
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+    if frame.empty:
+        return None
+    frame["Close"] = frame["Close"].astype(float)
+    intraday_date = None
+    if "Date" in intraday_frame.columns and not intraday_frame.empty:
+        intraday_date = pd.Timestamp(intraday_frame["Date"].iloc[-1]).normalize()
+    if intraday_date is not None:
+        frame["NormDate"] = frame["Date"].dt.normalize()
+        older_rows = frame[frame["NormDate"] < intraday_date]
+        if not older_rows.empty:
+            return float(older_rows["Close"].iloc[-1])
+        same_day_rows = frame[frame["NormDate"] == intraday_date]
+        if not same_day_rows.empty and len(frame) >= 2:
+            return float(frame["Close"].iloc[-2])
+    if len(frame) >= 2:
+        return float(frame["Close"].iloc[-2])
+    return float(frame["Close"].iloc[-1]) if not frame.empty else None
 
 
 def load_benchmark_snapshots(symbol_pairs: list[tuple[str, str]], range_key: str) -> dict[str, dict[str, Any]]:
