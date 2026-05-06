@@ -1289,11 +1289,11 @@ def inject_styles() -> None:
 def format_analysis_summary(summary: AnalysisRunSummary) -> str:
     if LANG == "zh-TW":
         return (
-            f"?? {summary.scanned_tickers} ? | "
-            f"??? {summary.data_ready_tickers} ? | "
-            f"???? {summary.skipped_data_tickers} ? | "
-            f"??? {summary.no_signal_tickers} ? | "
-            f"?? {summary.signal_count} ?"
+            f"掃描 {summary.scanned_tickers} 檔 | "
+            f"有資料 {summary.data_ready_tickers} 檔 | "
+            f"資料不足 {summary.skipped_data_tickers} 檔 | "
+            f"未入選 {summary.no_signal_tickers} 檔 | "
+            f"寫入 {summary.signal_count} 筆"
         )
     return (
         f"Scanned {summary.scanned_tickers} | "
@@ -1308,10 +1308,10 @@ def format_skip_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "no_market_data": "??????" if LANG == "zh-TW" else "no market data",
-        "incomplete_history": "??????" if LANG == "zh-TW" else "incomplete history",
-        "request_timeout": "????" if LANG == "zh-TW" else "request timeout",
-        "provider_error": "????" if LANG == "zh-TW" else "provider error",
+        "no_market_data": "查無市場資料" if LANG == "zh-TW" else "no market data",
+        "incomplete_history": "歷史資料不足" if LANG == "zh-TW" else "incomplete history",
+        "request_timeout": "來源逾時" if LANG == "zh-TW" else "request timeout",
+        "provider_error": "來源異常" if LANG == "zh-TW" else "provider error",
     }
     ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
@@ -1321,20 +1321,20 @@ def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
-        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
-        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
-        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
-        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
-        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "price still below 20MA",
-        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
-        "explore_waiting_for_trigger": "???????????????" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
-        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
-        "market_risk_off": "?? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
-        "wait_pullback_to_20ma": "?????????????? 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
-        "wait_for_institutional_confirmation": "VCP ?????????????" if LANG == "zh-TW" else "wait for institutional confirmation",
-        "score_borderline_65_74": "????????????? 65-74" if LANG == "zh-TW" else "score between 65 and 74",
-        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but score too low",
+        "core_below_60ma": "核心池跌破 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "核心池 60MA 未上彎" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "觀察池跌破 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "觀察池營收 / EPS 未過底線" if LANG == "zh-TW" else "explore growth baseline failed",
+        "no_institutional_buy_streak": "近 3 日法人淨買超未轉正" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "收盤仍在 20MA 下方" if LANG == "zh-TW" else "price still below 20MA",
+        "volume_below_5d_avg": "量能未高於 5 日均量" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "觀察池已過底線，但尚未觸發型態" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
+        "no_strategy_trigger": "未觸發任一進場型態" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "大盤 Risk-Off，轉入防守觀察" if LANG == "zh-TW" else "market risk-off",
+        "wait_pullback_to_20ma": "分數夠高，但乖離過大，等回測 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP 已到位，但法人尚未明確跟進" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "已觸發型態，但綜合分數落在 65-74" if LANG == "zh-TW" else "score between 65 and 74",
+        "triggered_but_low_score": "已觸發型態，但健康分數仍偏弱" if LANG == "zh-TW" else "triggered but score too low",
     }
     ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
@@ -1342,46 +1342,46 @@ def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
 
 def _stage_name_label(stage: str) -> str:
     mapping = {
-        "baseline_reject": "??????" if LANG == "zh-TW" else "Baseline Reject",
-        "watch": "??" if LANG == "zh-TW" else "Watch",
-        "candidate": "?????" if LANG == "zh-TW" else "Candidate",
-        "actionable": "?????" if LANG == "zh-TW" else "Actionable",
+        "baseline_reject": "第一階段淘汰" if LANG == "zh-TW" else "Baseline Reject",
+        "watch": "觀察" if LANG == "zh-TW" else "Watch",
+        "candidate": "差臨門一腳" if LANG == "zh-TW" else "Candidate",
+        "actionable": "今日可執行" if LANG == "zh-TW" else "Actionable",
     }
     return mapping.get(stage, stage)
 
 
 def _stage_reason_label(reason: str) -> str:
     mapping = {
-        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
-        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
-        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
-        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
-        "panic_exception_baseline_ok": "????????" if LANG == "zh-TW" else "panic reversal exception",
-        "core_trend_template_ok": "???????" if LANG == "zh-TW" else "core baseline passed",
-        "explore_baseline_ok": "???????" if LANG == "zh-TW" else "explore baseline passed",
-        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
-        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "below 20MA",
-        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
-        "explore_waiting_for_trigger": "????????????????" if LANG == "zh-TW" else "explore waiting for trigger",
-        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
-        "market_risk_off": "??? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
-        "ready_now": "??????????" if LANG == "zh-TW" else "ready now",
-        "wait_pullback_to_20ma": "?????????? 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
-        "wait_for_institutional_confirmation": "VCP ??????????" if LANG == "zh-TW" else "wait for institutional confirmation",
-        "score_borderline_65_74": "???? 65-74??????" if LANG == "zh-TW" else "score borderline 65-74",
-        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but low score",
+        "core_below_60ma": "核心池跌破 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "核心池 60MA 未上彎" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "觀察池跌破 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "觀察池營收 / EPS 未過底線" if LANG == "zh-TW" else "explore growth baseline failed",
+        "panic_exception_baseline_ok": "恐慌極端反轉例外" if LANG == "zh-TW" else "panic reversal exception",
+        "core_trend_template_ok": "核心池底線通過" if LANG == "zh-TW" else "core baseline passed",
+        "explore_baseline_ok": "觀察池底線通過" if LANG == "zh-TW" else "explore baseline passed",
+        "no_institutional_buy_streak": "近 3 日法人淨買超未轉正" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "收盤仍在 20MA 下方" if LANG == "zh-TW" else "below 20MA",
+        "volume_below_5d_avg": "量能未高於 5 日均量" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "觀察池已過底線，但未出現進場型態" if LANG == "zh-TW" else "explore waiting for trigger",
+        "no_strategy_trigger": "未觸發任一進場型態" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "大盤偏 Risk-Off，先以防守為主" if LANG == "zh-TW" else "market risk-off",
+        "ready_now": "條件完整，可直接執行" if LANG == "zh-TW" else "ready now",
+        "wait_pullback_to_20ma": "乖離過大，等量縮回測 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP 已到位，等待法人跟單" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "分數落在 65-74，差臨門一腳" if LANG == "zh-TW" else "score borderline 65-74",
+        "triggered_but_low_score": "型態出現，但整體健康度仍不足" if LANG == "zh-TW" else "triggered but low score",
     }
     return mapping.get(reason, reason)
 
 
 def _trigger_label_list(values: list[str]) -> str:
     mapping = {
-        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
-        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
-        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
+        "SMART_MONEY_TREND": "法人順勢動能" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP 量縮突破" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "恐慌極端反轉" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "?"
+        return "—"
     return " / ".join(mapping.get(value, value) for value in values)
 
 
@@ -1408,12 +1408,12 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
     frame["fundamental_snapshot"] = frame.apply(
         lambda row: (
-            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            f"營收 YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
             if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
             else (
                 f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
                 if pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
-                else "?"
+                else "—"
             )
         ),
         axis=1,
@@ -1434,20 +1434,23 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
         ]
     ].rename(
         columns={
-            "ticker": "??" if LANG == "zh-TW" else "Ticker",
-            "company": "??" if LANG == "zh-TW" else "Company",
-            "sector": "??" if LANG == "zh-TW" else "Sector",
-            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
-            "stage_label": "????" if LANG == "zh-TW" else "Stage",
-            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
-            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
-            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
-            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
-            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
-            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
+            "ticker": "代號" if LANG == "zh-TW" else "Ticker",
+            "company": "公司" if LANG == "zh-TW" else "Company",
+            "sector": "類股" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "池別" if LANG == "zh-TW" else "Pool",
+            "stage_label": "漏斗階段" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "觸發型態" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "綜合分數" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "相對強度" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "基本面快照" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "未入選 / 歸類原因" if LANG == "zh-TW" else "Reason",
         }
     )
-    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    display = display.fillna("")
+    for column in display.columns:
+        display[column] = display[column].map(lambda value: "" if value is None else str(value))
+    st.markdown(f'<div class="section-label">{"漏斗過程" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
     st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -1529,34 +1532,34 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("??" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("掃描" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("未入選" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
     summary_at = str(st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"??? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
+            st.caption(f"核心池 {core_ticker_count} 檔、觀察池 {explore_ticker_count} 檔。這些是掃描宇宙，不是保證最後會入選。")
         else:
             st.caption(
                 f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
                 f"These lists define the universe, not guaranteed outputs."
             )
     if stage_counts:
-        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+        st.caption(("漏斗分佈：" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("未入選主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("??????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("流程有跑完，但沒有拿到足夠可用資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "???????????????????????????????"
+                "流程有跑完，但目前沒有股票同時通過底線、型態、分數與風險檢查。"
                 if LANG == "zh-TW"
                 else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
@@ -1564,7 +1567,7 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
         st.info(
             (
-                f"???? {signal_count} ??????????????????? {pass_rate:.1f}% ??????????????????"
+                f"最後只有 {signal_count} 檔進入結果，不代表偏好池失效，而是只有 {pass_rate:.1f}% 同時通過底線、觸發、分數與風險門檻。"
                 if LANG == "zh-TW"
                 else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
@@ -1973,10 +1976,10 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     if latest_date:
         _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
-        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "?????????" if LANG == "zh-TW" else "Macro tape"),
-        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "????????????" if LANG == "zh-TW" else "Higher means more risk appetite"),
-        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "???????????" if LANG == "zh-TW" else "Higher breadth means broader participation"),
-        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX ???????????" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "總體盤勢" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "分數越高代表風險偏好越強" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "分數越高代表參與面越廣" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低通常越容易順勢操作" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
     light_columns = st.columns(4)
     for column, (name, value, color, tone, copy) in zip(light_columns, lights):
@@ -2073,7 +2076,7 @@ def render_rank_boards() -> None:
             if risk_rows:
                 _render_rank_items(risk_rows, meta_mode="risk")
             else:
-                st.info("??????????????????" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
+                st.info("目前沒有與領先名單明顯不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
 
 
 def render_manual_tracking(candidate_frame: pd.DataFrame) -> None:
@@ -2136,7 +2139,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -2200,7 +2203,11 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
 
 def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption(f'{t("decision_score_label")}?{t("decision_score_help")}')
+    st.caption(
+        "綜合分數越高，代表越接近可執行。75 分以上通常進入可執行或候選，65-74 分代表差臨門一腳。"
+        if LANG == "zh-TW"
+        else f'{t("decision_score_label")}: {t("decision_score_help")}'
+    )
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -2225,10 +2232,10 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
         if LANG == "zh-TW":
             verdict_copy = {
-                t("verdict_buy"): "?????????????????",
-                t("verdict_probe"): "??????????????????",
-                t("verdict_wait"): "????????????",
-                t("verdict_avoid"): "????????????",
+                t("verdict_buy"): "條件完整，可直接依風控計畫執行。",
+                t("verdict_probe"): "先用小部位試單，確認延續後再加碼。",
+                t("verdict_wait"): "先觀察，等條件更完整再出手。",
+                t("verdict_avoid"): "目前風險偏高，暫時不要出手。",
             }.get(verdict_label, "")
         else:
             verdict_copy = ""
@@ -2248,7 +2255,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                     <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
                 </div>
                 <div class="decision-meta" style="margin-bottom:8px;">
-                    {t("decision_verdict")}?
+                    {t("decision_verdict")}：
                     <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
                     {verdict_copy}
                 </div>
@@ -2971,11 +2978,11 @@ def inject_styles() -> None:
 def format_analysis_summary(summary: AnalysisRunSummary) -> str:
     if LANG == "zh-TW":
         return (
-            f"?? {summary.scanned_tickers} ? | "
-            f"??? {summary.data_ready_tickers} ? | "
-            f"???? {summary.skipped_data_tickers} ? | "
-            f"??? {summary.no_signal_tickers} ? | "
-            f"?? {summary.signal_count} ?"
+            f"掃描 {summary.scanned_tickers} 檔 | "
+            f"有資料 {summary.data_ready_tickers} 檔 | "
+            f"資料不足 {summary.skipped_data_tickers} 檔 | "
+            f"未入選 {summary.no_signal_tickers} 檔 | "
+            f"寫入 {summary.signal_count} 筆"
         )
     return (
         f"Scanned {summary.scanned_tickers} | "
@@ -2990,10 +2997,10 @@ def format_skip_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "no_market_data": "??????" if LANG == "zh-TW" else "no market data",
-        "incomplete_history": "??????" if LANG == "zh-TW" else "incomplete history",
-        "request_timeout": "????" if LANG == "zh-TW" else "request timeout",
-        "provider_error": "????" if LANG == "zh-TW" else "provider error",
+        "no_market_data": "查無市場資料" if LANG == "zh-TW" else "no market data",
+        "incomplete_history": "歷史資料不足" if LANG == "zh-TW" else "incomplete history",
+        "request_timeout": "來源逾時" if LANG == "zh-TW" else "request timeout",
+        "provider_error": "來源異常" if LANG == "zh-TW" else "provider error",
     }
     ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
@@ -3003,20 +3010,20 @@ def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
-        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
-        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
-        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
-        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
-        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "price still below 20MA",
-        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
-        "explore_waiting_for_trigger": "???????????????" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
-        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
-        "market_risk_off": "?? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
-        "wait_pullback_to_20ma": "?????????????? 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
-        "wait_for_institutional_confirmation": "VCP ?????????????" if LANG == "zh-TW" else "wait for institutional confirmation",
-        "score_borderline_65_74": "????????????? 65-74" if LANG == "zh-TW" else "score between 65 and 74",
-        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but score too low",
+        "core_below_60ma": "核心池跌破 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "核心池 60MA 未上彎" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "觀察池跌破 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "觀察池營收 / EPS 未過底線" if LANG == "zh-TW" else "explore growth baseline failed",
+        "no_institutional_buy_streak": "近 3 日法人淨買超未轉正" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "收盤仍在 20MA 下方" if LANG == "zh-TW" else "price still below 20MA",
+        "volume_below_5d_avg": "量能未高於 5 日均量" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "觀察池已過底線，但尚未觸發型態" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
+        "no_strategy_trigger": "未觸發任一進場型態" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "大盤 Risk-Off，轉入防守觀察" if LANG == "zh-TW" else "market risk-off",
+        "wait_pullback_to_20ma": "分數夠高，但乖離過大，等回測 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP 已到位，但法人尚未明確跟進" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "已觸發型態，但綜合分數落在 65-74" if LANG == "zh-TW" else "score between 65 and 74",
+        "triggered_but_low_score": "已觸發型態，但健康分數仍偏弱" if LANG == "zh-TW" else "triggered but score too low",
     }
     ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
@@ -3024,46 +3031,46 @@ def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
 
 def _stage_name_label(stage: str) -> str:
     mapping = {
-        "baseline_reject": "??????" if LANG == "zh-TW" else "Baseline Reject",
-        "watch": "??" if LANG == "zh-TW" else "Watch",
-        "candidate": "?????" if LANG == "zh-TW" else "Candidate",
-        "actionable": "?????" if LANG == "zh-TW" else "Actionable",
+        "baseline_reject": "第一階段淘汰" if LANG == "zh-TW" else "Baseline Reject",
+        "watch": "觀察" if LANG == "zh-TW" else "Watch",
+        "candidate": "差臨門一腳" if LANG == "zh-TW" else "Candidate",
+        "actionable": "今日可執行" if LANG == "zh-TW" else "Actionable",
     }
     return mapping.get(stage, stage)
 
 
 def _stage_reason_label(reason: str) -> str:
     mapping = {
-        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
-        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
-        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
-        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
-        "panic_exception_baseline_ok": "????????" if LANG == "zh-TW" else "panic reversal exception",
-        "core_trend_template_ok": "???????" if LANG == "zh-TW" else "core baseline passed",
-        "explore_baseline_ok": "???????" if LANG == "zh-TW" else "explore baseline passed",
-        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
-        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "below 20MA",
-        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
-        "explore_waiting_for_trigger": "????????????????" if LANG == "zh-TW" else "explore waiting for trigger",
-        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
-        "market_risk_off": "??? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
-        "ready_now": "??????????" if LANG == "zh-TW" else "ready now",
-        "wait_pullback_to_20ma": "?????????? 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
-        "wait_for_institutional_confirmation": "VCP ??????????" if LANG == "zh-TW" else "wait for institutional confirmation",
-        "score_borderline_65_74": "???? 65-74??????" if LANG == "zh-TW" else "score borderline 65-74",
-        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but low score",
+        "core_below_60ma": "核心池跌破 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "核心池 60MA 未上彎" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "觀察池跌破 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "觀察池營收 / EPS 未過底線" if LANG == "zh-TW" else "explore growth baseline failed",
+        "panic_exception_baseline_ok": "恐慌極端反轉例外" if LANG == "zh-TW" else "panic reversal exception",
+        "core_trend_template_ok": "核心池底線通過" if LANG == "zh-TW" else "core baseline passed",
+        "explore_baseline_ok": "觀察池底線通過" if LANG == "zh-TW" else "explore baseline passed",
+        "no_institutional_buy_streak": "近 3 日法人淨買超未轉正" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "收盤仍在 20MA 下方" if LANG == "zh-TW" else "below 20MA",
+        "volume_below_5d_avg": "量能未高於 5 日均量" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "觀察池已過底線，但未出現進場型態" if LANG == "zh-TW" else "explore waiting for trigger",
+        "no_strategy_trigger": "未觸發任一進場型態" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "大盤偏 Risk-Off，先以防守為主" if LANG == "zh-TW" else "market risk-off",
+        "ready_now": "條件完整，可直接執行" if LANG == "zh-TW" else "ready now",
+        "wait_pullback_to_20ma": "乖離過大，等量縮回測 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP 已到位，等待法人跟單" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "分數落在 65-74，差臨門一腳" if LANG == "zh-TW" else "score borderline 65-74",
+        "triggered_but_low_score": "型態出現，但整體健康度仍不足" if LANG == "zh-TW" else "triggered but low score",
     }
     return mapping.get(reason, reason)
 
 
 def _trigger_label_list(values: list[str]) -> str:
     mapping = {
-        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
-        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
-        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
+        "SMART_MONEY_TREND": "法人順勢動能" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP 量縮突破" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "恐慌極端反轉" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "?"
+        return "—"
     return " / ".join(mapping.get(value, value) for value in values)
 
 
@@ -3090,12 +3097,12 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
     frame["fundamental_snapshot"] = frame.apply(
         lambda row: (
-            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            f"營收 YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
             if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
             else (
                 f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
                 if pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
-                else "?"
+                else "—"
             )
         ),
         axis=1,
@@ -3116,20 +3123,23 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
         ]
     ].rename(
         columns={
-            "ticker": "??" if LANG == "zh-TW" else "Ticker",
-            "company": "??" if LANG == "zh-TW" else "Company",
-            "sector": "??" if LANG == "zh-TW" else "Sector",
-            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
-            "stage_label": "????" if LANG == "zh-TW" else "Stage",
-            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
-            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
-            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
-            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
-            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
-            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
+            "ticker": "代號" if LANG == "zh-TW" else "Ticker",
+            "company": "公司" if LANG == "zh-TW" else "Company",
+            "sector": "類股" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "池別" if LANG == "zh-TW" else "Pool",
+            "stage_label": "漏斗階段" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "觸發型態" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "綜合分數" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "相對強度" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "基本面快照" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "未入選 / 歸類原因" if LANG == "zh-TW" else "Reason",
         }
     )
-    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    display = display.fillna("")
+    for column in display.columns:
+        display[column] = display[column].map(lambda value: "" if value is None else str(value))
+    st.markdown(f'<div class="section-label">{"漏斗過程" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
     st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -3211,34 +3221,34 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("??" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("掃描" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("未入選" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
     summary_at = str(st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"??? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
+            st.caption(f"核心池 {core_ticker_count} 檔、觀察池 {explore_ticker_count} 檔。這些是掃描宇宙，不是保證最後會入選。")
         else:
             st.caption(
                 f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
                 f"These lists define the universe, not guaranteed outputs."
             )
     if stage_counts:
-        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+        st.caption(("漏斗分佈：" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("未入選主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("??????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("流程有跑完，但沒有拿到足夠可用資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "???????????????????????????????"
+                "流程有跑完，但目前沒有股票同時通過底線、型態、分數與風險檢查。"
                 if LANG == "zh-TW"
                 else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
@@ -3246,7 +3256,7 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
         st.info(
             (
-                f"???? {signal_count} ??????????????????? {pass_rate:.1f}% ??????????????????"
+                f"最後只有 {signal_count} 檔進入結果，不代表偏好池失效，而是只有 {pass_rate:.1f}% 同時通過底線、觸發、分數與風險門檻。"
                 if LANG == "zh-TW"
                 else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
@@ -3627,10 +3637,10 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     if latest_date:
         _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
-        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "?????????" if LANG == "zh-TW" else "Macro tape"),
-        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "????????????" if LANG == "zh-TW" else "Higher means more risk appetite"),
-        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "???????????" if LANG == "zh-TW" else "Higher breadth means broader participation"),
-        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX ???????????" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "總體盤勢" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "分數越高代表風險偏好越強" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "分數越高代表參與面越廣" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低通常越容易順勢操作" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
     light_columns = st.columns(4)
     for column, (name, value, color, tone, copy) in zip(light_columns, lights):
@@ -3727,7 +3737,7 @@ def render_rank_boards() -> None:
             if risk_rows:
                 _render_rank_items(risk_rows, meta_mode="risk")
             else:
-                st.info("??????????????????" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
+                st.info("目前沒有與領先名單明顯不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -3753,7 +3763,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -3817,7 +3827,11 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
 
 def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption(f'{t("decision_score_label")}?{t("decision_score_help")}')
+    st.caption(
+        "綜合分數越高，代表越接近可執行。75 分以上通常進入可執行或候選，65-74 分代表差臨門一腳。"
+        if LANG == "zh-TW"
+        else f'{t("decision_score_label")}: {t("decision_score_help")}'
+    )
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -3842,10 +3856,10 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
         if LANG == "zh-TW":
             verdict_copy = {
-                t("verdict_buy"): "?????????????????",
-                t("verdict_probe"): "??????????????????",
-                t("verdict_wait"): "????????????",
-                t("verdict_avoid"): "????????????",
+                t("verdict_buy"): "條件完整，可直接依風控計畫執行。",
+                t("verdict_probe"): "先用小部位試單，確認延續後再加碼。",
+                t("verdict_wait"): "先觀察，等條件更完整再出手。",
+                t("verdict_avoid"): "目前風險偏高，暫時不要出手。",
             }.get(verdict_label, "")
         else:
             verdict_copy = ""
@@ -3862,10 +3876,10 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
                             {localize_value(row.get("recommendation_bucket", "Watchlist"))}
                         </div>
                     </div>
-                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
+                    <div class="decision-meta">{'綜合分數' if LANG == 'zh-TW' else t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
                 </div>
                 <div class="decision-meta" style="margin-bottom:8px;">
-                    {t("decision_verdict")}?
+                    {'結論' if LANG == 'zh-TW' else t("decision_verdict")}：
                     <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
                     {verdict_copy}
                 </div>
@@ -3992,38 +4006,39 @@ def _translate_macro_event_label(label: str) -> str:
 def localize_value(value: object) -> str:
     text_value = str(value)
     mapping = {
-        "Unknown": t("unknown"),
-        "Calm": t("calm"),
-        "Neutral": t("neutral"),
-        "Risk-Off": t("risk_off"),
+        "Unknown": "未知" if LANG == "zh-TW" else "Unknown",
+        "Calm": "平穩" if LANG == "zh-TW" else "Calm",
+        "Neutral": "中性" if LANG == "zh-TW" else "Neutral",
+        "Risk-Off": "Risk-Off / 防守" if LANG == "zh-TW" else "Risk-Off",
         "Risk-On": "偏多" if LANG == "zh-TW" else "Risk-On",
         "Risk-On Uptrend": "偏多上升趨勢" if LANG == "zh-TW" else "Risk-On Uptrend",
-        "Balanced / Selective": "平衡 / 挑選" if LANG == "zh-TW" else "Balanced / Selective",
-        "Defensive / Risk-Off": "防守 / 風險降低" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Balanced / Selective": "平衡 / 選擇性出手" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "防守 / Risk-Off" if LANG == "zh-TW" else "Defensive / Risk-Off",
         "Greed": "貪婪" if LANG == "zh-TW" else "Greed",
-        "Constructive": "結構健康" if LANG == "zh-TW" else "Constructive",
+        "Constructive": "建設性偏多" if LANG == "zh-TW" else "Constructive",
         "Cautious": "謹慎" if LANG == "zh-TW" else "Cautious",
-        "Fear": "恐慌" if LANG == "zh-TW" else "Fear",
-        "Watchlist": t("watchlist"),
-        "Actionable": t("actionable"),
-        "Safer Follow-Through": t("safer"),
-        "core": t("core_pool"),
-        "explore": t("explore_pool"),
-        "clear": t("clear"),
-        "DAY_1_EARLY": t("day1"),
-        "DAY_2_BUILDING": t("day2"),
-        "DAY_3_PLUS_SAFER": t("day3"),
-        "Institutional Accumulation": "法人買盤累積" if LANG == "zh-TW" else "Institutional Accumulation",
-        "Panic Reversal": "恐慌反轉" if LANG == "zh-TW" else "Panic Reversal",
+        "Fear": "恐懼" if LANG == "zh-TW" else "Fear",
+        "Watchlist": "觀察" if LANG == "zh-TW" else "Watchlist",
+        "Actionable": "今日可執行" if LANG == "zh-TW" else "Actionable",
+        "Candidate": "差臨門一腳" if LANG == "zh-TW" else "Candidate",
+        "Safer Follow-Through": "相對安全延續" if LANG == "zh-TW" else "Safer Follow-Through",
+        "core": "核心池" if LANG == "zh-TW" else "Core",
+        "explore": "觀察池" if LANG == "zh-TW" else "Explore",
+        "clear": "目前無明顯事件風險" if LANG == "zh-TW" else "clear",
+        "DAY_1_EARLY": "第 1 天 / 起步" if LANG == "zh-TW" else "Day 1 Early",
+        "DAY_2_BUILDING": "第 2 天 / 建倉中" if LANG == "zh-TW" else "Day 2 Building",
+        "DAY_3_PLUS_SAFER": "第 3 天以上 / 相對更穩" if LANG == "zh-TW" else "Day 3+ Safer",
+        "Institutional Accumulation": "法人順勢動能" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "恐慌極端反轉" if LANG == "zh-TW" else "Panic Reversal",
         "High": "高" if LANG == "zh-TW" else "High",
         "Medium": "中" if LANG == "zh-TW" else "Medium",
         "Medium-High": "中高" if LANG == "zh-TW" else "Medium-High",
         "Medium-Low": "中低" if LANG == "zh-TW" else "Medium-Low",
-        "Favorable": "報酬優勢" if LANG == "zh-TW" else "Favorable",
-        "Balanced": "風報平衡" if LANG == "zh-TW" else "Balanced",
-        "Unclear": "風報不明" if LANG == "zh-TW" else "Unclear",
-        "High Conviction Core": "核心可買" if LANG == "zh-TW" else "High Conviction Core",
-        "Actionable Setup": "可試單" if LANG == "zh-TW" else "Actionable Setup",
+        "Favorable": "風報比偏佳" if LANG == "zh-TW" else "Favorable",
+        "Balanced": "風報比平衡" if LANG == "zh-TW" else "Balanced",
+        "Unclear": "風報比不明" if LANG == "zh-TW" else "Unclear",
+        "High Conviction Core": "高信念核心" if LANG == "zh-TW" else "High Conviction Core",
+        "Actionable Setup": "可執行設定" if LANG == "zh-TW" else "Actionable Setup",
         "Watch and Wait": "先觀察" if LANG == "zh-TW" else "Watch and Wait",
     }
     if text_value in mapping:
@@ -4050,10 +4065,10 @@ def maybe_translate_text(text_value: str) -> str:
         return f"事件風險偏高：{_translate_macro_event_label(detail)}"
     if text_value.startswith("macro_event_imminent ("):
         inner = text_value.replace("macro_event_imminent (", "").rstrip(")")
-        return f"總經事件臨近：{_translate_macro_event_label(inner)}。"
+        return f"總經事件臨近：{_translate_macro_event_label(inner)}"
     if text_value.startswith("macro_event_near ("):
         inner = text_value.replace("macro_event_near (", "").rstrip(")")
-        return f"總經事件接近：{_translate_macro_event_label(inner)}。"
+        return f"總經事件接近：{_translate_macro_event_label(inner)}"
     if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
         return "波動偏高，部位大小要保守。"
     if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
