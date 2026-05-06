@@ -56,6 +56,8 @@ class AnalysisRunSummary:
     no_signal_reason_counts: dict[str, int] = field(default_factory=dict)
     core_ticker_count: int = 0
     explore_ticker_count: int = 0
+    stage_counts: dict[str, int] = field(default_factory=dict)
+    stage_rows: list[dict[str, object]] = field(default_factory=list)
     signals: list[MarketSignal] = field(default_factory=list)
 
 
@@ -95,6 +97,7 @@ class AnalysisEngine:
         skipped_reason_counts: dict[str, int] = {}
         no_signal_reason_counts: dict[str, int] = {}
         no_signal_tickers = 0
+        stage_rows: list[dict[str, object]] = []
 
         if progress_callback:
             progress_callback("init", 0, len(all_tickers), "準備分析宇宙" if universe.market_type == "tw" else "Preparing analysis universe")
@@ -126,13 +129,12 @@ class AnalysisEngine:
             if enriched is None or enriched.empty:
                 continue
 
-            latest = enriched.iloc[-1]
             is_large_cap = ticker.upper() in large_caps or universe.market_type == "us"
             universe_bucket = universe.bucket_for(ticker)
-            ticker_signals = self._evaluate_strategies(
+            ticker_signals, stage_row, no_signal_reason = self._evaluate_strategies(
                 ticker=ticker,
                 market_type=universe.market_type,
-                latest=latest,
+                enriched=enriched,
                 trade_date=trade_date,
                 institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
                 institutional_buy_history=buy_history_map.get(ticker.upper(), []),
@@ -140,18 +142,11 @@ class AnalysisEngine:
                 universe_bucket=universe_bucket,
                 market_context=market_context,
             )
+            stage_rows.append(stage_row)
             if not ticker_signals:
                 no_signal_tickers += 1
-                no_signal_reason = self._classify_no_signal_reason(
-                    market_type=universe.market_type,
-                    latest=latest,
-                    institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
-                    institutional_buy_history=buy_history_map.get(ticker.upper(), []),
-                    is_large_cap=is_large_cap,
-                    universe_bucket=universe_bucket,
-                    market_context=market_context,
-                )
-                no_signal_reason_counts[no_signal_reason] = no_signal_reason_counts.get(no_signal_reason, 0) + 1
+                reason_key = no_signal_reason or "no_strategy_trigger"
+                no_signal_reason_counts[reason_key] = no_signal_reason_counts.get(reason_key, 0) + 1
             signals.extend(ticker_signals)
 
         self.repository.upsert_many([signal.to_record() for signal in signals])
@@ -173,6 +168,8 @@ class AnalysisEngine:
             no_signal_reason_counts=no_signal_reason_counts,
             core_ticker_count=sum(1 for ticker in all_tickers if universe.bucket_for(ticker) == "core"),
             explore_ticker_count=sum(1 for ticker in all_tickers if universe.bucket_for(ticker) == "explore"),
+            stage_counts=self._build_stage_counts(stage_rows),
+            stage_rows=stage_rows,
             signals=signals,
         )
 
@@ -188,62 +185,33 @@ class AnalysisEngine:
 
     def _build_indicators(self, frame: pd.DataFrame) -> pd.DataFrame:
         frame = frame.copy()
+        prev_close = frame["Close"].shift(1)
+        true_range = pd.concat(
+            [
+                frame["High"] - frame["Low"],
+                (frame["High"] - prev_close).abs(),
+                (frame["Low"] - prev_close).abs(),
+            ],
+            axis=1,
+        ).max(axis=1)
         frame["20MA"] = frame["Close"].rolling(window=20).mean()
         frame["60MA"] = frame["Close"].rolling(window=60).mean()
         frame["5D_VOL_AVG"] = frame["Volume"].rolling(window=5).mean()
+        frame["20D_VOL_AVG"] = frame["Volume"].rolling(window=20).mean()
         frame["20D_RETURN"] = frame["Close"].pct_change(periods=20)
+        frame["ATR20"] = true_range.rolling(window=20).mean()
         frame["lower_shadow"] = frame[["Open", "Close"]].min(axis=1) - frame["Low"]
         frame["body_size"] = (frame["Close"] - frame["Open"]).abs()
         return frame.dropna().reset_index(drop=True)
 
-    def _classify_no_signal_reason(
-        self,
-        market_type: str,
-        latest: pd.Series,
-        institutional_net_buy: int,
-        institutional_buy_history: list[int],
-        is_large_cap: bool,
-        universe_bucket: str,
-        market_context: MarketContext,
-    ) -> str:
-        close_price = float(latest["Close"])
-        ma_20 = float(latest["20MA"])
-        buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
-        relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
-        entry_quality_score = self._score_entry_quality(
-            close_price=close_price,
-            ma_20=ma_20,
-            ma_60=float(latest["60MA"]),
-            volume=int(latest["Volume"]),
-            volume_avg_5d=float(latest["5D_VOL_AVG"]),
-            is_large_cap=is_large_cap,
-        )
-        composite_signal_score = self._score_composite_signal(
-            market_regime_score=market_context.regime_score,
-            breadth_score=market_context.breadth_score,
-            relative_strength_score=relative_strength_score,
-            institutional_conviction_score=self._score_institutional_conviction(buy_streak, institutional_net_buy),
-            event_risk_score=50.0,
-            entry_quality_score=entry_quality_score,
-        )
-
-        if market_type == "tw" and not is_large_cap:
-            if universe_bucket != "explore":
-                return "small_cap_outside_explore"
-            if not self._is_high_quality_explore_candidate(
-                buy_streak=buy_streak,
-                institutional_net_buy=institutional_net_buy,
-                relative_strength_score=relative_strength_score,
-                entry_quality_score=entry_quality_score,
-                composite_signal_score=composite_signal_score,
-            ):
-                return "explore_quality_gate"
-
-        if buy_streak < 1:
-            return "no_institutional_buy_streak"
-        if close_price <= ma_20:
-            return "below_20ma"
-        return "no_strategy_trigger"
+    def _build_stage_counts(self, stage_rows: list[dict[str, object]]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for row in stage_rows:
+            stage = str(row.get("stage", "")).strip()
+            if not stage:
+                continue
+            counts[stage] = counts.get(stage, 0) + 1
+        return counts
 
     def _build_market_context(self, market_type: str, enriched_frames: dict[str, pd.DataFrame]) -> MarketContext:
         benchmark_ticker = "^TWII" if market_type == "tw" else "^GSPC"
@@ -282,20 +250,34 @@ class AnalysisEngine:
         self,
         ticker: str,
         market_type: str,
-        latest: pd.Series,
+        enriched: pd.DataFrame,
         trade_date: date,
         institutional_net_buy: int,
         institutional_buy_history: list[int],
         is_large_cap: bool,
         universe_bucket: str,
         market_context: MarketContext,
-    ) -> list[MarketSignal]:
+    ) -> tuple[list[MarketSignal], dict[str, object], str | None]:
         results: list[MarketSignal] = []
+        latest = enriched.iloc[-1]
+        prev = enriched.iloc[-2] if len(enriched) > 1 else latest
 
         close_price = float(latest["Close"])
         volume = int(latest["Volume"])
         ma_20 = float(latest["20MA"])
         ma_60 = float(latest["60MA"])
+        atr_20 = float(latest.get("ATR20", 0) or 0)
+        ma_60_prev = float(prev["60MA"])
+        ma60_up = ma_60 > ma_60_prev
+        recent_3d_net_buy = int(sum(institutional_buy_history[-3:])) if institutional_buy_history else 0
+        growth_snapshot = self.market_data.get_growth_snapshot(ticker) if universe_bucket == "explore" else {
+            "revenue_yoy": None,
+            "eps_ttm": None,
+            "as_of": None,
+            "source": "",
+        }
+        revenue_yoy = growth_snapshot.get("revenue_yoy")
+        eps_ttm = growth_snapshot.get("eps_ttm")
 
         buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
         event_risk = self.event_risk_service.assess(ticker.upper(), trade_date)
@@ -309,36 +291,105 @@ class AnalysisEngine:
             volume_avg_5d=float(latest["5D_VOL_AVG"]),
             is_large_cap=is_large_cap,
         )
+        market_regime_score = market_context.regime_score
         event_risk_score = event_risk.score
+        panic_reversal = self._is_panic_reversal(latest)
         composite_signal_score = self._score_composite_signal(
-            market_regime_score=market_context.regime_score,
-            breadth_score=market_context.breadth_score,
+            market_regime_score=market_regime_score,
             relative_strength_score=relative_strength_score,
             institutional_conviction_score=institutional_conviction_score,
-            event_risk_score=event_risk_score,
-            entry_quality_score=entry_quality_score,
+            atr_risk_score=self._score_atr_risk(close_price=close_price, ma_20=ma_20, atr_20=atr_20),
+            volume_quality_score=self._score_volume_quality(enriched),
         )
-        recommendation_bucket = self._classify_recommendation_bucket(
-            composite_signal_score=composite_signal_score,
-            buy_streak=buy_streak,
-            market_regime=market_context.regime,
-            breadth_score=market_context.breadth_score,
+        buy_ratio = (institutional_net_buy / volume * 100) if volume > 0 else 0.0
+        overextended = self._is_overextended(close_price=close_price, ma_20=ma_20, atr_20=atr_20)
+
+        baseline_ok, baseline_reason = self._passes_baseline(
             universe_bucket=universe_bucket,
+            close_price=close_price,
+            ma_60=ma_60,
+            ma60_up=ma60_up,
+            revenue_yoy=revenue_yoy,
+            eps_ttm=eps_ttm,
+            panic_reversal=panic_reversal,
         )
+        if not baseline_ok:
+            return (
+                results,
+                self._build_stage_row(
+                    ticker=ticker,
+                    market_type=market_type,
+                    universe_bucket=universe_bucket,
+                    stage="baseline_reject",
+                    reason=baseline_reason,
+                    composite_signal_score=composite_signal_score,
+                    relative_strength_score=relative_strength_score,
+                    institutional_buy_streak=buy_streak,
+                    growth_snapshot=growth_snapshot,
+                ),
+                baseline_reason,
+            )
 
-        if market_type == "tw" and not is_large_cap:
-            if universe_bucket != "explore":
-                return results
-            if not self._is_high_quality_explore_candidate(
-                buy_streak=buy_streak,
-                institutional_net_buy=institutional_net_buy,
-                relative_strength_score=relative_strength_score,
-                entry_quality_score=entry_quality_score,
-                composite_signal_score=composite_signal_score,
-            ):
-                return results
+        trigger_labels = self._detect_triggers(
+            latest=latest,
+            enriched=enriched,
+            recent_3d_net_buy=recent_3d_net_buy,
+            close_price=close_price,
+            ma_20=ma_20,
+            ma_60=ma_60,
+            volume=volume,
+            panic_reversal=panic_reversal,
+        )
+        if not trigger_labels:
+            no_signal_reason = self._classify_trigger_gap_reason(
+                recent_3d_net_buy=recent_3d_net_buy,
+                close_price=close_price,
+                ma_20=ma_20,
+                volume=volume,
+                vol_avg_5d=float(latest["5D_VOL_AVG"]),
+                universe_bucket=universe_bucket,
+            )
+            return (
+                results,
+                self._build_stage_row(
+                    ticker=ticker,
+                    market_type=market_type,
+                    universe_bucket=universe_bucket,
+                    stage="watch",
+                    reason=no_signal_reason,
+                    composite_signal_score=composite_signal_score,
+                    relative_strength_score=relative_strength_score,
+                    institutional_buy_streak=buy_streak,
+                    growth_snapshot=growth_snapshot,
+                ),
+                no_signal_reason,
+            )
 
-        if self._is_institutional_accumulation(close_price, ma_20, buy_streak):
+        recommendation_bucket, stage_name, stage_reason = self._classify_recommendation_bucket(
+            composite_signal_score=composite_signal_score,
+            market_regime=market_context.regime,
+            overextended=overextended,
+            trigger_labels=trigger_labels,
+            institutional_buy_ratio=buy_ratio,
+            is_large_cap=is_large_cap,
+        )
+        stage_row = self._build_stage_row(
+            ticker=ticker,
+            market_type=market_type,
+            universe_bucket=universe_bucket,
+            stage=stage_name,
+            reason=stage_reason,
+            composite_signal_score=composite_signal_score,
+            relative_strength_score=relative_strength_score,
+            institutional_buy_streak=buy_streak,
+            growth_snapshot=growth_snapshot,
+            trigger_labels=trigger_labels,
+        )
+        if recommendation_bucket == "Watchlist":
+            return results, stage_row, stage_reason
+
+        signal_type = self.INSTITUTIONAL_ACCUMULATION_SIGNAL if "SMART_MONEY_TREND" in trigger_labels or "VCP_BREAKOUT" in trigger_labels else self.PANIC_REVERSAL_SIGNAL
+        if signal_type == self.INSTITUTIONAL_ACCUMULATION_SIGNAL:
             results.append(
                 MarketSignal(
                     trade_date=trade_date,
@@ -349,13 +400,13 @@ class AnalysisEngine:
                     ma_20=ma_20,
                     ma_60=ma_60,
                     institutional_net_buy=institutional_net_buy,
-                    signal_type=self.INSTITUTIONAL_ACCUMULATION_SIGNAL,
+                    signal_type=signal_type,
                     is_large_cap=is_large_cap,
                     universe_bucket=universe_bucket,
                     institutional_buy_streak=buy_streak,
                     entry_timing=self._classify_entry_timing(buy_streak),
                     market_regime=market_context.regime,
-                    market_regime_score=market_context.regime_score,
+                    market_regime_score=market_regime_score,
                     breadth_score=market_context.breadth_score,
                     relative_strength_score=relative_strength_score,
                     institutional_conviction_score=institutional_conviction_score,
@@ -367,8 +418,7 @@ class AnalysisEngine:
                     recommendation_bucket=recommendation_bucket,
                 )
             )
-
-        if self._is_panic_reversal(latest):
+        else:
             results.append(
                 MarketSignal(
                     trade_date=trade_date,
@@ -379,11 +429,11 @@ class AnalysisEngine:
                     ma_20=ma_20,
                     ma_60=ma_60,
                     institutional_net_buy=institutional_net_buy,
-                    signal_type=self.PANIC_REVERSAL_SIGNAL,
+                    signal_type=signal_type,
                     is_large_cap=is_large_cap,
                     universe_bucket=universe_bucket,
                     market_regime=market_context.regime,
-                    market_regime_score=market_context.regime_score,
+                    market_regime_score=market_regime_score,
                     breadth_score=market_context.breadth_score,
                     relative_strength_score=relative_strength_score,
                     institutional_conviction_score=institutional_conviction_score,
@@ -395,7 +445,7 @@ class AnalysisEngine:
                     recommendation_bucket=recommendation_bucket,
                 )
             )
-        return results
+        return results, stage_row, None
 
     def _get_institutional_buy_streak(self, institutional_buy_history: list[int]) -> int:
         streak = 0
@@ -495,44 +545,40 @@ class AnalysisEngine:
     def _score_composite_signal(
         self,
         market_regime_score: float,
-        breadth_score: float,
         relative_strength_score: float,
         institutional_conviction_score: float,
-        event_risk_score: float,
-        entry_quality_score: float,
+        atr_risk_score: float,
+        volume_quality_score: float,
     ) -> float:
         score = (
             (market_regime_score * 0.2)
-            + (breadth_score * 0.15)
-            + (relative_strength_score * 0.15)
-            + (institutional_conviction_score * 0.25)
-            + (event_risk_score * 0.1)
-            + (entry_quality_score * 0.15)
+            + (relative_strength_score * 0.2)
+            + (institutional_conviction_score * 0.3)
+            + (atr_risk_score * 0.15)
+            + (volume_quality_score * 0.15)
         )
         return round(score, 2)
 
     def _classify_recommendation_bucket(
         self,
         composite_signal_score: float,
-        buy_streak: int,
         market_regime: str,
-        breadth_score: float,
-        universe_bucket: str,
-    ) -> str:
-        if market_regime == "Risk-Off" or breadth_score < 40:
-            return "Watchlist"
-        if (
-            composite_signal_score >= 80
-            and buy_streak >= 3
-            and market_regime == "Risk-On"
-            and breadth_score >= 60
-            and universe_bucket == "core"
-        ):
-            return "Safer Follow-Through"
-        threshold = 72 if universe_bucket == "explore" else 68
-        if composite_signal_score >= threshold:
-            return "Actionable"
-        return "Watchlist"
+        overextended: bool,
+        trigger_labels: list[str],
+        institutional_buy_ratio: float,
+        is_large_cap: bool,
+    ) -> tuple[str, str, str]:
+        if market_regime == "Risk-Off":
+            return "Watchlist", "watch", "market_risk_off"
+        if composite_signal_score >= 75 and not overextended and (is_large_cap or institutional_buy_ratio > 3):
+            return "Actionable", "actionable", "ready_now"
+        if composite_signal_score >= 75 and overextended:
+            return "Candidate", "candidate", "wait_pullback_to_20ma"
+        if "VCP_BREAKOUT" in trigger_labels and institutional_buy_ratio <= 0:
+            return "Candidate", "candidate", "wait_for_institutional_confirmation"
+        if 65 <= composite_signal_score < 75:
+            return "Candidate", "candidate", "score_borderline_65_74"
+        return "Watchlist", "watch", "triggered_but_low_score"
 
     def _is_high_quality_explore_candidate(
         self,
@@ -553,6 +599,147 @@ class AnalysisEngine:
     def _is_panic_reversal(self, latest: pd.Series) -> bool:
         return (
             latest["Close"] < latest["60MA"]
-            and latest["Volume"] >= latest["5D_VOL_AVG"] * 2
+            and latest["Volume"] >= latest["20D_VOL_AVG"] * 2.5
             and latest["lower_shadow"] > latest["body_size"]
         )
+
+    def _passes_baseline(
+        self,
+        universe_bucket: str,
+        close_price: float,
+        ma_60: float,
+        ma60_up: bool,
+        revenue_yoy: object,
+        eps_ttm: object,
+        panic_reversal: bool,
+    ) -> tuple[bool, str]:
+        if panic_reversal:
+            return True, "panic_exception_baseline_ok"
+        if universe_bucket == "core":
+            if close_price <= ma_60:
+                return False, "core_below_60ma"
+            if not ma60_up:
+                return False, "core_60ma_not_rising"
+            return True, "core_trend_template_ok"
+
+        revenue_positive = revenue_yoy is not None and float(revenue_yoy) > 0
+        eps_positive = eps_ttm is not None and float(eps_ttm) > 0
+        if close_price <= ma_60:
+            return False, "explore_below_60ma"
+        if not (revenue_positive or eps_positive):
+            return False, "explore_growth_missing"
+        return True, "explore_baseline_ok"
+
+    def _detect_triggers(
+        self,
+        latest: pd.Series,
+        enriched: pd.DataFrame,
+        recent_3d_net_buy: int,
+        close_price: float,
+        ma_20: float,
+        ma_60: float,
+        volume: int,
+        panic_reversal: bool,
+    ) -> list[str]:
+        triggers: list[str] = []
+        if recent_3d_net_buy > 0 and close_price > ma_20 and volume >= float(latest["5D_VOL_AVG"]):
+            triggers.append("SMART_MONEY_TREND")
+
+        recent_slice = enriched.tail(4).iloc[:-1]
+        recent_volumes = recent_slice["Volume"] if not recent_slice.empty else pd.Series(dtype=float)
+        volume_contracted = bool(not recent_volumes.empty and (recent_volumes < float(latest["20D_VOL_AVG"]) * 0.5).all())
+        near_20ma = abs((close_price - ma_20) / ma_20) <= 0.03 if ma_20 else False
+        if near_20ma and volume_contracted and volume > float(latest["20D_VOL_AVG"]):
+            triggers.append("VCP_BREAKOUT")
+
+        if panic_reversal:
+            triggers.append("PANIC_REVERSAL")
+        return triggers
+
+    def _score_atr_risk(self, close_price: float, ma_20: float, atr_20: float) -> float:
+        if atr_20 <= 0:
+            return 50.0
+        extension = abs(close_price - ma_20) / atr_20
+        if extension <= 1.5:
+            return 90.0
+        if extension <= 3.0:
+            return 65.0
+        if extension <= 4.0:
+            return 40.0
+        return 20.0
+
+    def _score_volume_quality(self, enriched: pd.DataFrame, lookback: int = 10) -> float:
+        frame = enriched.tail(lookback).copy()
+        if frame.empty:
+            return 50.0
+        up_days = frame[frame["Close"] >= frame["Open"]]
+        down_days = frame[frame["Close"] < frame["Open"]]
+        up_avg = float(up_days["Volume"].mean()) if not up_days.empty else 0.0
+        down_avg = float(down_days["Volume"].mean()) if not down_days.empty else 0.0
+        if up_avg <= 0 and down_avg <= 0:
+            return 50.0
+        if down_avg <= 0:
+            return 90.0
+        ratio = up_avg / down_avg
+        if ratio >= 1.4:
+            return 90.0
+        if ratio >= 1.1:
+            return 72.0
+        if ratio >= 0.9:
+            return 55.0
+        if ratio >= 0.75:
+            return 40.0
+        return 25.0
+
+    def _classify_trigger_gap_reason(
+        self,
+        recent_3d_net_buy: int,
+        close_price: float,
+        ma_20: float,
+        volume: int,
+        vol_avg_5d: float,
+        universe_bucket: str,
+    ) -> str:
+        if recent_3d_net_buy <= 0:
+            return "no_institutional_buy_streak"
+        if close_price <= ma_20:
+            return "below_20ma"
+        if vol_avg_5d > 0 and volume < vol_avg_5d:
+            return "volume_below_5d_avg"
+        if universe_bucket == "explore":
+            return "explore_waiting_for_trigger"
+        return "no_strategy_trigger"
+
+    def _is_overextended(self, close_price: float, ma_20: float, atr_20: float) -> bool:
+        if atr_20 <= 0:
+            return False
+        return close_price > ma_20 and ((close_price - ma_20) / atr_20) > 3.0
+
+    def _build_stage_row(
+        self,
+        ticker: str,
+        market_type: str,
+        universe_bucket: str,
+        stage: str,
+        reason: str,
+        composite_signal_score: float,
+        relative_strength_score: float,
+        institutional_buy_streak: int,
+        growth_snapshot: dict[str, object],
+        trigger_labels: list[str] | None = None,
+    ) -> dict[str, object]:
+        return {
+            "ticker": ticker.upper(),
+            "market_type": market_type,
+            "universe_bucket": universe_bucket,
+            "stage": stage,
+            "reason": reason,
+            "composite_signal_score": round(composite_signal_score, 2),
+            "relative_strength_score": round(relative_strength_score, 2),
+            "institutional_buy_streak": institutional_buy_streak,
+            "revenue_yoy": growth_snapshot.get("revenue_yoy"),
+            "eps_ttm": growth_snapshot.get("eps_ttm"),
+            "fundamental_as_of": growth_snapshot.get("as_of"),
+            "growth_source": growth_snapshot.get("source"),
+            "triggers": trigger_labels or [],
+        }

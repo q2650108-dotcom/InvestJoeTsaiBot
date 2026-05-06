@@ -1254,16 +1254,16 @@ def inject_styles() -> None:
 def format_analysis_summary(summary: AnalysisRunSummary) -> str:
     if LANG == "zh-TW":
         return (
-            f"掃描 {summary.scanned_tickers} 檔 | "
-            f"有資料 {summary.data_ready_tickers} 檔 | "
-            f"資料不足 {summary.skipped_data_tickers} 檔 | "
-            f"無訊號 {summary.no_signal_tickers} 檔 | "
-            f"寫入 {summary.signal_count} 筆"
+            f"?? {summary.scanned_tickers} ? | "
+            f"??? {summary.data_ready_tickers} ? | "
+            f"???? {summary.skipped_data_tickers} ? | "
+            f"??? {summary.no_signal_tickers} ? | "
+            f"?? {summary.signal_count} ?"
         )
     return (
         f"Scanned {summary.scanned_tickers} | "
         f"Data-ready {summary.data_ready_tickers} | "
-        f"Data-missing {summary.skipped_data_tickers} | "
+        f"Missing {summary.skipped_data_tickers} | "
         f"No-signal {summary.no_signal_tickers} | "
         f"Written {summary.signal_count}"
     )
@@ -1273,26 +1273,147 @@ def format_skip_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "no_market_data": "查無市場資料" if LANG == "zh-TW" else "no market data",
-        "incomplete_history": "歷史資料欄位不完整" if LANG == "zh-TW" else "incomplete history",
-        "request_timeout": "來源逾時" if LANG == "zh-TW" else "request timeout",
-        "provider_error": "來源異常" if LANG == "zh-TW" else "provider error",
+        "no_market_data": "??????" if LANG == "zh-TW" else "no market data",
+        "incomplete_history": "??????" if LANG == "zh-TW" else "incomplete history",
+        "request_timeout": "????" if LANG == "zh-TW" else "request timeout",
+        "provider_error": "????" if LANG == "zh-TW" else "provider error",
     }
-    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in reason_counts.items())
+    ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
+    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
 
 
 def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
     if not reason_counts:
         return ""
     labels = {
-        "no_institutional_buy_streak": "法人最近沒有連買" if LANG == "zh-TW" else "no recent institutional accumulation",
-        "below_20ma": "股價尚未站回 20 日線上方" if LANG == "zh-TW" else "price still below the 20-day moving average",
-        "explore_quality_gate": "觀察池股票未通過品質門檻" if LANG == "zh-TW" else "explore-pool name failed the quality gate",
-        "small_cap_outside_explore": "非大型股且不在觀察池" if LANG == "zh-TW" else "small-cap name outside the explore pool",
-        "no_strategy_trigger": "沒有觸發目前兩套策略型態" if LANG == "zh-TW" else "no active strategy trigger",
+        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
+        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "price still below 20MA",
+        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "???????????????" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
+        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "?? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
+        "wait_pullback_to_20ma": "?????????????? 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP ?????????????" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "????????????? 65-74" if LANG == "zh-TW" else "score between 65 and 74",
+        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but score too low",
     }
     ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
     return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
+
+
+def _stage_name_label(stage: str) -> str:
+    mapping = {
+        "baseline_reject": "??????" if LANG == "zh-TW" else "Baseline Reject",
+        "watch": "??" if LANG == "zh-TW" else "Watch",
+        "candidate": "?????" if LANG == "zh-TW" else "Candidate",
+        "actionable": "?????" if LANG == "zh-TW" else "Actionable",
+    }
+    return mapping.get(stage, stage)
+
+
+def _stage_reason_label(reason: str) -> str:
+    mapping = {
+        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
+        "panic_exception_baseline_ok": "????????" if LANG == "zh-TW" else "panic reversal exception",
+        "core_trend_template_ok": "???????" if LANG == "zh-TW" else "core baseline passed",
+        "explore_baseline_ok": "???????" if LANG == "zh-TW" else "explore baseline passed",
+        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "below 20MA",
+        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "????????????????" if LANG == "zh-TW" else "explore waiting for trigger",
+        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "??? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
+        "ready_now": "??????????" if LANG == "zh-TW" else "ready now",
+        "wait_pullback_to_20ma": "?????????? 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP ??????????" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "???? 65-74??????" if LANG == "zh-TW" else "score borderline 65-74",
+        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but low score",
+    }
+    return mapping.get(reason, reason)
+
+
+def _trigger_label_list(values: list[str]) -> str:
+    mapping = {
+        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
+    }
+    if not values:
+        return "?"
+    return " / ".join(mapping.get(value, value) for value in values)
+
+
+def _format_stage_counts(stage_counts: dict[str, int]) -> str:
+    if not stage_counts:
+        return ""
+    parts: list[str] = []
+    for key in ["baseline_reject", "watch", "candidate", "actionable"]:
+        if key in stage_counts:
+            parts.append(f"{_stage_name_label(key)} {stage_counts[key]}")
+    return " | ".join(parts)
+
+
+def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
+    stage_rows = getattr(summary, "stage_rows", None) or []
+    if not stage_rows:
+        return
+    frame = pd.DataFrame(stage_rows)
+    if frame.empty:
+        return
+    frame = enrich_with_company_metadata(frame)
+    frame["stage_label"] = frame["stage"].map(_stage_name_label)
+    frame["reason_label"] = frame["reason"].map(_stage_reason_label)
+    frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
+    frame["fundamental_snapshot"] = frame.apply(
+        lambda row: (
+            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
+            else (
+                f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+                if pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
+                else "?"
+            )
+        ),
+        axis=1,
+    )
+    display = frame[
+        [
+            "ticker",
+            "company",
+            "sector",
+            "universe_bucket",
+            "stage_label",
+            "triggers_label",
+            "composite_signal_score",
+            "relative_strength_score",
+            "institutional_buy_streak",
+            "fundamental_snapshot",
+            "reason_label",
+        ]
+    ].rename(
+        columns={
+            "ticker": "??" if LANG == "zh-TW" else "Ticker",
+            "company": "??" if LANG == "zh-TW" else "Company",
+            "sector": "??" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
+            "stage_label": "????" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
+        }
+    )
+    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    st.dataframe(display, use_container_width=True, hide_index=True)
 
 
 def _analysis_cooldown_key(market_type: str) -> str:
@@ -1370,49 +1491,1697 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     no_signal_reason_counts = getattr(summary, "no_signal_reason_counts", {}) or {}
     core_ticker_count = int(getattr(summary, "core_ticker_count", 0) or 0)
     explore_ticker_count = int(getattr(summary, "explore_ticker_count", 0) or 0)
+    stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("掃描檔數" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("無訊號" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("??" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
     summary_at = str(st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"這批設定是掃描宇宙，不是保證輸出名單。這次掃描來源：核心 {core_ticker_count} 檔｜觀察 {explore_ticker_count} 檔。")
+            st.caption(f"??? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
         else:
             st.caption(
-                f"These preference lists define the scan universe, not guaranteed output names. "
-                f"This run scanned {core_ticker_count} core names and {explore_ticker_count} explore names."
+                f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
+                f"These lists define the universe, not guaranteed outputs."
             )
+    if stage_counts:
+        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("無訊號主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("本次有執行，但沒有任何可分析資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("??????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "本次有執行成功，但目前沒有標的通過進場條件。常見原因是市場廣度不足、連買天數不夠，或分數未達門檻。"
+                "???????????????????????????????"
                 if LANG == "zh-TW"
-                else "Execution completed successfully, but no names passed the entry rules. Common reasons: weak breadth, insufficient buy streak, or scores below threshold."
+                else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
     else:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
-        if LANG == "zh-TW":
-            st.info(
-                f"最後只有 {signal_count} 檔留下，不代表偏好設定失效；代表這批股票裡只有 {pass_rate:.1f}% "
-                "同時通過資料可用、策略觸發與風險條件。"
+        st.info(
+            (
+                f"???? {signal_count} ??????????????????? {pass_rate:.1f}% ??????????????????"
+                if LANG == "zh-TW"
+                else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
+        )
+    render_funnel_stage_table(summary)
+
+
+def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
+    frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
+    if frame.empty:
+        return frame
+    frame = pd.DataFrame(decision_support.enrich_rows(frame.to_dict("records")))
+    defaults = {
+        "recommendation_bucket": "Watchlist",
+        "universe_bucket": "core",
+        "market_regime": "Unknown",
+        "event_risk_note": "clear",
+        "institutional_buy_streak": 0,
+        "composite_signal_score": 0.0,
+        "relative_strength_score": 0.0,
+        "entry_quality_score": 0.0,
+    }
+    for column, default in defaults.items():
+        if column not in frame.columns:
+            frame[column] = default
+        else:
+            frame[column] = frame[column].fillna(default)
+    return frame
+
+
+def _parse_runtime_tickers(raw_value: object) -> list[str]:
+    return [item.strip().upper() for item in str(raw_value or "").split(",") if item.strip()]
+
+
+def render_run_controls() -> None:
+    st.markdown(f'<div class="section-label">{t("run_analysis")}</div>', unsafe_allow_html=True)
+    st.caption(t("cooldown_force_hint"))
+    force_refresh = st.checkbox(t("force_refresh"), value=False, key="force_refresh_history")
+    left, right = st.columns(2)
+    if left.button(t("run_tw"), use_container_width=True):
+        try:
+            progress_bar = st.progress(0)
+            status_box = st.empty()
+            summary = run_market_analysis("tw", progress_bar=progress_bar, status_box=status_box, force_refresh=force_refresh)
+            status_box.empty()
+            progress_bar.empty()
+            if summary is None:
+                st.rerun()
+            if summary.signal_count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            else:
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            st.session_state["analysis_summary"] = summary
+            st.session_state["analysis_summary_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.rerun()
+        except Exception as exc:
+            _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
+            st.rerun()
+    if right.button(t("run_us"), use_container_width=True):
+        try:
+            progress_bar = st.progress(0)
+            status_box = st.empty()
+            summary = run_market_analysis("us", progress_bar=progress_bar, status_box=status_box, force_refresh=force_refresh)
+            status_box.empty()
+            progress_bar.empty()
+            if summary is None:
+                st.rerun()
+            if summary.signal_count > 0:
+                _set_analysis_feedback("success", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            else:
+                _set_analysis_feedback("warning", f'{t("analysis_done")} | {format_analysis_summary(summary)}')
+            st.session_state["analysis_summary"] = summary
+            st.session_state["analysis_summary_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.rerun()
+        except Exception as exc:
+            _set_analysis_feedback("error", f'{t("analysis_failed")}: {exc}')
+            st.rerun()
+
+
+def render_runtime_settings_panel() -> None:
+    with st.sidebar.expander(t("settings_panel")):
+        with st.form("runtime_settings_form"):
+            app_language = st.selectbox(
+                t("language"),
+                options=["zh-TW", "en"],
+                index=0 if runtime_settings.app_language == "zh-TW" else 1,
+            )
+            tw_core_tickers = st.text_area("TW Core", value=str(runtime_settings.tw_core_tickers), height=90)
+            us_core_tickers = st.text_area("US Core", value=str(runtime_settings.us_core_tickers), height=80)
+            tw_explore_tickers = st.text_area("TW Explore", value=str(runtime_settings.tw_explore_tickers), height=70)
+            us_explore_tickers = st.text_area("US Explore", value=str(runtime_settings.us_explore_tickers), height=70)
+            tw_explore_limit = st.number_input(
+                "TW Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.tw_explore_limit), step=1
+            )
+            us_explore_limit = st.number_input(
+                "US Explore Limit", min_value=1, max_value=30, value=int(runtime_settings.us_explore_limit), step=1
+            )
+            tw_manual_watch_tickers = st.text_area(
+                "TW Manual Watch",
+                value=str(getattr(runtime_settings, "tw_manual_watch_tickers", "")),
+                height=65,
+            )
+            us_manual_watch_tickers = st.text_area(
+                "US Manual Watch",
+                value=str(getattr(runtime_settings, "us_manual_watch_tickers", "")),
+                height=65,
+            )
+            tw_manual_hot_tickers = st.text_area(
+                "TW Manual Hot",
+                value=str(getattr(runtime_settings, "tw_manual_hot_tickers", "")),
+                height=65,
+            )
+            us_manual_hot_tickers = st.text_area(
+                "US Manual Hot",
+                value=str(getattr(runtime_settings, "us_manual_hot_tickers", "")),
+                height=65,
+            )
+            st.caption("FMP economic calendar is used first. This field is only for manual fallback or custom override dates.")
+            high_risk_event_dates = st.text_input(t("high_risk_dates"), value=str(runtime_settings.high_risk_event_dates))
+            submitted = st.form_submit_button(t("save_settings"), use_container_width=True)
+        if submitted:
+            user_settings_service.update_runtime_preferences(
+                chat_id,
+                {
+                    "app_language": app_language,
+                    "tw_core_tickers": tw_core_tickers,
+                    "us_core_tickers": us_core_tickers,
+                    "tw_explore_tickers": tw_explore_tickers,
+                    "us_explore_tickers": us_explore_tickers,
+                    "tw_explore_limit": int(tw_explore_limit),
+                    "us_explore_limit": int(us_explore_limit),
+                    "tw_manual_watch_tickers": tw_manual_watch_tickers,
+                    "us_manual_watch_tickers": us_manual_watch_tickers,
+                    "tw_manual_hot_tickers": tw_manual_hot_tickers,
+                    "us_manual_hot_tickers": us_manual_hot_tickers,
+                    "high_risk_event_dates": high_risk_event_dates,
+                },
+            )
+            st.success(t("settings_saved"))
+            st.rerun()
+
+
+def render_market_state() -> None:
+    overview = overview_service.build()
+    vix_value = market_data.get_vix_value()
+    render_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    vix_zone, vix_copy = describe_vix(vix_value)
+    fear_greed_label, fear_greed_copy, _ = describe_fear_greed(overview.fear_greed_score)
+    st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
+    freshness_bits = [f'{t("page_rendered_at")}: {render_time}', t("intraday_source_note")]
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            freshness_bits.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    _render_data_caption(*freshness_bits)
+    momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
+    macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
+    caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
+    gauge_left, gauge_right = st.columns(2)
+    with gauge_left:
+        st.markdown(f'<div class="section-label">{t("fear_greed_gauge")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
+    with gauge_right:
+        st.markdown(f'<div class="section-label">{t("vix_meaning")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
+    read_left, read_right = st.columns(2)
+    with read_left:
+        st.markdown(
+            f"""
+            <div class="state-read">
+                <div class="state-read-title">{t("vix_zone")}</div>
+                <div class="state-read-main">{vix_zone}</div>
+                <div class="state-read-copy">{vix_copy}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with read_right:
+        st.markdown(
+            f"""
+            <div class="state-read">
+                <div class="state-read-title">{t("market_read")}</div>
+                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
+                <div class="state-read-copy">{fear_greed_copy}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f"""
+        <div class="terminal-card">
+            <div class="state-grid">
+                <div class="state-metric">
+                    <div class="state-label">{t("overall_trend")}</div>
+                    <div class="state-value">{localize_value(overview.overall_trend)}</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("sentiment")}</div>
+                    <div class="state-value">{localize_value(overview.sentiment_label)}</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("fear_greed")}</div>
+                    <div class="state-value">{overview.fear_greed_score}/100</div>
+                </div>
+                <div class="state-metric">
+                    <div class="state-label">{t("breadth")}</div>
+                    <div class="state-value">{overview.breadth_snapshot:.2f}</div>
+                </div>
+            </div>
+            <div class="decision-label">{t("momentum_zones")}</div>
+            <ul class="mini-list">{momentum_items}</ul>
+            <div class="decision-label">{t("macro_calendar")}</div>
+            <ul class="mini-list">{macro_items}</ul>
+            <div class="decision-label">{t("cautions")}</div>
+            <ul class="mini-list">{caution_items}</ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_summary_band(label: str, summary: Any) -> None:
+    if summary is None:
+        st.info(t("no_data"))
+        return
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(getattr(summary, "summary_date", ""))}')
+    st.markdown(
+        f"""
+        <div class="summary-band">
+            <div class="summary-title">{label}</div>
+            <div class="summary-main">{localize_value(summary.regime)}</div>
+            <div class="summary-sub">
+                {t("breadth")} {summary.average_breadth:.2f} |
+                {t("candidates")} {summary.candidate_count} |
+                {t("actionable")} {summary.actionable_count} |
+                {t("safer")} {summary.safer_count}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_market_overview() -> None:
+    st.markdown(f'<div class="section-label">{t("market_overview")}</div>', unsafe_allow_html=True)
+    left, right = st.columns(2)
+    with left:
+        render_summary_band(t("taiwan"), summary_service.build_market_summary("tw"))
+    with right:
+        render_summary_band(t("us"), summary_service.build_market_summary("us"))
+
+
+def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
+    selected_market = _render_segmented_control(
+        t("dashboard_market_view"),
+        [t("taiwan"), t("us")],
+        format_func=lambda value: value,
+        key="dashboard_market_view",
+    )
+    market_key = "tw" if selected_market == t("taiwan") else "us"
+    selected_range_key = _render_segmented_control(
+        t("benchmark_range"),
+        [key for key, _ in BENCHMARK_RANGE_OPTIONS],
+        format_func=lambda key: t(dict(BENCHMARK_RANGE_OPTIONS)[key]),
+        key=f"benchmark_range_{market_key}",
+    )
+    summary = summary_service.build_market_summary(market_key)
+    benchmark_pairs = BENCHMARK_SETS[market_key]
+    benchmark_snapshots = load_benchmark_snapshots(benchmark_pairs, selected_range_key)
+    hero_left, hero_right = st.columns((3.2, 1.15))
+    with hero_left:
+        st.markdown(
+            f"""
+            <div class="hero-shell">
+                <div class="hero-title">{selected_market}</div>
+                <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        card_columns = st.columns(3)
+        for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
+            benchmark = benchmark_snapshots.get(
+                symbol,
+                {
+                    "label_key": label_key,
+                    "latest": None,
+                    "delta": None,
+                    "pct": None,
+                    "trend": [],
+                    "trend_window": 0,
+                    "range_key": selected_range_key,
+                    "has_data": False,
+                    "start_at": None,
+                    "end_at": None,
+                },
+            )
+            positive = float(benchmark["delta"] or 0) >= 0
+            change_color = "#16a34a" if positive else "#ef4444"
+            delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
+            with column:
+                if benchmark.get("has_data"):
+                    st.markdown(
+                        f"""
+                        <div class="benchmark-card">
+                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                            <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
+                            <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+                    st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
+                    start_at = str(benchmark.get("start_at") or "")
+                    end_at = str(benchmark.get("end_at") or "")
+                    if start_at and end_at:
+                        st.caption(f"{start_at} -> {end_at}")
+                else:
+                    st.markdown(
+                        f"""
+                        <div class="benchmark-card">
+                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                            <div class="benchmark-price">N/A</div>
+                            <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+    with hero_right:
+        now_label = datetime.now().strftime("%m/%d %H:%M")
+        summary_text = _market_bias_copy(summary) if summary else t("no_data")
+        summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else ""
+        st.markdown(f'<div class="hero-time">{now_label} ({selected_market})</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="hero-side">
+                <div class="hero-side-title">{t("analysis_summary")}</div>
+                <div class="hero-side-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score}</div>
+                <div class="hero-side-copy">{summary_text}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if summary_date:
+            _render_data_caption(f'{t("latest_analysis_date")}: {summary_date}')
+
+
+def render_session_briefs() -> None:
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    st.markdown(f'<div class="section-label">{t("session_brief")}</div>', unsafe_allow_html=True)
+    dates = []
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    if dates:
+        _render_data_caption(*dates)
+    left, right = st.columns(2)
+    for column, title, summary in (
+        (left, t("tw_brief"), tw_summary),
+        (right, t("us_brief"), us_summary),
+    ):
+        with column:
+            if summary is None:
+                st.info(t("no_data"))
+                continue
+            best_score = max((float(row.get("composite_signal_score", 0)) for row in summary.top_rows), default=0.0)
+            avg_signal_score = (
+                sum(float(row.get("composite_signal_score", 0)) for row in summary.top_rows) / len(summary.top_rows)
+                if summary.top_rows
+                else 0.0
+            )
+            st.markdown(
+                f"""
+                <div class="brief-card">
+                    <div class="brief-head">
+                        <div class="brief-title">{title}</div>
+                        <div class="brief-bias">{localize_value(summary.regime)}</div>
+                    </div>
+                    <div class="brief-grid">
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("avg_score")}</div>
+                            <div class="brief-kpi-value">{avg_signal_score:.1f}</div>
+                        </div>
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("actionable")}</div>
+                            <div class="brief-kpi-value">{summary.actionable_count}</div>
+                        </div>
+                        <div class="brief-kpi">
+                            <div class="brief-kpi-label">{t("best_score")}</div>
+                            <div class="brief-kpi-value">{best_score:.1f}</div>
+                        </div>
+                    </div>
+                    <div class="brief-copy">{_market_bias_copy(summary)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
+    st.markdown(f'<div class="section-label">{t("visual_scan")}</div>', unsafe_allow_html=True)
+    latest_date = _format_snapshot_date(candidate_frame["date"].max()) if not candidate_frame.empty and "date" in candidate_frame.columns else ""
+    if latest_date:
+        _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
+    lights = [
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "?????????" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "????????????" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "???????????" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX ???????????" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+    ]
+    light_columns = st.columns(4)
+    for column, (name, value, color, tone, copy) in zip(light_columns, lights):
+        with column:
+            st.markdown(
+                f"""
+                <div class="light-card">
+                    <div class="light-top">
+                        <div class="light-name">{name}</div>
+                        <span class="light-dot" style="background:{color}"></span>
+                    </div>
+                    <div class="light-value">{value}</div>
+                    <div class="light-copy">{tone} | {copy}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    left, middle, right = st.columns((1, 1.1, 1))
+    with left:
+        st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with middle:
+        st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+    with right:
+        st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+
+
+def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> None:
+    if not rows:
+        st.info(t("no_data"))
+        return
+    for row in rows[:6]:
+        company, sector = _display_name_for_row(pd.Series(row))
+        score = float(row.get(score_key, 0) or 0)
+        trend = get_ticker_score_trend_cached(str(row.get("ticker", "")))
+        delta = ""
+        if len(trend) >= 2:
+            change = trend[-1] - trend[-2]
+            delta = f" | {'+' if change >= 0 else ''}{change:.1f}"
+        meta = (
+            f"{sector} | {localize_value(row.get('recommendation_bucket', 'Watchlist'))}"
+            if meta_mode == "leader"
+            else f"{sector} | {localize_value(row.get('event_risk_note', 'clear'))}"
+        )
+        st.markdown(
+            f"""
+            <div class="rank-item">
+                <div class="rank-left">
+                    <div class="rank-name">{company}</div>
+                    <div class="rank-meta">{row.get('ticker', '')} | {meta}</div>
+                </div>
+                <div class="rank-score">{score:.1f}{delta}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_rank_boards() -> None:
+    tw_summary = summary_service.build_market_summary("tw")
+    us_summary = summary_service.build_market_summary("us")
+    leader_rows: list[dict[str, object]] = []
+    risk_rows: list[dict[str, object]] = []
+    for summary in (tw_summary, us_summary):
+        if summary is None:
+            continue
+        leader_rows.extend(summary.top_rows)
+        risk_rows.extend(summary.risk_rows)
+    leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
+    leader_tickers = {str(row.get("ticker", "")) for row in leader_rows}
+    risk_rows = sorted(
+        [row for row in risk_rows if str(row.get("ticker", "")) not in leader_tickers],
+        key=lambda row: (float(row.get("event_risk_score", 50) or 50), float(row.get("composite_signal_score", 0) or 0)),
+    )[:6]
+    st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
+    dates = []
+    for summary in (tw_summary, us_summary):
+        if summary is not None:
+            dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
+    if dates:
+        _render_data_caption(*dates)
+    left, right = st.columns(2)
+    with left:
+        st.markdown(f'<div class="section-label">{t("leader_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("leader_board_help"))
+        with st.container(border=True):
+            _render_rank_items(leader_rows, meta_mode="leader")
+    with right:
+        st.markdown(f'<div class="section-label">{t("risk_board")}</div>', unsafe_allow_html=True)
+        st.caption(t("risk_board_help"))
+        with st.container(border=True):
+            if risk_rows:
+                _render_rank_items(risk_rows, meta_mode="risk")
+            else:
+                st.info("??????????????????" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
+
+
+def render_manual_tracking(candidate_frame: pd.DataFrame) -> None:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        return
+    latest = enrich_with_company_metadata(latest)
+    groups = [
+        ("台股手動觀察" if LANG == "zh-TW" else "TW Manual Watch", _parse_runtime_tickers(getattr(runtime_settings, "tw_manual_watch_tickers", ""))),
+        ("美股手動觀察" if LANG == "zh-TW" else "US Manual Watch", _parse_runtime_tickers(getattr(runtime_settings, "us_manual_watch_tickers", ""))),
+        ("台股手動熱區" if LANG == "zh-TW" else "TW Manual Hot", _parse_runtime_tickers(getattr(runtime_settings, "tw_manual_hot_tickers", ""))),
+        ("美股手動熱區" if LANG == "zh-TW" else "US Manual Hot", _parse_runtime_tickers(getattr(runtime_settings, "us_manual_hot_tickers", ""))),
+    ]
+    st.markdown(f'<div class="section-label">{"手動追蹤" if LANG == "zh-TW" else "Manual Tracking"}</div>', unsafe_allow_html=True)
+    left, right = st.columns(2)
+    for column, (title, tickers) in zip([left, right, left, right], groups):
+        with column:
+            st.markdown(f"**{title}**")
+            if not tickers:
+                st.caption("尚未設定。" if LANG == "zh-TW" else "No tickers configured.")
+                continue
+            subset = latest[latest["ticker"].isin(tickers)].copy()
+            if subset.empty:
+                st.caption("本次快照沒有這些標的的資料。" if LANG == "zh-TW" else "No rows for these tickers in the latest snapshot.")
+                continue
+            display = subset[["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score"]].copy()
+            display["recommendation_bucket"] = display["recommendation_bucket"].map(localize_value)
+            display = display.rename(
+                columns={
+                    "ticker": "代號" if LANG == "zh-TW" else "Ticker",
+                    "company": "公司" if LANG == "zh-TW" else "Company",
+                    "sector": "類股" if LANG == "zh-TW" else "Sector",
+                    "recommendation_bucket": "系統歸類" if LANG == "zh-TW" else "Bucket",
+                    "composite_signal_score": "綜合分數" if LANG == "zh-TW" else "Score",
+                }
+            )
+            st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
+    if frame.empty:
+        st.info(t("no_data"))
+        return
+    display = enrich_with_company_metadata(frame)
+    for column in ["universe_bucket", "recommendation_bucket", "event_risk_note"]:
+        if column in display.columns:
+            display[column] = display[column].map(localize_value)
+    if "suggested_action" in display.columns:
+        display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
+    if "ticker" in display.columns:
+        display["trend_mini"] = display["ticker"].astype(str).map(lambda ticker: _normalize_trend(get_ticker_trend_cached(ticker)))
+        display["score_trend"] = display["ticker"].astype(str).map(lambda ticker: get_ticker_score_trend_cached(ticker))
+    selected = [column for column in columns if column in display.columns]
+    table = display[selected].copy()
+    rename_map = {
+        "ticker": t("ticker"),
+        "company": t("company"),
+        "sector": t("sector"),
+        "trend_mini": t("trend_mini"),
+        "score_trend": t("score_trend"),
+        "recommendation_bucket": t("bucket"),
+        "composite_signal_score": t("score"),
+        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "risk_level": t("risk_label"),
+        "event_risk_note": t("event_risk"),
+        "next_event_date": t("next_event"),
+        "suggested_action": t("suggested_action"),
+    }
+    table = table.rename(columns=rename_map)
+    chart_config: dict[str, Any] = {}
+    if t("trend_mini") in table.columns:
+        chart_config[t("trend_mini")] = st.column_config.LineChartColumn(
+            t("trend_mini"),
+            width="medium",
+            y_min=-12,
+            y_max=12,
+        )
+    if t("score_trend") in table.columns:
+        chart_config[t("score_trend")] = st.column_config.LineChartColumn(
+            t("score_trend"),
+            width="medium",
+            y_min=0,
+            y_max=100,
+        )
+    st.dataframe(
+        table,
+        use_container_width=True,
+        hide_index=True,
+        column_config=chart_config or None,
+    )
+
+
+def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
+    st.markdown(f'<div class="section-label">{t("focus_lists")}</div>', unsafe_allow_html=True)
+    if candidate_frame.empty:
+        st.info(t("no_data"))
+        return
+    latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
+    latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    core_tab, explore_tab, risk_tab = st.tabs([t("core_tab"), t("explore_tab"), t("risk_tab")])
+    with core_tab:
+        render_terminal_table(
+            latest[latest["universe_bucket"] == "core"]
+            .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+        )
+    with explore_tab:
+        render_terminal_table(
+            latest[latest["universe_bucket"] == "explore"]
+            .sort_values(by=["composite_signal_score"], ascending=[False])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+        )
+    with risk_tab:
+        render_terminal_table(
+            latest[latest["event_risk_note"] != "clear"]
+            .sort_values(by=["composite_signal_score"], ascending=[True])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+        )
+
+
+def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
+    st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
+    st.caption(f'{t("decision_score_label")}?{t("decision_score_help")}')
+    if candidate_frame.empty:
+        st.info(t("no_data"))
+        return
+    latest_date = candidate_frame["date"].max()
+    _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
+    latest = (
+        candidate_frame[candidate_frame["date"] == latest_date]
+        .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+        .head(8)
+    )
+    for _, row in latest.iterrows():
+        company_name, sector_name = _display_name_for_row(row)
+        verdict_label, verdict_color = _decision_verdict(row)
+        rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
+        risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
+        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
+        level = maybe_translate_text(str(row.get("recommendation_level", "")))
+        win_label = maybe_translate_text(str(row.get("win_rate_label", "")))
+        risk_label = maybe_translate_text(str(row.get("risk_level", "")))
+        reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
+        forward_score = float(row.get("forward_score", 0))
+        forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
+        if LANG == "zh-TW":
+            verdict_copy = {
+                t("verdict_buy"): "?????????????????",
+                t("verdict_probe"): "??????????????????",
+                t("verdict_wait"): "????????????",
+                t("verdict_avoid"): "????????????",
+            }.get(verdict_label, "")
+        else:
+            verdict_copy = ""
+        st.markdown(
+            f"""
+            <div class="decision-card">
+                <div class="decision-head">
+                    <div>
+                        <div class="decision-ticker">{row["ticker"]}</div>
+                        <div class="decision-meta">
+                            {company_name} | {t("sector")} {sector_name} <br/>
+                            {t("signal_type")} {localize_value(row.get("signal_type", ""))} |
+                            {localize_value(row.get("universe_bucket", "core"))} |
+                            {localize_value(row.get("recommendation_bucket", "Watchlist"))}
+                        </div>
+                    </div>
+                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
+                </div>
+                <div class="decision-meta" style="margin-bottom:8px;">
+                    {t("decision_verdict")}?
+                    <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
+                    {verdict_copy}
+                </div>
+                <span class="decision-pill">{level}</span>
+                <span class="decision-pill">{t("win_label")}: {win_label}</span>
+                <span class="decision-pill">{t("risk_label")}: {risk_label}</span>
+                <span class="decision-pill">{t("reward_risk")}: {reward_risk}</span>
+                <span class="decision-pill">{t("forward_score")}: {forward_score:.2f}</span>
+                <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
+                <div class="decision-label">{t("suggested_action")}</div>
+                <div>{suggestion}</div>
+                <div class="decision-label">{t("forward_notes")}</div>
+                <ul class="decision-list">{forward_notes}</ul>
+                <div class="decision-label">{t("rationale")}</div>
+                <ul class="decision-list">{rationale}</ul>
+                <div class="decision-label">{t("risks")}</div>
+                <ul class="decision-list">{risks}</ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+
+COPY["zh-TW"].update(
+    {
+        "decision_score_label": "綜合判讀分數",
+        "decision_score_help": "80 分以上偏強，可正常看待；70-79 分可先小部位試單；60-69 分先觀察；60 分以下先避開。",
+        "decision_verdict": "結論",
+        "verdict_buy": "可買",
+        "verdict_probe": "可試單",
+        "verdict_wait": "先觀察",
+        "verdict_avoid": "先避開",
+        "leader_board_help": "這裡放的是目前最強、最接近可執行的標的。",
+        "risk_board_help": "這裡放的是事件風險較高、容易影響勝率或不適合追價的標的。",
+        "trend_mini": "短線走勢",
+        "score_trend": "分數節奏",
+        "rank_board": "熱度榜",
+        "leader_board": "領先名單",
+        "risk_board": "風險名單",
+        "market_pulse": "市場脈搏",
+        "sector_heatmap": "類股熱區",
+        "setup_distribution": "訊號分布",
+    }
+)
+TEXT = COPY["zh-TW"] | COPY.get(LANG, {})
+
+ZH_DECISION_TEXT.update(
+    {
+        "Institutional buying has just turned positive.": "法人買盤剛轉正。",
+        "Institutional buying is building into a second session.": "法人買盤延續到第 2 天。",
+        "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
+        "Relative strength is supportive versus the benchmark.": "相對強度仍比市場基準健康。",
+        "Price location is constructive and not excessively extended.": "價位位置健康，且未過度乖離。",
+        "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
+        "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
+        "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
+        "The broader market is risk-off, so hit rates can fall quickly.": "大盤偏防守，勝率容易快速下降。",
+        "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於觀察池，不應高於核心大型股的優先順序。",
+        "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
+        "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得持續追蹤。",
+        "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有重大風險警示，但停損紀律仍要保留。",
+        "The current signal does not yet have enough stacked evidence.": "目前訊號還沒有堆出足夠證據。",
+        "Normal position sizing or staged entries on minor pullbacks.": "可用正常部位，或等待小拉回分批進場。",
+        "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
+        "Observe only until the odds improve.": "先觀察，等勝率提升再行動。",
+        "Small trial size only; keep core capital focused on large caps.": "僅適合小部位試單，核心資金仍應聚焦大型股。",
+        "High Conviction Core": "核心可買",
+        "Actionable Setup": "可試單",
+        "Watch and Wait": "先觀察",
+        "High": "高",
+        "Medium-High": "中高",
+        "Medium-Low": "中低",
+        "Medium": "中",
+        "Favorable": "報酬優勢",
+        "Balanced": "風報平衡",
+        "Unclear": "風報不明",
+    }
+)
+
+
+def _translate_macro_event_label(label: str) -> str:
+    cleaned = str(label or "").strip().replace("_", " ").lower()
+    if not cleaned:
+        return ""
+    if LANG != "zh-TW":
+        return cleaned
+    direct_map = {
+        "cftc eur speculative net positions": "CFTC 歐元投機淨部位",
+        "cftc eur speculative net position": "CFTC 歐元投機淨部位",
+        "annual report": "年報",
+        "ecb cipollone speech": "ECB Cipollone 談話",
+        "ecb de guindos speech": "ECB De Guindos 談話",
+        "ecb survey of monetary analysts": "ECB 貨幣分析師調查",
+        "ecb survey of professional forecasters": "ECB 專業預測調查",
+    }
+    if cleaned in direct_map:
+        return direct_map[cleaned]
+    replacements = {
+        "cftc": "CFTC",
+        "eur": "歐元",
+        "usd": "美元",
+        "jpy": "日圓",
+        "gbp": "英鎊",
+        "speculative": "投機",
+        "net": "淨",
+        "position": "部位",
+        "positions": "部位",
+        "survey": "調查",
+        "speech": "談話",
+        "annual": "年度",
+        "report": "報告",
+        "earnings": "財報",
+        "inflation": "通膨",
+        "payrolls": "非農就業",
+        "minutes": "會議紀要",
+    }
+    translated = cleaned
+    for source, target in replacements.items():
+        translated = translated.replace(source, target)
+    return translated
+
+
+def localize_value(value: object) -> str:
+    text_value = str(value)
+    mapping = {
+        "Unknown": "??" if LANG == "zh-TW" else "Unknown",
+        "Calm": "??" if LANG == "zh-TW" else "Calm",
+        "Neutral": "??" if LANG == "zh-TW" else "Neutral",
+        "Risk-Off": "Risk-Off / ??" if LANG == "zh-TW" else "Risk-Off",
+        "Risk-On": "Risk-On / ??" if LANG == "zh-TW" else "Risk-On",
+        "Risk-On Uptrend": "??????" if LANG == "zh-TW" else "Risk-On Uptrend",
+        "Balanced / Selective": "?? / ?????" if LANG == "zh-TW" else "Balanced / Selective",
+        "Defensive / Risk-Off": "?? / Risk-Off" if LANG == "zh-TW" else "Defensive / Risk-Off",
+        "Greed": "??" if LANG == "zh-TW" else "Greed",
+        "Constructive": "?????" if LANG == "zh-TW" else "Constructive",
+        "Cautious": "??" if LANG == "zh-TW" else "Cautious",
+        "Fear": "??" if LANG == "zh-TW" else "Fear",
+        "Watchlist": "??" if LANG == "zh-TW" else "Watchlist",
+        "Actionable": "?????" if LANG == "zh-TW" else "Actionable",
+        "Candidate": "?????" if LANG == "zh-TW" else "Candidate",
+        "Safer Follow-Through": "??????" if LANG == "zh-TW" else "Safer Follow-Through",
+        "core": "???" if LANG == "zh-TW" else "Core",
+        "explore": "???" if LANG == "zh-TW" else "Explore",
+        "clear": "?????????" if LANG == "zh-TW" else "clear",
+        "DAY_1_EARLY": "? 1 ? / ??" if LANG == "zh-TW" else "Day 1 Early",
+        "DAY_2_BUILDING": "? 2 ? / ???" if LANG == "zh-TW" else "Day 2 Building",
+        "DAY_3_PLUS_SAFER": "? 3 ??? / ????" if LANG == "zh-TW" else "Day 3+ Safer",
+        "Institutional Accumulation": "??????" if LANG == "zh-TW" else "Institutional Accumulation",
+        "Panic Reversal": "??????" if LANG == "zh-TW" else "Panic Reversal",
+        "High": "?" if LANG == "zh-TW" else "High",
+        "Medium": "?" if LANG == "zh-TW" else "Medium",
+        "Medium-High": "??" if LANG == "zh-TW" else "Medium-High",
+        "Medium-Low": "??" if LANG == "zh-TW" else "Medium-Low",
+        "Favorable": "?????" if LANG == "zh-TW" else "Favorable",
+        "Balanced": "?????" if LANG == "zh-TW" else "Balanced",
+        "Unclear": "?????" if LANG == "zh-TW" else "Unclear",
+        "High Conviction Core": "?????" if LANG == "zh-TW" else "High Conviction Core",
+        "Actionable Setup": "?????" if LANG == "zh-TW" else "Actionable Setup",
+        "Watch and Wait": "???" if LANG == "zh-TW" else "Watch and Wait",
+    }
+    if text_value in mapping:
+        return mapping[text_value]
+    if text_value.startswith("macro_event_imminent:") or text_value.startswith("macro_event_near:"):
+        prefix, label = text_value.split(":", 1)
+        prefix_label = "??????" if prefix == "macro_event_imminent" and LANG == "zh-TW" else "Macro imminent"
+        if prefix == "macro_event_near":
+            prefix_label = "??????" if LANG == "zh-TW" else "Macro near"
+        return f"{prefix_label}: {_translate_macro_event_label(label)}"
+    if LANG == "zh-TW" and text_value in ZH_DECISION_TEXT:
+        return ZH_DECISION_TEXT[text_value]
+    return text_value
+
+
+def maybe_translate_text(text_value: str) -> str:
+    if LANG != "zh-TW":
+        return text_value
+    if text_value.startswith("Institutional buying has persisted for ") and text_value.endswith(" sessions."):
+        days = text_value.replace("Institutional buying has persisted for ", "").replace(" sessions.", "").strip()
+        return f"????????? {days} ??"
+    if text_value.startswith("Event risk is elevated:"):
+        detail = text_value.replace("Event risk is elevated:", "").strip()
+        return f"???????{_translate_macro_event_label(detail)}"
+    if text_value.startswith("macro_event_imminent ("):
+        inner = text_value.replace("macro_event_imminent (", "").rstrip(")")
+        return f"???????{_translate_macro_event_label(inner)}"
+    if text_value.startswith("macro_event_near ("):
+        inner = text_value.replace("macro_event_near (", "").rstrip(")")
+        return f"???????{_translate_macro_event_label(inner)}"
+    if text_value.startswith("Volatility is elevated; position sizing should stay conservative."):
+        return "?????????????"
+    if text_value.startswith("Breadth is weak, so single-name breakouts may fail more often."):
+        return "?????????????????????"
+    if text_value.endswith(" names are carrying event-risk flags."):
+        count = text_value.split(" ", 1)[0]
+        return f"{count} ????????????"
+    if text_value.startswith("No major market-wide warnings are flashing right now."):
+        return "????????????????"
+    if text_value.startswith("Theme support:"):
+        return text_value.replace("Theme support:", "?????")
+    if text_value.startswith("Institutional flow persistence supports the forward setup."):
+        return "??????????????"
+    if text_value.startswith("Relative strength confirms demand leadership."):
+        return "????????????????"
+    if text_value.startswith("Forward demand narrative is strong enough for a starter position."):
+        return "????????????????????"
+    if " | " in text_value and len(text_value.split(" | ")) == 3:
+        dt, region, title = text_value.split(" | ", 2)
+        region_map = {"US": "??", "EU": "??", "JP": "??", "CN": "??", "TW": "??"}
+        return f"{dt} | {region_map.get(region, region)} | {_translate_macro_event_label(title)}"
+    return ZH_DECISION_TEXT.get(text_value, text_value)
+
+
+def build_market_pulse_chart(snapshot: Any, overview: Any, candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    setup_quality = 50.0
+    if not latest.empty and "composite_signal_score" in latest.columns:
+        setup_quality = float(latest["composite_signal_score"].fillna(0).mean())
+    pulse = pd.DataFrame(
+        [
+            {"metric": "VIX ???" if LANG == "zh-TW" else "VIX Comfort", "score": _vix_comfort_score(snapshot.vix)},
+            {"metric": t("fear_greed"), "score": float(overview.fear_greed_score)},
+            {"metric": t("breadth"), "score": float(overview.breadth_snapshot)},
+            {"metric": "????" if LANG == "zh-TW" else "Setup Quality", "score": setup_quality},
+        ]
+    )
+    pulse["color"] = pulse["score"].apply(
+        lambda value: "#2fbf71" if value >= 75 else "#8bd36c" if value >= 60 else "#f6c84c" if value >= 45 else "#ff8a4c" if value >= 30 else "#ff5a6b"
+    )
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=pulse["score"],
+            y=pulse["metric"],
+            orientation="h",
+            marker_color=pulse["color"],
+            text=[f"{value:.0f}/100" for value in pulse["score"]],
+            textposition="inside",
+            insidetextanchor="middle",
+            hovertemplate="%{y}: %{x:.1f}/100<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=8, b=8),
+        height=240,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(range=[0, 100], showgrid=True, gridcolor="#edf2f7", zeroline=False, title=None),
+        yaxis=dict(title=None, autorange="reversed"),
+        showlegend=False,
+    )
+    return fig
+
+
+def build_sector_heatmap(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        fig = go.Figure()
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+        return fig
+    enriched = enrich_with_company_metadata(latest)
+    grouped = (
+        enriched.assign(
+            market_label=enriched["type"].map(lambda value: t("taiwan") if value == "tw" else t("us")),
+            sector_label=enriched["sector"].fillna(t("unknown")),
+            score_value=enriched["composite_signal_score"].fillna(0).astype(float),
+        )
+        .groupby(["market_label", "sector_label"], as_index=False)
+        .agg(
+            avg_score=("score_value", "mean"),
+            names=("ticker", "count"),
+        )
+    )
+    fig = px.treemap(
+        grouped,
+        path=["market_label", "sector_label"],
+        values="names",
+        color="avg_score",
+        color_continuous_scale=["#ff6b7a", "#f6cf56", "#7bd88f", "#2fbf71"],
+        range_color=(40, 85),
+    )
+    fig.update_traces(
+        texttemplate="%{label}<br>%{value} ?<br>%{color:.0f}",
+        hovertemplate="%{label}<br>" + ("??" if LANG == "zh-TW" else "Names") + ": %{value}<br>" + ("????" if LANG == "zh-TW" else "Avg Score") + ": %{color:.1f}<extra></extra>",
+        root_color="white",
+    )
+    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=260, paper_bgcolor="white", coloraxis_showscale=False)
+    return fig
+
+
+def build_setup_distribution_chart(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        fig = go.Figure()
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+        return fig
+    grouped = (
+        latest.assign(
+            market_label=latest["type"].map(lambda value: t("taiwan") if value == "tw" else t("us")),
+            bucket_label=latest["recommendation_bucket"].map(localize_value),
+        )
+        .groupby(["market_label", "bucket_label"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
+    bucket_order = [t("safer"), t("actionable"), t("watchlist")]
+    color_map = {
+        t("safer"): "#2fbf71",
+        t("actionable"): "#8bd36c",
+        t("watchlist"): "#f6c84c",
+    }
+    fig = px.bar(
+        grouped,
+        x="market_label",
+        y="count",
+        color="bucket_label",
+        category_orders={"bucket_label": bucket_order},
+        color_discrete_map=color_map,
+        text="count",
+    )
+    fig.update_traces(textposition="inside", hovertemplate="%{x}<br>%{fullData.name}: %{y}<extra></extra>")
+    fig.update_layout(
+        barmode="stack",
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=260,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        legend_title_text="",
+        xaxis_title=None,
+        yaxis_title=None,
+    )
+    return fig
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def get_company_profile_cached(ticker: str) -> dict[str, str]:
+    return market_data.get_company_profile(ticker)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_ticker_trend_cached(ticker: str, limit: int = 12) -> list[float]:
+    history = repo.fetch_history(ticker, limit=limit)
+    if not history:
+        return []
+    frame = pd.DataFrame(history)
+    if "close_price" not in frame.columns:
+        return []
+    return frame["close_price"].fillna(0).astype(float).tolist()[-limit:]
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_ticker_score_trend_cached(ticker: str, limit: int = 12) -> list[float]:
+    history = repo.fetch_history(ticker, limit=limit)
+    if not history:
+        return []
+    frame = pd.DataFrame(history)
+    if "composite_signal_score" not in frame.columns:
+        return []
+    return frame["composite_signal_score"].fillna(0).astype(float).tolist()[-limit:]
+
+
+def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
+    ticker = str(row.get("ticker", "")).upper()
+    market_type = str(row.get("type", ""))
+    profile = get_company_profile_cached(ticker)
+    name_zh = str(profile.get("name_zh", "")).strip()
+    name_en = str(profile.get("name_en", "")).strip()
+    sector = str(profile.get("sector", "")).strip()
+
+    if market_type == "tw":
+        display_name = name_zh or name_en or ticker
+        display_sector = sector or "??"
+    else:
+        if LANG == "zh-TW" and name_zh:
+            display_name = f"{name_en}?{name_zh}?" if name_en else name_zh
+        else:
+            display_name = name_en or ticker
+        display_sector = sector or ("??" if LANG == "zh-TW" else "Unknown")
+    return display_name, display_sector
+
+
+def _signal_tone(score: float) -> tuple[str, str]:
+    if score >= 75:
+        return ("#2fbf71", "????" if LANG == "zh-TW" else "Risk-on")
+    if score >= 60:
+        return ("#8bd36c", "????" if LANG == "zh-TW" else "Constructive")
+    if score >= 45:
+        return ("#f6c84c", "??" if LANG == "zh-TW" else "Neutral")
+    if score >= 30:
+        return ("#ff8a4c", "??" if LANG == "zh-TW" else "Weakening")
+    return ("#ff5a6b", "??" if LANG == "zh-TW" else "Defensive")
+
+
+def _market_bias_copy(summary: Any) -> str:
+    if summary is None:
+        return t("no_data")
+    regime = localize_value(summary.regime)
+    if LANG == "zh-TW":
+        return f"{regime}??? {summary.candidate_count} ????? {summary.actionable_count} ???????? {summary.safer_count} ??"
+    return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
+
+
+def _decision_verdict(row: pd.Series) -> tuple[str, str]:
+    bucket = str(row.get("recommendation_bucket", "Watchlist"))
+    score = float(row.get("composite_signal_score", 0) or 0)
+    if bucket == "Safer Follow-Through" or score >= 80:
+        return t("verdict_buy"), "#16a34a"
+    if bucket == "Actionable" or score >= 70:
+        return t("verdict_probe"), "#65a30d"
+    if score >= 60:
+        return t("verdict_wait"), "#d97706"
+    return t("verdict_avoid"), "#dc2626"
+
+
+def _normalize_trend(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    clean = [float(value) for value in values]
+    base = clean[0] if clean[0] != 0 else 1.0
+    return [round(((value / base) - 1.0) * 100, 2) for value in clean]
+
+
+def _benchmark_config(range_key: str) -> tuple[str, str, int]:
+    mapping = {
+        "1d": ("1d", "5m", 78),
+        "1mo": ("1mo", "1d", 22),
+        "1y": ("1y", "1wk", 52),
+        "3y": ("3y", "1wk", 156),
+        "5y": ("5y", "1mo", 60),
+    }
+    return mapping.get(range_key, ("1d", "5m", 78))
+
+
+def _benchmark_range_caption(range_key: str, trend_window: int) -> str:
+    if LANG == "zh-TW":
+        mapping = {
+            "1d": "當日分時走勢",
+            "1mo": f"近 {trend_window} 個交易日收盤趨勢",
+            "1y": f"近 {trend_window} 週走勢",
+            "3y": f"近 {trend_window} 週走勢",
+            "5y": f"近 {trend_window} 個月走勢",
+        }
+    else:
+        mapping = {
+            "1d": "Intraday trend",
+            "1mo": f"Last {trend_window} daily closes",
+            "1y": f"Last {trend_window} weekly closes",
+            "3y": f"Last {trend_window} weekly closes",
+            "5y": f"Last {trend_window} monthly closes",
+        }
+    return mapping.get(range_key, mapping["1d"])
+
+
+def _format_benchmark_datetime(value: pd.Timestamp | None) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    stamp = pd.Timestamp(value)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _format_snapshot_date(value: object) -> str:
+    if value in (None, "", "nan"):
+        return ""
+    try:
+        stamp = pd.to_datetime(value, errors="coerce")
+    except Exception:
+        return str(value)
+    if pd.isna(stamp):
+        return str(value)
+    if isinstance(stamp, pd.Series):
+        return str(value)
+    return pd.Timestamp(stamp).strftime("%Y-%m-%d")
+
+
+def _render_data_caption(*parts: str) -> None:
+    items = [part.strip() for part in parts if part and str(part).strip()]
+    if items:
+        st.caption(" | ".join(items))
+
+
+def _render_segmented_control(label: str, options: list[str], format_func, key: str) -> str:
+    segmented = getattr(st, "segmented_control", None)
+    if callable(segmented):
+        return segmented(label, options=options, format_func=format_func, selection_mode="single", key=key)
+    return st.radio(label, options=options, format_func=format_func, horizontal=True, label_visibility="collapsed", key=key)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_benchmark_snapshot_cached(symbol: str, label_key: str, range_key: str) -> dict[str, Any]:
+    period, interval, default_window = _benchmark_config(range_key)
+    history = pd.DataFrame()
+    if range_key == "1d":
+        try:
+            history = market_data._fetch_from_yahoo_chart(symbol, period=period, interval=interval)
+        except Exception:
+            history = pd.DataFrame()
+    if history.empty:
+        history = market_data.get_price_history(symbol, period=period, interval=interval)
+    frame = history.copy()
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+    if frame.empty or "Close" not in frame.columns:
+        return {
+            "symbol": symbol,
+            "label_key": label_key,
+            "latest": None,
+            "delta": None,
+            "pct": None,
+            "trend": [],
+            "trend_window": 0,
+            "range_key": range_key,
+            "has_data": False,
+            "start_at": None,
+            "end_at": None,
+        }
+    frame["Close"] = frame["Close"].astype(float)
+    latest = float(frame["Close"].iloc[-1])
+    previous = float(frame["Close"].iloc[0]) if len(frame) > 1 else latest
+    delta = latest - previous
+    pct = 0.0 if previous == 0 else (delta / previous) * 100
+    trend_window = min(len(frame), default_window)
+    trend = _normalize_trend(frame["Close"].tail(trend_window).tolist())
+    return {
+        "symbol": symbol,
+        "label_key": label_key,
+        "latest": latest,
+        "delta": delta,
+        "pct": pct,
+        "trend": trend,
+        "trend_window": trend_window,
+        "range_key": range_key,
+        "has_data": True,
+        "start_at": _format_benchmark_datetime(frame["Date"].iloc[0] if "Date" in frame.columns and not frame.empty else None),
+        "end_at": _format_benchmark_datetime(frame["Date"].iloc[-1] if "Date" in frame.columns and not frame.empty else None),
+    }
+
+
+def load_benchmark_snapshots(symbol_pairs: list[tuple[str, str]], range_key: str) -> dict[str, dict[str, Any]]:
+    results: dict[str, dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=min(3, len(symbol_pairs) or 1)) as executor:
+        future_map = {
+            executor.submit(get_benchmark_snapshot_cached, symbol, label_key, range_key): (symbol, label_key)
+            for symbol, label_key in symbol_pairs
+        }
+        for future in as_completed(future_map):
+            symbol, label_key = future_map[future]
+            try:
+                results[symbol] = future.result()
+            except Exception:
+                results[symbol] = {
+                    "label_key": label_key,
+                    "latest": None,
+                    "delta": None,
+                    "pct": None,
+                    "trend": [],
+                    "trend_window": 0,
+                    "range_key": range_key,
+                    "has_data": False,
+                    "start_at": None,
+                    "end_at": None,
+                }
+    return results
+
+
+def build_benchmark_chart(series: list[float], positive: bool) -> go.Figure:
+    color = "#16a34a" if positive else "#ef4444"
+    fill = "rgba(34,197,94,0.12)" if positive else "rgba(239,68,68,0.12)"
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            y=series,
+            mode="lines",
+            line=dict(color=color, width=2),
+            fill="tozeroy",
+            fillcolor=fill,
+            hoverinfo="skip",
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=72,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        showlegend=False,
+    )
+    return fig
+
+
+def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    enriched = frame.copy()
+    names: list[str] = []
+    sectors: list[str] = []
+    for _, row in enriched.iterrows():
+        company_name, sector = _display_name_for_row(row)
+        names.append(company_name)
+        sectors.append(sector)
+    enriched["company"] = names
+    enriched["sector"] = sectors
+    return enriched
+
+
+def inject_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container { max-width: 1450px; padding-top: 2.15rem; padding-bottom: 1.8rem; }
+        section[data-testid="stSidebar"] { min-width: 340px !important; max-width: 340px !important; }
+        .page-title { font-size: 1.9rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #243047; }
+        .section-label { font-size: 0.78rem; font-weight: 700; color: #616c7c; margin: 0.85rem 0 0.45rem; text-transform: uppercase; }
+        .hero-shell { border-bottom:1px solid rgba(118,128,145,.16); padding-bottom:16px; margin-bottom:10px; }
+        .hero-title { font-size:2.15rem; font-weight:900; color:#101828; letter-spacing:0; margin:0; }
+        .hero-sub { font-size:0.92rem; color:#667085; margin-top:4px; }
+        .hero-time { text-align:right; font-size:0.88rem; color:#98a2b3; font-weight:700; margin-top:8px; }
+        .benchmark-card { border:1px solid rgba(118,128,145,.14); border-radius:10px; background:#fff; padding:10px 12px; min-height:128px; }
+        .benchmark-name { font-size:0.98rem; font-weight:800; color:#243047; margin-bottom:2px; }
+        .benchmark-price { font-size:1.75rem; font-weight:900; line-height:1.05; margin:2px 0 4px; }
+        .benchmark-change { font-size:0.9rem; font-weight:700; }
+        .hero-side { border:1px solid rgba(118,128,145,.16); border-radius:10px; background:#f8fafc; padding:12px 14px; min-height:128px; }
+        .hero-side-title { font-size:0.8rem; font-weight:800; color:#475467; text-transform:uppercase; margin-bottom:8px; }
+        .hero-side-main { font-size:1.2rem; font-weight:900; color:#101828; margin-bottom:6px; }
+        .hero-side-copy { font-size:0.86rem; color:#667085; line-height:1.45; }
+        .terminal-card, .summary-band, .decision-card { border: 1px solid rgba(118,128,145,.22); border-radius: 8px; background: #ffffff; }
+        .terminal-card { padding: 14px; min-height: 174px; }
+        .summary-band { padding: 12px 14px; min-height: 112px; background: #f7f9fc; }
+        .summary-title { font-size: 0.75rem; font-weight: 700; color: #697483; margin-bottom: 5px; text-transform: uppercase; }
+        .summary-main { font-size: 1.08rem; font-weight: 800; margin-bottom: 8px; }
+        .summary-sub { font-size: 0.82rem; color: #596474; line-height: 1.45; }
+        .state-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+        .state-metric { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f7f9fc; min-height:72px; }
+        .state-label { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:4px; font-weight:700; }
+        .state-value { font-size:0.98rem; font-weight:800; line-height:1.2; }
+        .state-read { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:12px 14px; background:#f7f9fc; min-height:118px; }
+        .state-read-title { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:6px; font-weight:700; }
+        .state-read-main { font-size:1rem; font-weight:800; margin-bottom:6px; color:#243047; }
+        .state-read-copy { font-size:0.86rem; color:#596474; line-height:1.5; }
+        .light-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin: 8px 0 14px; }
+        .light-card { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f7f9fc; min-height:78px; }
+        .light-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+        .light-name { font-size:0.72rem; text-transform:uppercase; color:#6b7685; font-weight:700; }
+        .light-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .light-value { font-size:1rem; font-weight:800; color:#243047; margin-bottom:4px; }
+        .light-copy { font-size:0.82rem; color:#596474; line-height:1.35; }
+        .mini-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
+        .brief-card { border:1px solid rgba(118,128,145,.18); border-radius:8px; background:#f7f9fc; padding:12px 14px; min-height:132px; }
+        .brief-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px; }
+        .brief-title { font-size:0.78rem; font-weight:800; color:#243047; }
+        .brief-bias { font-size:0.76rem; font-weight:700; color:#647080; text-transform:uppercase; }
+        .brief-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:8px; }
+        .brief-kpi { background:#fff; border:1px solid rgba(118,128,145,.14); border-radius:8px; padding:8px 10px; }
+        .brief-kpi-label { font-size:0.7rem; color:#6b7685; text-transform:uppercase; margin-bottom:3px; font-weight:700; }
+        .brief-kpi-value { font-size:0.95rem; font-weight:800; color:#243047; }
+        .brief-copy { font-size:0.84rem; color:#596474; line-height:1.45; }
+        .rank-card { border:1px solid rgba(118,128,145,.18); border-radius:8px; background:#fff; padding:12px 14px; min-height:240px; }
+        .rank-item { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid rgba(118,128,145,.1); }
+        .rank-item:last-child { border-bottom:none; }
+        .rank-left { min-width:0; }
+        .rank-name { font-size:0.86rem; font-weight:800; color:#243047; margin-bottom:2px; }
+        .rank-meta { font-size:0.78rem; color:#647080; line-height:1.35; }
+        .rank-score { font-size:0.9rem; font-weight:800; color:#243047; white-space:nowrap; }
+        .decision-card { padding: 14px; margin-bottom: 10px; }
+        .decision-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; }
+        .decision-ticker { font-size: 0.98rem; font-weight: 800; }
+        .decision-meta { font-size: 0.8rem; color: #5f6977; }
+        .decision-pill { display:inline-block; border: 1px solid rgba(95,105,119,.18); border-radius:999px; padding: 2px 8px; font-size:0.74rem; margin-right:6px; margin-bottom:6px; }
+        .decision-label { font-size: 0.75rem; font-weight: 700; color: #647080; margin: 8px 0 4px; text-transform: uppercase; }
+        .decision-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
+        div[data-testid="stMetric"] { background:#f7f9fc; border:1px solid rgba(118,128,145,.18); border-radius:8px; padding:10px 12px; }
+        div[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
+        @media (max-width: 1200px) {
+            section[data-testid="stSidebar"] { min-width: 290px !important; max-width: 290px !important; }
+            .page-title { font-size: 1.55rem; }
+            .block-container { padding-top: 2.4rem; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def format_analysis_summary(summary: AnalysisRunSummary) -> str:
+    if LANG == "zh-TW":
+        return (
+            f"?? {summary.scanned_tickers} ? | "
+            f"??? {summary.data_ready_tickers} ? | "
+            f"???? {summary.skipped_data_tickers} ? | "
+            f"??? {summary.no_signal_tickers} ? | "
+            f"?? {summary.signal_count} ?"
+        )
+    return (
+        f"Scanned {summary.scanned_tickers} | "
+        f"Data-ready {summary.data_ready_tickers} | "
+        f"Missing {summary.skipped_data_tickers} | "
+        f"No-signal {summary.no_signal_tickers} | "
+        f"Written {summary.signal_count}"
+    )
+
+
+def format_skip_reasons(reason_counts: dict[str, int]) -> str:
+    if not reason_counts:
+        return ""
+    labels = {
+        "no_market_data": "??????" if LANG == "zh-TW" else "no market data",
+        "incomplete_history": "??????" if LANG == "zh-TW" else "incomplete history",
+        "request_timeout": "????" if LANG == "zh-TW" else "request timeout",
+        "provider_error": "????" if LANG == "zh-TW" else "provider error",
+    }
+    ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
+    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
+
+
+def format_no_signal_reasons(reason_counts: dict[str, int]) -> str:
+    if not reason_counts:
+        return ""
+    labels = {
+        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
+        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "price still below 20MA",
+        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "???????????????" if LANG == "zh-TW" else "explore passed baseline but has no trigger",
+        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "?? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
+        "wait_pullback_to_20ma": "?????????????? 20MA" if LANG == "zh-TW" else "wait for pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP ?????????????" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "????????????? 65-74" if LANG == "zh-TW" else "score between 65 and 74",
+        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but score too low",
+    }
+    ordered = sorted(reason_counts.items(), key=lambda item: item[1], reverse=True)
+    return " | ".join(f"{labels.get(key, key)} {count}" for key, count in ordered)
+
+
+def _stage_name_label(stage: str) -> str:
+    mapping = {
+        "baseline_reject": "??????" if LANG == "zh-TW" else "Baseline Reject",
+        "watch": "??" if LANG == "zh-TW" else "Watch",
+        "candidate": "?????" if LANG == "zh-TW" else "Candidate",
+        "actionable": "?????" if LANG == "zh-TW" else "Actionable",
+    }
+    return mapping.get(stage, stage)
+
+
+def _stage_reason_label(reason: str) -> str:
+    mapping = {
+        "core_below_60ma": "????? 60MA" if LANG == "zh-TW" else "core below 60MA",
+        "core_60ma_not_rising": "??? 60MA ???" if LANG == "zh-TW" else "core 60MA not rising",
+        "explore_below_60ma": "????? 60MA" if LANG == "zh-TW" else "explore below 60MA",
+        "explore_growth_missing": "????? / EPS ????" if LANG == "zh-TW" else "explore growth baseline failed",
+        "panic_exception_baseline_ok": "????????" if LANG == "zh-TW" else "panic reversal exception",
+        "core_trend_template_ok": "???????" if LANG == "zh-TW" else "core baseline passed",
+        "explore_baseline_ok": "???????" if LANG == "zh-TW" else "explore baseline passed",
+        "no_institutional_buy_streak": "? 3 ?????????" if LANG == "zh-TW" else "3-day institutional flow not positive",
+        "below_20ma": "???? 20MA ??" if LANG == "zh-TW" else "below 20MA",
+        "volume_below_5d_avg": "????? 5 ???" if LANG == "zh-TW" else "volume below the 5-day average",
+        "explore_waiting_for_trigger": "????????????????" if LANG == "zh-TW" else "explore waiting for trigger",
+        "no_strategy_trigger": "?????????" if LANG == "zh-TW" else "no trigger",
+        "market_risk_off": "??? Risk-Off???????" if LANG == "zh-TW" else "market risk-off",
+        "ready_now": "??????????" if LANG == "zh-TW" else "ready now",
+        "wait_pullback_to_20ma": "?????????? 20MA" if LANG == "zh-TW" else "wait pullback to 20MA",
+        "wait_for_institutional_confirmation": "VCP ??????????" if LANG == "zh-TW" else "wait for institutional confirmation",
+        "score_borderline_65_74": "???? 65-74??????" if LANG == "zh-TW" else "score borderline 65-74",
+        "triggered_but_low_score": "??????????????" if LANG == "zh-TW" else "triggered but low score",
+    }
+    return mapping.get(reason, reason)
+
+
+def _trigger_label_list(values: list[str]) -> str:
+    mapping = {
+        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
+    }
+    if not values:
+        return "?"
+    return " / ".join(mapping.get(value, value) for value in values)
+
+
+def _format_stage_counts(stage_counts: dict[str, int]) -> str:
+    if not stage_counts:
+        return ""
+    parts: list[str] = []
+    for key in ["baseline_reject", "watch", "candidate", "actionable"]:
+        if key in stage_counts:
+            parts.append(f"{_stage_name_label(key)} {stage_counts[key]}")
+    return " | ".join(parts)
+
+
+def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
+    stage_rows = getattr(summary, "stage_rows", None) or []
+    if not stage_rows:
+        return
+    frame = pd.DataFrame(stage_rows)
+    if frame.empty:
+        return
+    frame = enrich_with_company_metadata(frame)
+    frame["stage_label"] = frame["stage"].map(_stage_name_label)
+    frame["reason_label"] = frame["reason"].map(_stage_reason_label)
+    frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
+    frame["fundamental_snapshot"] = frame.apply(
+        lambda row: (
+            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
+            else (
+                f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+                if pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
+                else "?"
+            )
+        ),
+        axis=1,
+    )
+    display = frame[
+        [
+            "ticker",
+            "company",
+            "sector",
+            "universe_bucket",
+            "stage_label",
+            "triggers_label",
+            "composite_signal_score",
+            "relative_strength_score",
+            "institutional_buy_streak",
+            "fundamental_snapshot",
+            "reason_label",
+        ]
+    ].rename(
+        columns={
+            "ticker": "??" if LANG == "zh-TW" else "Ticker",
+            "company": "??" if LANG == "zh-TW" else "Company",
+            "sector": "??" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
+            "stage_label": "????" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
+        }
+    )
+    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+def _analysis_cooldown_key(market_type: str) -> str:
+    return f"analysis_last_run_{market_type}"
+
+
+def should_skip_recent_analysis(market_type: str, force_refresh: bool, cooldown_minutes: int = 20) -> bool:
+    if force_refresh:
+        return False
+    last_run = st.session_state.get(_analysis_cooldown_key(market_type))
+    if not isinstance(last_run, datetime):
+        return False
+    return datetime.now() - last_run < timedelta(minutes=cooldown_minutes)
+
+
+def run_market_analysis(
+    market_type: str,
+    progress_bar: Any | None = None,
+    status_box: Any | None = None,
+    force_refresh: bool = False,
+) -> AnalysisRunSummary | None:
+    if should_skip_recent_analysis(market_type, force_refresh=force_refresh):
+        _set_analysis_feedback("info", t("cooldown_skip"))
+        return None
+    universe = UniverseBuilder(runtime_settings).build(market_type)
+    engine = AnalysisEngine(
+        event_risk_service=EventRiskService(high_risk_event_dates=runtime_settings.high_risk_event_dates)
+    )
+
+    def on_progress(stage: str, current: int, total: int, detail: str) -> None:
+        if progress_bar is not None:
+            if stage == "done":
+                progress_bar.progress(100)
+            else:
+                pct = 5 if total <= 0 else min(95, max(5, int((current / max(total, 1)) * 100)))
+                progress_bar.progress(pct)
+        if status_box is not None:
+            status_box.info(f"{t('analysis_progress')} | {detail}")
+
+    summary = engine.run_with_summary(universe.to_analysis_universe(), progress_callback=on_progress)
+    if progress_bar is not None:
+        progress_bar.progress(100)
+    st.session_state[_analysis_cooldown_key(market_type)] = datetime.now()
+    return summary
+
+
+def _set_analysis_feedback(kind: str, message: str) -> None:
+    st.session_state["analysis_feedback"] = {"kind": kind, "message": message}
+
+
+def render_analysis_feedback() -> None:
+    feedback = st.session_state.pop("analysis_feedback", None)
+    if not feedback:
+        return
+    kind = feedback.get("kind", "info")
+    message = str(feedback.get("message", ""))
+    if kind == "success":
+        st.success(message)
+    elif kind == "warning":
+        st.warning(message)
+    elif kind == "error":
+        st.error(message)
+    else:
+        st.info(message)
+
+
+def render_analysis_summary(summary: AnalysisRunSummary) -> None:
+    st.markdown(f'<div class="section-label">{t("analysis_summary")}</div>', unsafe_allow_html=True)
+    scanned_tickers = int(getattr(summary, "scanned_tickers", 0) or 0)
+    data_ready_tickers = int(getattr(summary, "data_ready_tickers", 0) or 0)
+    skipped_data_tickers = int(getattr(summary, "skipped_data_tickers", 0) or 0)
+    no_signal_tickers = int(getattr(summary, "no_signal_tickers", 0) or 0)
+    signal_count = int(getattr(summary, "signal_count", 0) or 0)
+    skipped_reason_counts = getattr(summary, "skipped_reason_counts", {}) or {}
+    no_signal_reason_counts = getattr(summary, "no_signal_reason_counts", {}) or {}
+    core_ticker_count = int(getattr(summary, "core_ticker_count", 0) or 0)
+    explore_ticker_count = int(getattr(summary, "explore_ticker_count", 0) or 0)
+    stage_counts = getattr(summary, "stage_counts", {}) or {}
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("??" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c5.metric(t("records"), signal_count)
+    summary_at = str(st.session_state.get("analysis_summary_at") or "")
+    if summary_at:
+        _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
+    if core_ticker_count or explore_ticker_count:
+        if LANG == "zh-TW":
+            st.caption(f"??? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
+        else:
+            st.caption(
+                f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
+                f"These lists define the universe, not guaranteed outputs."
+            )
+    if stage_counts:
+        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+    if skipped_reason_counts:
+        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+    if no_signal_reason_counts:
+        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+    if signal_count == 0:
+        if data_ready_tickers == 0:
+            st.warning("??????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                f"Only {signal_count} names survived this run. That does not mean the preference lists failed; "
-                f"it means only {pass_rate:.1f}% cleared data readiness, strategy triggers, and risk checks together."
+                "???????????????????????????????"
+                if LANG == "zh-TW"
+                else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
+    else:
+        pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
+        st.info(
+            (
+                f"???? {signal_count} ??????????????????? {pass_rate:.1f}% ??????????????????"
+                if LANG == "zh-TW"
+                else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
+            )
+        )
+    render_funnel_stage_table(summary)
 
 
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
@@ -2553,6 +4322,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     render_visual_scan(candidate_frame, snapshot, overview)
     render_market_overview()
     render_rank_boards()
+    render_manual_tracking(candidate_frame)
     render_focus_lists(candidate_frame)
     render_decision_cards(candidate_frame)
     left, right = st.columns((1.55, 1))

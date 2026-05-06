@@ -28,6 +28,10 @@ class UserSettingsService:
             "us_explore_tickers": self.settings.us_explore_tickers,
             "tw_explore_limit": self.settings.tw_explore_limit,
             "us_explore_limit": self.settings.us_explore_limit,
+            "tw_manual_watch_tickers": getattr(self.settings, "tw_manual_watch_tickers", ""),
+            "us_manual_watch_tickers": getattr(self.settings, "us_manual_watch_tickers", ""),
+            "tw_manual_hot_tickers": getattr(self.settings, "tw_manual_hot_tickers", ""),
+            "us_manual_hot_tickers": getattr(self.settings, "us_manual_hot_tickers", ""),
         }
         return self.repository.upsert_settings(payload)
 
@@ -106,6 +110,22 @@ class UserSettingsService:
             "us_explore_tickers": current.get("us_explore_tickers", self.settings.us_explore_tickers),
             "tw_explore_limit": int(current.get("tw_explore_limit", self.settings.tw_explore_limit)),
             "us_explore_limit": int(current.get("us_explore_limit", self.settings.us_explore_limit)),
+            "tw_manual_watch_tickers": current.get(
+                "tw_manual_watch_tickers",
+                getattr(self.settings, "tw_manual_watch_tickers", ""),
+            ),
+            "us_manual_watch_tickers": current.get(
+                "us_manual_watch_tickers",
+                getattr(self.settings, "us_manual_watch_tickers", ""),
+            ),
+            "tw_manual_hot_tickers": current.get(
+                "tw_manual_hot_tickers",
+                getattr(self.settings, "tw_manual_hot_tickers", ""),
+            ),
+            "us_manual_hot_tickers": current.get(
+                "us_manual_hot_tickers",
+                getattr(self.settings, "us_manual_hot_tickers", ""),
+            ),
         }
 
     def _load_settings(self):
@@ -119,5 +139,9 @@ class UserSettingsService:
                 default_risk_tolerance_percent = 5.0
                 default_min_institutional_buy_streak = 3
                 telegram_allowed_chat_id = "0"
+                tw_manual_watch_tickers = ""
+                us_manual_watch_tickers = ""
+                tw_manual_hot_tickers = ""
+                us_manual_hot_tickers = ""
 
             return FallbackSettings()

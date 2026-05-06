@@ -79,6 +79,7 @@ class YahooMarketDataClient:
     def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
         self.quote_router = quote_router or self._build_router()
         self._tw_profile_cache: dict[str, dict[str, str]] | None = None
+        self._growth_cache: dict[str, dict[str, object]] = {}
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         deadline = time.monotonic() + 20.0
@@ -543,6 +544,15 @@ class YahooMarketDataClient:
             return self._get_tw_company_profile(normalized)
         return self._get_us_company_profile(normalized)
 
+    def get_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        normalized = ticker.upper().strip()
+        if normalized in self._growth_cache:
+            return self._growth_cache[normalized]
+        market = "tw" if normalized.endswith(".TW") or normalized.endswith(".TWO") else "us"
+        snapshot = self._get_tw_growth_snapshot(normalized) if market == "tw" else self._get_us_growth_snapshot(normalized)
+        self._growth_cache[normalized] = snapshot
+        return snapshot
+
     def diagnose_providers(self) -> list[dict[str, str]]:
         checks: list[tuple[str, str, str]] = [
             ("TWSE Company API", "https://openapi.twse.com.tw/v1/opendata/t187ap03_L", "twse_company"),
@@ -705,6 +715,80 @@ class YahooMarketDataClient:
             return {"name_zh": zh_hint.get(ticker, ""), "name_en": name_en, "sector": sector}
         except Exception:
             return {"name_zh": zh_hint.get(ticker, ""), "name_en": ticker, "sector": "Unknown"}
+
+    def _get_tw_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        stock_no = ticker.replace(".TW", "").replace(".TWO", "")
+        end_date = self._get_twse_latest_trade_date() or date.today()
+        start_date = end_date - timedelta(days=430)
+        params = {
+            "dataset": "TaiwanStockMonthRevenue",
+            "data_id": stock_no,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+        token = self._get_finmind_token()
+        if token:
+            params["token"] = token
+        try:
+            response = requests.get(
+                "https://api.finmindtrade.com/api/v4/data",
+                params=params,
+                timeout=12,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = payload.get("data") or []
+        except Exception:
+            rows = []
+
+        revenue_yoy = None
+        as_of = None
+        if rows:
+            frame = pd.DataFrame(rows)
+            if {"revenue_year", "revenue_month", "revenue"}.issubset(frame.columns):
+                frame["revenue_year"] = pd.to_numeric(frame["revenue_year"], errors="coerce")
+                frame["revenue_month"] = pd.to_numeric(frame["revenue_month"], errors="coerce")
+                frame["revenue"] = pd.to_numeric(frame["revenue"], errors="coerce")
+                frame = frame.dropna(subset=["revenue_year", "revenue_month", "revenue"]).sort_values(["revenue_year", "revenue_month"])
+                if not frame.empty:
+                    latest = frame.iloc[-1]
+                    as_of = f'{int(latest["revenue_year"]):04d}-{int(latest["revenue_month"]):02d}'
+                    prev = frame[
+                        (frame["revenue_year"] == latest["revenue_year"] - 1)
+                        & (frame["revenue_month"] == latest["revenue_month"])
+                    ]
+                    if not prev.empty and float(prev.iloc[-1]["revenue"]) > 0:
+                        revenue_yoy = round(((float(latest["revenue"]) / float(prev.iloc[-1]["revenue"])) - 1) * 100, 2)
+
+        return {
+            "revenue_yoy": revenue_yoy,
+            "eps_ttm": None,
+            "as_of": as_of or end_date.isoformat(),
+            "source": "finmind_tw_revenue",
+        }
+
+    def _get_us_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        try:
+            import yfinance as yf
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                info = yf.Ticker(ticker).info
+        except Exception:
+            info = {}
+
+        revenue_growth = info.get("revenueGrowth")
+        trailing_eps = info.get("trailingEps")
+        as_of = None
+        earnings_date = self.get_next_earnings_date(ticker)
+        if earnings_date:
+            as_of = earnings_date.isoformat()
+        return {
+            "revenue_yoy": round(float(revenue_growth) * 100, 2) if revenue_growth not in (None, "") else None,
+            "eps_ttm": round(float(trailing_eps), 2) if trailing_eps not in (None, "") else None,
+            "as_of": as_of or date.today().isoformat(),
+            "source": "yfinance_info",
+        }
 
     def _get_fmp_keys(self) -> str:
         try:

@@ -10,9 +10,15 @@ from investbot.services.event_risk_service import EventRiskAssessment
 
 
 class FakeMarketDataClient:
-    def __init__(self, frames: dict[str, pd.DataFrame], vix_value: float = 16.0) -> None:
+    def __init__(
+        self,
+        frames: dict[str, pd.DataFrame],
+        vix_value: float = 16.0,
+        growth_map: dict[str, dict[str, object]] | None = None,
+    ) -> None:
         self.frames = frames
         self.vix_value = vix_value
+        self.growth_map = growth_map or {}
 
     def get_price_history(self, ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         return self.frames[ticker].copy()
@@ -25,6 +31,12 @@ class FakeMarketDataClient:
 
     def get_next_earnings_date(self, ticker: str) -> date | None:
         return None
+
+    def get_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        return self.growth_map.get(
+            ticker.upper(),
+            {"revenue_yoy": 12.0, "eps_ttm": 5.0, "as_of": "2026-04", "source": "test"},
+        )
 
 
 class FakeTwseClient:
@@ -83,6 +95,7 @@ def build_engine(
     buy_history_map: dict[str, list[int]] | None = None,
     vix_value: float = 16.0,
     event_risk_assessment: EventRiskAssessment | None = None,
+    growth_map: dict[str, dict[str, object]] | None = None,
 ) -> AnalysisEngine:
     if benchmark_history is None:
         benchmark_history = build_price_history(
@@ -94,7 +107,7 @@ def build_engine(
         "^TWII": benchmark_history,
     }
     return AnalysisEngine(
-        market_data=FakeMarketDataClient(frames, vix_value=vix_value),
+        market_data=FakeMarketDataClient(frames, vix_value=vix_value, growth_map=growth_map),
         twse_client=FakeTwseClient(
             large_caps={"2330.TW"},
             buy_map=buy_map or {"2330.TW": 300},
@@ -118,7 +131,8 @@ class AnalysisEngineTests(TestCase):
 
         self.assertEqual(summary.signal_count, 0)
         self.assertEqual(summary.no_signal_tickers, 1)
-        self.assertEqual(summary.no_signal_reason_counts["no_institutional_buy_streak"], 1)
+        self.assertEqual(summary.no_signal_reason_counts["triggered_but_low_score"], 1)
+        self.assertEqual(summary.stage_counts["watch"], 1)
 
     def test_run_emits_day_1_institutional_accumulation_signal(self) -> None:
         history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)
@@ -188,10 +202,11 @@ class AnalysisEngineTests(TestCase):
             buy_history_map={"2330.TW": [0, 0, 0]},
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
 
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0].signal_type, AnalysisEngine.PANIC_REVERSAL_SIGNAL)
+        self.assertEqual(summary.signal_count, 0)
+        self.assertEqual(summary.stage_counts["watch"], 1)
+        self.assertEqual(summary.stage_rows[0]["triggers"], ["PANIC_REVERSAL"])
 
     def test_run_adds_market_and_relative_strength_scores(self) -> None:
         stock_history = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
@@ -213,7 +228,7 @@ class AnalysisEngineTests(TestCase):
         self.assertGreater(signal.relative_strength_score or 0, 50)
         self.assertGreater(signal.institutional_conviction_score or 0, 70)
         self.assertGreater(signal.composite_signal_score or 0, 65)
-        self.assertIn(signal.recommendation_bucket, {"Actionable", "Safer Follow-Through"})
+        self.assertIn(signal.recommendation_bucket, {"Actionable", "Candidate"})
 
     def test_run_penalizes_composite_score_when_event_risk_is_high(self) -> None:
         history = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
@@ -255,11 +270,11 @@ class AnalysisEngineTests(TestCase):
             repository=FakeDailyAnalysisRepository(),
         )
 
-        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW", "2317.TW", "2454.TW"]))
-        signal = next(item for item in signals if item.ticker == "2330.TW")
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW", "2317.TW", "2454.TW"]))
 
-        self.assertLess(signal.breadth_score or 100, 40)
-        self.assertEqual(signal.recommendation_bucket, "Watchlist")
+        self.assertEqual(summary.signal_count, 0)
+        self.assertEqual(summary.no_signal_reason_counts["market_risk_off"], 1)
+        self.assertEqual(summary.stage_counts["watch"], 1)
 
     def test_run_allows_high_quality_explore_small_cap_candidate(self) -> None:
         history = build_price_history(close_values=[40 + i for i in range(65)], volume_values=[5000] * 65)
@@ -298,7 +313,11 @@ class AnalysisEngineTests(TestCase):
             "^TWII": benchmark_history,
         }
         engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(frames, vix_value=20.0),
+            market_data=FakeMarketDataClient(
+                frames,
+                vix_value=20.0,
+                growth_map={"3037.TW": {"revenue_yoy": -8.0, "eps_ttm": -1.0, "as_of": "2026-04", "source": "test"}},
+            ),
             twse_client=FakeTwseClient(
                 large_caps={"2330.TW"},
                 buy_map={"3037.TW": 50},
@@ -356,7 +375,11 @@ class AnalysisEngineTests(TestCase):
             "^TWII": benchmark_history,
         }
         engine = AnalysisEngine(
-            market_data=FakeMarketDataClient(frames, vix_value=20.0),
+            market_data=FakeMarketDataClient(
+                frames,
+                vix_value=20.0,
+                growth_map={"3037.TW": {"revenue_yoy": -8.0, "eps_ttm": -1.0, "as_of": "2026-04", "source": "test"}},
+            ),
             twse_client=FakeTwseClient(
                 large_caps={"2330.TW"},
                 buy_map={"3037.TW": 50},
@@ -374,4 +397,5 @@ class AnalysisEngineTests(TestCase):
         )
 
         self.assertEqual(summary.signal_count, 0)
-        self.assertEqual(summary.no_signal_reason_counts["explore_quality_gate"], 1)
+        self.assertEqual(summary.no_signal_reason_counts["explore_growth_missing"], 1)
+        self.assertEqual(summary.stage_counts["baseline_reject"], 1)
