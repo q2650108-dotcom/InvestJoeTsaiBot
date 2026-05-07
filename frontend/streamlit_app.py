@@ -4309,10 +4309,10 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     if latest_date:
         _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
-        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "看整體市場順不順風" if LANG == "zh-TW" else "Macro tape"),
-        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "分數越高代表市場越敢冒險" if LANG == "zh-TW" else "Higher means more risk appetite"),
-        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "越高代表上漲參與面越廣" if LANG == "zh-TW" else "Higher breadth means broader participation"),
-        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低通常越容易順勢操作" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "\u770b\u6574\u9ad4\u5e02\u5834\u9806\u4e0d\u9806\u98a8" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "\u5206\u6578\u8d8a\u9ad8\u4ee3\u8868\u5e02\u5834\u8d8a\u6562\u5192\u96aa" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "\u8d8a\u9ad8\u4ee3\u8868\u4e0a\u6f32\u53c3\u8207\u9762\u8d8a\u5ee3" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX \u8d8a\u4f4e\u901a\u5e38\u8d8a\u597d\u505a\u9806\u52e2" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
     light_columns = st.columns(4)
     for column, (name, value, color, tone, copy) in zip(light_columns, lights):
@@ -4505,9 +4505,9 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     render_run_controls()
     overview_tab, scan_tab, names_tab = st.tabs(
         [
-            "市場總覽" if LANG == "zh-TW" else "Market Overview",
-            "視覺掃盤" if LANG == "zh-TW" else "Visual Scan",
-            "名單與決策" if LANG == "zh-TW" else "Lists & Decisions",
+            "\u5e02\u5834\u7e3d\u89bd" if LANG == "zh-TW" else "Market Overview",
+            "\u8996\u89ba\u6383\u76e4" if LANG == "zh-TW" else "Visual Scan",
+            "\u540d\u55ae\u8207\u6c7a\u7b56" if LANG == "zh-TW" else "Lists & Decisions",
         ]
     )
     with overview_tab:
@@ -4515,11 +4515,12 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         render_session_briefs()
         render_market_overview()
     with scan_tab:
-        scan_pulse_tab, scan_heat_tab, scan_dist_tab = st.tabs(
+        scan_pulse_tab, scan_heat_tab, scan_dist_tab, scan_rank_tab = st.tabs(
             [
                 "\u5e02\u5834\u8108\u640f" if LANG == "zh-TW" else "Pulse",
                 "\u985e\u80a1\u71b1\u5340" if LANG == "zh-TW" else "Heatmap",
                 "\u5efa\u8b70\u5206\u4f48" if LANG == "zh-TW" else "Distribution",
+                "\u699c\u55ae" if LANG == "zh-TW" else "Boards",
             ]
         )
         with scan_pulse_tab:
@@ -4530,7 +4531,8 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         with scan_dist_tab:
             st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
             st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
-        render_rank_boards()
+        with scan_rank_tab:
+            render_rank_boards()
     with names_tab:
         manual_tab, focus_tab, decision_tab = st.tabs(
             [
@@ -4544,7 +4546,12 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         with focus_tab:
             render_focus_lists(candidate_frame)
         with decision_tab:
-            render_decision_cards(candidate_frame)
+            left, right = st.columns((1.08, 0.92))
+            with left:
+                render_decision_cards(candidate_frame)
+            with right:
+                render_rank_boards()
+
     left, right = st.columns((1.55, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("portfolio_curve")}</div>', unsafe_allow_html=True)
