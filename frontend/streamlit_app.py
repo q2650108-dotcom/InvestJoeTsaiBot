@@ -4515,12 +4515,36 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         render_session_briefs()
         render_market_overview()
     with scan_tab:
-        render_visual_scan(candidate_frame, snapshot, overview)
+        scan_pulse_tab, scan_heat_tab, scan_dist_tab = st.tabs(
+            [
+                "\u5e02\u5834\u8108\u640f" if LANG == "zh-TW" else "Pulse",
+                "\u985e\u80a1\u71b1\u5340" if LANG == "zh-TW" else "Heatmap",
+                "\u5efa\u8b70\u5206\u4f48" if LANG == "zh-TW" else "Distribution",
+            ]
+        )
+        with scan_pulse_tab:
+            render_visual_scan(candidate_frame, snapshot, overview)
+        with scan_heat_tab:
+            st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
+            st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        with scan_dist_tab:
+            st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
+            st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
         render_rank_boards()
     with names_tab:
-        render_manual_tracking(candidate_frame)
-        render_focus_lists(candidate_frame)
-        render_decision_cards(candidate_frame)
+        manual_tab, focus_tab, decision_tab = st.tabs(
+            [
+                "\u624b\u52d5\u8ffd\u8e64" if LANG == "zh-TW" else "Manual Tracking",
+                t("focus_lists"),
+                t("decision_cards"),
+            ]
+        )
+        with manual_tab:
+            render_manual_tracking(candidate_frame)
+        with focus_tab:
+            render_focus_lists(candidate_frame)
+        with decision_tab:
+            render_decision_cards(candidate_frame)
     left, right = st.columns((1.55, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("portfolio_curve")}</div>', unsafe_allow_html=True)
