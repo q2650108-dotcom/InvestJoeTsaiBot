@@ -1216,7 +1216,7 @@ def inject_styles() -> None:
         section[data-testid="stSidebar"] { min-width: 340px !important; max-width: 340px !important; }
         .page-title { font-size: 1.9rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #243047; }
         .section-label { font-size: 0.78rem; font-weight: 700; color: #616c7c; margin: 0.85rem 0 0.45rem; text-transform: uppercase; }
-        .hero-shell { border-bottom:1px solid rgba(118,128,145,.16); padding-bottom:16px; margin-bottom:10px; }
+        .hero-shell { border-bottom:1px solid rgba(118,128,145,.16); padding-bottom:16px; margin-bottom:14px; }
         .hero-title { font-size:2.15rem; font-weight:900; color:#101828; letter-spacing:0; margin:0; }
         .hero-sub { font-size:0.92rem; color:#667085; margin-top:4px; }
         .hero-time { text-align:right; font-size:0.88rem; color:#98a2b3; font-weight:700; margin-top:8px; }
@@ -1224,10 +1224,14 @@ def inject_styles() -> None:
         .benchmark-name { font-size:0.98rem; font-weight:800; color:#243047; margin-bottom:2px; }
         .benchmark-price { font-size:1.75rem; font-weight:900; line-height:1.05; margin:2px 0 4px; }
         .benchmark-change { font-size:0.9rem; font-weight:700; }
-        .hero-side { border:1px solid rgba(118,128,145,.16); border-radius:10px; background:#f8fafc; padding:12px 14px; min-height:128px; }
-        .hero-side-title { font-size:0.8rem; font-weight:800; color:#475467; text-transform:uppercase; margin-bottom:8px; }
-        .hero-side-main { font-size:1.2rem; font-weight:900; color:#101828; margin-bottom:6px; }
-        .hero-side-copy { font-size:0.86rem; color:#667085; line-height:1.45; }
+        .hero-summary-band { display:grid; grid-template-columns:1.25fr repeat(4,minmax(0,1fr)); gap:12px; margin:10px 0 8px; }
+        .hero-summary-card { border:1px solid rgba(118,128,145,.16); border-radius:10px; background:#f8fafc; padding:12px 14px; min-height:110px; }
+        .hero-summary-card.main { background:linear-gradient(180deg, #f8fafc 0%, #f4f7fb 100%); }
+        .hero-summary-title { font-size:0.76rem; font-weight:800; color:#475467; text-transform:uppercase; margin-bottom:8px; letter-spacing:.02em; }
+        .hero-summary-main { font-size:1.18rem; font-weight:900; color:#101828; margin-bottom:6px; }
+        .hero-summary-copy { font-size:0.84rem; color:#667085; line-height:1.45; }
+        .hero-summary-kpi-label { font-size:0.74rem; color:#667085; font-weight:700; margin-bottom:4px; text-transform:uppercase; }
+        .hero-summary-kpi-value { font-size:1.05rem; color:#101828; font-weight:900; line-height:1.2; }
         .terminal-card, .summary-band, .decision-card { border: 1px solid rgba(118,128,145,.22); border-radius: 8px; background: #ffffff; }
         .terminal-card { padding: 14px; min-height: 174px; }
         .summary-band { padding: 12px 14px; min-height: 112px; background: #f7f9fc; }
@@ -1238,6 +1242,10 @@ def inject_styles() -> None:
         .state-metric { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f7f9fc; min-height:72px; }
         .state-label { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:4px; font-weight:700; }
         .state-value { font-size:0.98rem; font-weight:800; line-height:1.2; }
+        .state-card { border:1px solid rgba(118,128,145,.18); border-radius:12px; background:#ffffff; padding:14px 16px; min-height:100%; }
+        .state-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+        .state-card-title { font-size:0.84rem; font-weight:800; color:#243047; text-transform:uppercase; }
+        .state-card-meta { font-size:0.76rem; color:#98a2b3; line-height:1.35; text-align:right; }
         .state-read { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:12px 14px; background:#f7f9fc; min-height:118px; }
         .state-read-title { font-size:0.73rem; color:#6b7685; text-transform:uppercase; margin-bottom:6px; font-weight:700; }
         .state-read-main { font-size:1rem; font-weight:800; margin-bottom:6px; color:#243047; }
@@ -1279,6 +1287,7 @@ def inject_styles() -> None:
             section[data-testid="stSidebar"] { min-width: 290px !important; max-width: 290px !important; }
             .page-title { font-size: 1.55rem; }
             .block-container { padding-top: 2.4rem; }
+            .hero-summary-band { grid-template-columns:1fr 1fr; }
         }
         </style>
         """,
@@ -1865,83 +1874,111 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
     summary = summary_service.build_market_summary(market_key)
     benchmark_pairs = BENCHMARK_SETS[market_key]
     benchmark_snapshots = load_benchmark_snapshots(benchmark_pairs, selected_range_key)
-    hero_left, hero_right = st.columns((3.2, 1.15))
-    with hero_left:
-        st.markdown(
-            f"""
-            <div class="hero-shell">
-                <div class="hero-title">{selected_market}</div>
-                <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
+    now_label = datetime.now().strftime("%m/%d %H:%M")
+    summary_text = _market_bias_copy(summary) if summary else t("no_data")
+    summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else "—"
+    summary_breadth = f"{float(summary.average_breadth):.2f}" if summary is not None else "—"
+    summary_candidates = str(int(getattr(summary, "candidate_count", 0))) if summary is not None else "—"
+    summary_actionable = str(int(getattr(summary, "actionable_count", 0))) if summary is not None else "—"
+    summary_safer = str(int(getattr(summary, "safer_count", 0))) if summary is not None else "—"
+
+    st.markdown(
+        f"""
+        <div class="hero-shell">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+                <div>
+                    <div class="hero-title">{selected_market}</div>
+                    <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
+                </div>
+                <div class="hero-time">{now_label} ({selected_market})</div>
             </div>
-            """,
-            unsafe_allow_html=True,
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    card_columns = st.columns(3)
+    for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
+        benchmark = benchmark_snapshots.get(
+            symbol,
+            {
+                "label_key": label_key,
+                "latest": None,
+                "delta": None,
+                "pct": None,
+                "trend": [],
+                "trend_window": 0,
+                "range_key": selected_range_key,
+                "has_data": False,
+                "start_at": None,
+                "end_at": None,
+            },
         )
-        card_columns = st.columns(3)
-        for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
-            benchmark = benchmark_snapshots.get(
-                symbol,
-                {
-                    "label_key": label_key,
-                    "latest": None,
-                    "delta": None,
-                    "pct": None,
-                    "trend": [],
-                    "trend_window": 0,
-                    "range_key": selected_range_key,
-                    "has_data": False,
-                    "start_at": None,
-                    "end_at": None,
-                },
-            )
-            positive = float(benchmark["delta"] or 0) >= 0
-            change_color = "#16a34a" if positive else "#ef4444"
-            delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
-            with column:
-                if benchmark.get("has_data"):
-                    st.markdown(
-                        f"""
-                        <div class="benchmark-card">
-                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
-                            <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
-                            <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
-                    st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
-                    start_at = str(benchmark.get("start_at") or "")
-                    end_at = str(benchmark.get("end_at") or "")
-                    if start_at and end_at:
-                        st.caption(f"{start_at} -> {end_at}")
-                else:
-                    st.markdown(
-                        f"""
-                        <div class="benchmark-card">
-                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
-                            <div class="benchmark-price">N/A</div>
-                            <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-    with hero_right:
-        now_label = datetime.now().strftime("%m/%d %H:%M")
-        summary_text = _market_bias_copy(summary) if summary else t("no_data")
-        summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else ""
-        st.markdown(f'<div class="hero-time">{now_label} ({selected_market})</div>', unsafe_allow_html=True)
-        st.markdown(
-            f"""
-            <div class="hero-side">
-                <div class="hero-side-title">{t("analysis_summary")}</div>
-                <div class="hero-side-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score}</div>
-                <div class="hero-side-copy">{summary_text}</div>
+        positive = float(benchmark["delta"] or 0) >= 0
+        change_color = "#16a34a" if positive else "#ef4444"
+        delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
+        with column:
+            if benchmark.get("has_data"):
+                st.markdown(
+                    f"""
+                    <div class="benchmark-card">
+                        <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                        <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
+                        <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+                st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
+                start_at = str(benchmark.get("start_at") or "")
+                end_at = str(benchmark.get("end_at") or "")
+                if start_at and end_at:
+                    st.caption(f"{start_at} -> {end_at}")
+            else:
+                st.markdown(
+                    f"""
+                    <div class="benchmark-card">
+                        <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
+                        <div class="benchmark-price">N/A</div>
+                        <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown(
+        f"""
+        <div class="hero-summary-band">
+            <div class="hero-summary-card main">
+                <div class="hero-summary-title">{t("analysis_summary")}</div>
+                <div class="hero-summary-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score}</div>
+                <div class="hero-summary-copy">{summary_text}</div>
+                <div class="hero-summary-copy" style="margin-top:10px;">
+                    {t("latest_analysis_date")}: {summary_date}<br/>
+                    {t("breadth")}: {summary_breadth}
+                </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if summary_date:
-            _render_data_caption(f'{t("latest_analysis_date")}: {summary_date}')
+            <div class="hero-summary-card">
+                <div class="hero-summary-kpi-label">{t("overall_trend")}</div>
+                <div class="hero-summary-kpi-value">{localize_value(overview.overall_trend)}</div>
+            </div>
+            <div class="hero-summary-card">
+                <div class="hero-summary-kpi-label">{t("candidates")}</div>
+                <div class="hero-summary-kpi-value">{summary_candidates}</div>
+            </div>
+            <div class="hero-summary-card">
+                <div class="hero-summary-kpi-label">{t("actionable")}</div>
+                <div class="hero-summary-kpi-value">{summary_actionable}</div>
+            </div>
+            <div class="hero-summary-card">
+                <div class="hero-summary-kpi-label">{t("safer")}</div>
+                <div class="hero-summary-kpi-value">{summary_safer}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_session_briefs() -> None:
@@ -3406,6 +3443,18 @@ def render_market_state() -> None:
     us_summary = summary_service.build_market_summary("us")
     vix_zone, vix_copy = describe_vix(vix_value)
     fear_greed_label, fear_greed_copy, _ = describe_fear_greed(overview.fear_greed_score)
+    fear_greed_source = getattr(overview, "fear_greed_source", "CNN Fear & Greed Index")
+    fear_greed_updated_at = getattr(overview, "fear_greed_updated_at", "")
+
+    def _format_detail_time(value: str) -> str:
+        if not value:
+            return "—"
+        try:
+            parsed = pd.to_datetime(value)
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return value
+
     st.markdown(f'<div class="section-label">{t("market_state")}</div>', unsafe_allow_html=True)
     freshness_bits = [f'{t("page_rendered_at")}: {render_time}', t("intraday_source_note")]
     for summary in (tw_summary, us_summary):
@@ -3414,33 +3463,56 @@ def render_market_state() -> None:
     _render_data_caption(*freshness_bits)
     momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
     macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
-    caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items)
-    gauge_left, gauge_right = st.columns(2)
-    with gauge_left:
-        st.markdown(f'<div class="section-label">{t("fear_greed_gauge")}</div>', unsafe_allow_html=True)
+    caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items) or f"<li>{t('no_data')}</li>"
+    left_card, right_card = st.columns(2)
+    with left_card:
+        st.markdown(
+            f"""
+            <div class="state-card">
+                <div class="state-card-head">
+                    <div class="state-card-title">{t("fear_greed")}</div>
+                    <div class="state-card-meta">
+                        {"來源" if LANG == "zh-TW" else "Source"}: {fear_greed_source}<br/>
+                        {"更新時間" if LANG == "zh-TW" else "Updated"}: {_format_detail_time(fear_greed_updated_at)}
+                    </div>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
-    with gauge_right:
-        st.markdown(f'<div class="section-label">{t("vix_meaning")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
-    read_left, read_right = st.columns(2)
-    with read_left:
         st.markdown(
             f"""
             <div class="state-read">
-                <div class="state-read-title">{t("vix_zone")}</div>
-                <div class="state-read-main">{vix_zone}</div>
-                <div class="state-read-copy">{vix_copy}</div>
+                <div class="state-read-title">{'情緒解讀' if LANG == 'zh-TW' else 'Sentiment Read'}</div>
+                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
+                <div class="state-read-copy">{fear_greed_copy}</div>
+            </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-    with read_right:
+    with right_card:
+        st.markdown(
+            f"""
+            <div class="state-card">
+                <div class="state-card-head">
+                    <div class="state-card-title">VIX</div>
+                    <div class="state-card-meta">
+                        {"來源" if LANG == "zh-TW" else "Source"}: CBOE / Yahoo Finance<br/>
+                        {"抓取時間" if LANG == "zh-TW" else "Fetched"}: {render_time}
+                    </div>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
         st.markdown(
             f"""
             <div class="state-read">
-                <div class="state-read-title">{t("market_read")}</div>
-                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
-                <div class="state-read-copy">{fear_greed_copy}</div>
+                <div class="state-read-title">{'VIX 解讀' if LANG == 'zh-TW' else 'VIX Read'}</div>
+                <div class="state-read-main">{vix_zone}</div>
+                <div class="state-read-copy">{vix_copy}</div>
+            </div>
             </div>
             """,
             unsafe_allow_html=True,
