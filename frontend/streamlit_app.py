@@ -1281,6 +1281,8 @@ def inject_styles() -> None:
         .decision-pill { display:inline-block; border: 1px solid rgba(95,105,119,.18); border-radius:999px; padding: 2px 8px; font-size:0.74rem; margin-right:6px; margin-bottom:6px; }
         .decision-label { font-size: 0.75rem; font-weight: 700; color: #647080; margin: 8px 0 4px; text-transform: uppercase; }
         .decision-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
+        button[data-baseweb="tab"] { border-radius: 999px !important; padding: 0.35rem 0.9rem !important; font-weight: 700 !important; color: #475467 !important; }
+        button[data-baseweb="tab"][aria-selected="true"] { background: #101828 !important; color: #ffffff !important; }
         div[data-testid="stMetric"] { background:#f7f9fc; border:1px solid rgba(118,128,145,.18); border-radius:8px; padding:10px 12px; }
         div[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
         @media (max-width: 1200px) {
@@ -4501,14 +4503,24 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     m3.metric(t("open_pnl"), f"{snapshot.total_open_pnl:.2f}%")
     m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
     render_run_controls()
-    render_market_state()
-    render_session_briefs()
-    render_visual_scan(candidate_frame, snapshot, overview)
-    render_market_overview()
-    render_rank_boards()
-    render_manual_tracking(candidate_frame)
-    render_focus_lists(candidate_frame)
-    render_decision_cards(candidate_frame)
+    overview_tab, scan_tab, names_tab = st.tabs(
+        [
+            "市場總覽" if LANG == "zh-TW" else "Market Overview",
+            "視覺掃盤" if LANG == "zh-TW" else "Visual Scan",
+            "名單與決策" if LANG == "zh-TW" else "Lists & Decisions",
+        ]
+    )
+    with overview_tab:
+        render_market_state()
+        render_session_briefs()
+        render_market_overview()
+    with scan_tab:
+        render_visual_scan(candidate_frame, snapshot, overview)
+        render_rank_boards()
+    with names_tab:
+        render_manual_tracking(candidate_frame)
+        render_focus_lists(candidate_frame)
+        render_decision_cards(candidate_frame)
     left, right = st.columns((1.55, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("portfolio_curve")}</div>', unsafe_allow_html=True)
