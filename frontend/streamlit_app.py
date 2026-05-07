@@ -3864,7 +3864,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -3886,6 +3886,24 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
             y_min=0,
             y_max=100,
         )
+    if t("score") in table.columns:
+        chart_config[t("score")] = st.column_config.NumberColumn(
+            t("score"),
+            format="%.2f",
+            width="small",
+        )
+    streak_label = "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak"
+    if streak_label in table.columns:
+        chart_config[streak_label] = st.column_config.NumberColumn(
+            streak_label,
+            format="%d",
+            width="small",
+        )
+    if t("suggested_action") in table.columns:
+        chart_config[t("suggested_action")] = st.column_config.TextColumn(
+            t("suggested_action"),
+            width="large",
+        )
     st.dataframe(
         table,
         use_container_width=True,
@@ -3902,6 +3920,35 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
     latest_date = candidate_frame["date"].max()
     _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
     latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
+    core_count = int((latest["universe_bucket"] == "core").sum()) if "universe_bucket" in latest.columns else 0
+    explore_count = int((latest["universe_bucket"] == "explore").sum()) if "universe_bucket" in latest.columns else 0
+    risk_count = int((latest["event_risk_note"] != "clear").sum()) if "event_risk_note" in latest.columns else 0
+    core_label = f'{t("core_tab")} ({core_count})'
+    explore_label = f'{t("explore_tab")} ({explore_count})'
+    risk_label = f'{t("risk_tab")} ({risk_count})'
+    core_tab, explore_tab, risk_tab = st.tabs([core_label, explore_label, risk_label])
+    with core_tab:
+        render_terminal_table(
+            latest[latest["universe_bucket"] == "core"]
+            .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+        )
+    with explore_tab:
+        render_terminal_table(
+            latest[latest["universe_bucket"] == "explore"]
+            .sort_values(by=["composite_signal_score"], ascending=[False])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+        )
+    with risk_tab:
+        render_terminal_table(
+            latest[latest["event_risk_note"] != "clear"]
+            .sort_values(by=["composite_signal_score"], ascending=[True])
+            .head(12),
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+        )
+
     core_tab, explore_tab, risk_tab = st.tabs([t("core_tab"), t("explore_tab"), t("risk_tab")])
     with core_tab:
         render_terminal_table(
