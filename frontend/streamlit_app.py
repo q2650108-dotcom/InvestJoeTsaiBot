@@ -3463,62 +3463,45 @@ def render_market_state() -> None:
         if summary is not None:
             freshness_bits.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
     _render_data_caption(*freshness_bits)
-    momentum_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.momentum_zones) or f"<li>{t('no_data')}</li>"
-    macro_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.upcoming_macro_events) or f"<li>{t('no_data')}</li>"
-    caution_items = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in overview.caution_items) or f"<li>{t('no_data')}</li>"
+
     left_card, right_card = st.columns(2)
     with left_card:
-        st.markdown(
-            f"""
-            <div class="state-card">
-                <div class="state-card-head">
-                    <div class="state-card-title">{t("fear_greed")}</div>
-                    <div class="state-card-meta">
-                        {"來源" if LANG == "zh-TW" else "Source"}: {fear_greed_source}<br/>
-                        {"更新時間" if LANG == "zh-TW" else "Updated"}: {_format_detail_time(fear_greed_updated_at)}
-                    </div>
+        with st.container(border=True):
+            st.markdown(f"**{t('fear_greed')}**")
+            _render_data_caption(
+                f"{'來源' if LANG == 'zh-TW' else 'Source'}: {fear_greed_source}",
+                f"{'更新時間' if LANG == 'zh-TW' else 'Updated'}: {_format_detail_time(fear_greed_updated_at)}",
+            )
+            st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
+            st.markdown(
+                f"""
+                <div class="state-read">
+                    <div class="state-read-title">{'情緒解讀' if LANG == 'zh-TW' else 'Sentiment Read'}</div>
+                    <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
+                    <div class="state-read-copy">{fear_greed_copy}</div>
                 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
-        st.markdown(
-            f"""
-            <div class="state-read">
-                <div class="state-read-title">{'情緒解讀' if LANG == 'zh-TW' else 'Sentiment Read'}</div>
-                <div class="state-read-main">{fear_greed_label} / {localize_value(overview.sentiment_label)}</div>
-                <div class="state-read-copy">{fear_greed_copy}</div>
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
     with right_card:
-        st.markdown(
-            f"""
-            <div class="state-card">
-                <div class="state-card-head">
-                    <div class="state-card-title">VIX</div>
-                    <div class="state-card-meta">
-                        {"來源" if LANG == "zh-TW" else "Source"}: CBOE / Yahoo Finance<br/>
-                        {"抓取時間" if LANG == "zh-TW" else "Fetched"}: {render_time}
-                    </div>
+        with st.container(border=True):
+            st.markdown("**VIX**")
+            _render_data_caption(
+                "來源: CBOE / Yahoo Finance" if LANG == "zh-TW" else "Source: CBOE / Yahoo Finance",
+                f"{'抓取時間' if LANG == 'zh-TW' else 'Fetched'}: {render_time}",
+            )
+            st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
+            st.markdown(
+                f"""
+                <div class="state-read">
+                    <div class="state-read-title">{'VIX 解讀' if LANG == 'zh-TW' else 'VIX Read'}</div>
+                    <div class="state-read-main">{vix_zone}</div>
+                    <div class="state-read-copy">{vix_copy}</div>
                 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
-        st.markdown(
-            f"""
-            <div class="state-read">
-                <div class="state-read-title">{'VIX 解讀' if LANG == 'zh-TW' else 'VIX Read'}</div>
-                <div class="state-read-main">{vix_zone}</div>
-                <div class="state-read-copy">{vix_copy}</div>
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
+
     st.markdown(
         f"""
         <div class="terminal-card">
@@ -3533,23 +3516,36 @@ def render_market_state() -> None:
                 </div>
                 <div class="state-metric">
                     <div class="state-label">{t("fear_greed")}</div>
-                    <div class="state-value">{overview.fear_greed_score}/100</div>
+                    <div class="state-value">{overview.fear_greed_score:.0f}/100</div>
                 </div>
                 <div class="state-metric">
                     <div class="state-label">{t("breadth")}</div>
                     <div class="state-value">{overview.breadth_snapshot:.2f}</div>
                 </div>
             </div>
-            <div class="decision-label">{t("momentum_zones")}</div>
-            <ul class="mini-list">{momentum_items}</ul>
-            <div class="decision-label">{t("macro_calendar")}</div>
-            <ul class="mini-list">{macro_items}</ul>
-            <div class="decision-label">{t("cautions")}</div>
-            <ul class="mini-list">{caution_items}</ul>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    details_left, details_right = st.columns((1.2, 1))
+    with details_left:
+        st.markdown(f'<div class="section-label">{t("momentum_zones")}</div>', unsafe_allow_html=True)
+        if overview.momentum_zones:
+            st.markdown("\n".join(f'- {maybe_translate_text(item)}' for item in overview.momentum_zones))
+        else:
+            st.info(t("no_data"))
+        st.markdown(f'<div class="section-label">{t("macro_calendar")}</div>', unsafe_allow_html=True)
+        if overview.upcoming_macro_events:
+            st.markdown("\n".join(f'- {maybe_translate_text(item)}' for item in overview.upcoming_macro_events[:6]))
+        else:
+            st.info(t("no_data"))
+    with details_right:
+        st.markdown(f'<div class="section-label">{t("caution_flags")}</div>', unsafe_allow_html=True)
+        if overview.caution_items:
+            st.markdown("\n".join(f'- {maybe_translate_text(item)}' for item in overview.caution_items))
+        else:
+            st.info("目前沒有明顯的市場級風險提醒。" if LANG == "zh-TW" else "No major market-wide warnings are active right now.")
 
 
 def render_summary_band(label: str, summary: Any) -> None:
@@ -3600,83 +3596,92 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
     summary = summary_service.build_market_summary(market_key)
     benchmark_pairs = BENCHMARK_SETS[market_key]
     benchmark_snapshots = load_benchmark_snapshots(benchmark_pairs, selected_range_key)
-    hero_left, hero_right = st.columns((3.2, 1.15))
-    with hero_left:
-        st.markdown(
-            f"""
-            <div class="hero-shell">
-                <div class="hero-title">{selected_market}</div>
-                <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
+    now_label = datetime.now().strftime("%m/%d %H:%M")
+    summary_text = _market_bias_copy(summary) if summary else t("no_data")
+    summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else "—"
+    summary_breadth = f"{float(summary.average_breadth):.2f}" if summary is not None else "—"
+    summary_candidates = str(int(getattr(summary, "candidate_count", 0))) if summary is not None else "—"
+    summary_actionable = str(int(getattr(summary, "actionable_count", 0))) if summary is not None else "—"
+    summary_safer = str(int(getattr(summary, "safer_count", 0))) if summary is not None else "—"
+
+    st.markdown(
+        f"""
+        <div class="hero-shell">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;">
+                <div>
+                    <div class="hero-title">{selected_market}</div>
+                    <div class="hero-sub">{t("market_terminal")} | {localize_value(overview.overall_trend)}</div>
+                </div>
+                <div class="hero-time">{now_label} ({selected_market})</div>
             </div>
-            """,
-            unsafe_allow_html=True,
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    card_columns = st.columns(3)
+    for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
+        benchmark = benchmark_snapshots.get(
+            symbol,
+            {
+                "label_key": label_key,
+                "latest": None,
+                "delta": None,
+                "pct": None,
+                "trend": [],
+                "trend_window": 0,
+                "range_key": selected_range_key,
+                "has_data": False,
+                "start_at": None,
+                "end_at": None,
+            },
         )
-        card_columns = st.columns(3)
-        for column, (symbol, label_key) in zip(card_columns, benchmark_pairs):
-            benchmark = benchmark_snapshots.get(
-                symbol,
-                {
-                    "label_key": label_key,
-                    "latest": None,
-                    "delta": None,
-                    "pct": None,
-                    "trend": [],
-                    "trend_window": 0,
-                    "range_key": selected_range_key,
-                    "has_data": False,
-                    "start_at": None,
-                    "end_at": None,
-                },
-            )
-            positive = float(benchmark["delta"] or 0) >= 0
-            change_color = "#16a34a" if positive else "#ef4444"
-            delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
-            with column:
-                if benchmark.get("has_data"):
-                    st.markdown(
-                        f"""
-                        <div class="benchmark-card">
-                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
-                            <div class="benchmark-price">{float(benchmark["latest"]):,.2f}</div>
-                            <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark["delta"]):.2f}  {delta_prefix}{float(benchmark["pct"]):.2f}%</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
-                    st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
-                    start_at = str(benchmark.get("start_at") or "")
-                    end_at = str(benchmark.get("end_at") or "")
-                    if start_at and end_at:
-                        st.caption(f"{start_at} -> {end_at}")
-                else:
-                    st.markdown(
-                        f"""
-                        <div class="benchmark-card">
-                            <div class="benchmark-name">{t(str(benchmark["label_key"]))}</div>
-                            <div class="benchmark-price">N/A</div>
-                            <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-    with hero_right:
-        now_label = datetime.now().strftime("%m/%d %H:%M")
-        summary_text = _market_bias_copy(summary) if summary else t("no_data")
-        summary_date = _format_snapshot_date(getattr(summary, "summary_date", "")) if summary else ""
-        st.markdown(f'<div class="hero-time">{now_label} ({selected_market})</div>', unsafe_allow_html=True)
-        st.markdown(
-            f"""
-            <div class="hero-side">
-                <div class="hero-side-title">{t("analysis_summary")}</div>
-                <div class="hero-side-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score}</div>
-                <div class="hero-side-copy">{summary_text}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if summary_date:
+        positive = float(benchmark["delta"] or 0) >= 0
+        change_color = "#16a34a" if positive else "#ef4444"
+        delta_prefix = "+" if float(benchmark["delta"] or 0) >= 0 else ""
+        with column:
+            if benchmark.get("has_data"):
+                st.markdown(
+                    f"""
+                    <div class="benchmark-card">
+                        <div class="benchmark-name">{t(str(benchmark['label_key']))}</div>
+                        <div class="benchmark-price">{float(benchmark['latest']):,.2f}</div>
+                        <div class="benchmark-change" style="color:{change_color};">{delta_prefix}{float(benchmark['delta']):.2f}  {delta_prefix}{float(benchmark['pct']):.2f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+                st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
+                start_at = str(benchmark.get("start_at") or "")
+                end_at = str(benchmark.get("end_at") or "")
+                if start_at and end_at:
+                    st.caption(f"{start_at} -> {end_at}")
+            else:
+                st.markdown(
+                    f"""
+                    <div class="benchmark-card">
+                        <div class="benchmark-name">{t(str(benchmark['label_key']))}</div>
+                        <div class="benchmark-price">N/A</div>
+                        <div class="benchmark-change" style="color:#94a3b8;">{t("benchmark_no_data")}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    with st.container(border=True):
+        left, right = st.columns((1.35, 1))
+        with left:
+            st.markdown(f'<div class="summary-title">{t("analysis_summary")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="summary-main">{localize_value(overview.sentiment_label)} / {overview.fear_greed_score:.0f}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="summary-sub">{summary_text}</div>', unsafe_allow_html=True)
             _render_data_caption(f'{t("latest_analysis_date")}: {summary_date}')
+        with right:
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric(t("breadth"), summary_breadth)
+            k2.metric("候選" if LANG == "zh-TW" else "Candidates", summary_candidates)
+            k3.metric(t("actionable"), summary_actionable)
+            k4.metric("相對安全延續" if LANG == "zh-TW" else "Safer", summary_safer)
 
 
 def render_session_briefs() -> None:
@@ -4322,18 +4327,21 @@ def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
     name_zh = str(profile.get("name_zh", "")).strip()
     name_en = str(profile.get("name_en", "")).strip()
     sector = str(profile.get("sector", "")).strip()
+    fallback_sector = "未知" if LANG == "zh-TW" else "Unknown"
     if market_type == "tw":
-        return name_zh or name_en or ticker, sector or "未知"
-    if LANG == "zh-TW" and name_zh:
-        return (f"{name_en}（{name_zh}）" if name_en else name_zh, sector or "未知")
-    return name_en or ticker, sector or ("未知" if LANG == "zh-TW" else "Unknown")
+        return name_zh or name_en or ticker, sector or fallback_sector
+    if LANG == "zh-TW":
+        if name_en and name_zh:
+            return f"{name_en} / {name_zh}", sector or fallback_sector
+        return name_zh or name_en or ticker, sector or fallback_sector
+    return name_en or name_zh or ticker, sector or fallback_sector
 
 
 def _signal_tone(score: float) -> tuple[str, str]:
     if score >= 75:
-        return ("#2fbf71", "偏多順風" if LANG == "zh-TW" else "Risk-on")
+        return ("#2fbf71", "偏多" if LANG == "zh-TW" else "Risk-on")
     if score >= 60:
-        return ("#8bd36c", "結構健康" if LANG == "zh-TW" else "Constructive")
+        return ("#8bd36c", "建設性" if LANG == "zh-TW" else "Constructive")
     if score >= 45:
         return ("#f6c84c", "中性" if LANG == "zh-TW" else "Neutral")
     if score >= 30:
@@ -4356,10 +4364,10 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     if latest_date:
         _render_data_caption(f'{t("snapshot_as_of")}: {latest_date}')
     lights = [
-        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "\u770b\u6574\u9ad4\u5e02\u5834\u9806\u4e0d\u9806\u98a8" if LANG == "zh-TW" else "Macro tape"),
-        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "\u5206\u6578\u8d8a\u9ad8\u4ee3\u8868\u5e02\u5834\u8d8a\u6562\u5192\u96aa" if LANG == "zh-TW" else "Higher means more risk appetite"),
-        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "\u8d8a\u9ad8\u4ee3\u8868\u4e0a\u6f32\u53c3\u8207\u9762\u8d8a\u5ee3" if LANG == "zh-TW" else "Higher breadth means broader participation"),
-        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX \u8d8a\u4f4e\u901a\u5e38\u8d8a\u597d\u505a\u9806\u52e2" if LANG == "zh-TW" else "Lower VIX is usually easier"),
+        (t("overall_trend"), localize_value(overview.overall_trend), *(_signal_tone(float(overview.fear_greed_score))), "看整體市場是否順風" if LANG == "zh-TW" else "Macro tape"),
+        (t("fear_greed"), f"{overview.fear_greed_score}/100", *(_signal_tone(float(overview.fear_greed_score))), "分數越高代表越敢冒險" if LANG == "zh-TW" else "Higher means more risk appetite"),
+        (t("breadth"), f"{overview.breadth_snapshot:.0f}/100", *(_signal_tone(float(overview.breadth_snapshot))), "越高代表上漲參與面越廣" if LANG == "zh-TW" else "Higher breadth means broader participation"),
+        ("VIX", f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", *(_signal_tone(_vix_comfort_score(snapshot.vix))), "VIX 越低通常越適合順勢" if LANG == "zh-TW" else "Lower VIX is usually easier"),
     ]
     light_columns = st.columns(4)
     for column, (name, value, color, tone, copy) in zip(light_columns, lights):
@@ -4425,7 +4433,7 @@ def render_rank_boards() -> None:
             if risk_rows:
                 _render_rank_items(risk_rows, meta_mode="risk")
             else:
-                st.info("目前沒有與領先名單不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
+                st.info("目前沒有與領先名單明顯不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -4463,76 +4471,81 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         chart_config[t("trend_mini")] = st.column_config.LineChartColumn(t("trend_mini"), width="medium", y_min=-12, y_max=12)
     if t("score_trend") in table.columns:
         chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
+    if t("score") in table.columns:
+        chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
+    streak_label = "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak"
+    if streak_label in table.columns:
+        chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
+    if t("suggested_action") in table.columns:
+        chart_config[t("suggested_action")] = st.column_config.TextColumn(t("suggested_action"), width="large")
     st.dataframe(table, use_container_width=True, hide_index=True, column_config=chart_config or None)
 
 
 def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption(f'{t("decision_score_label")}：{t("decision_score_help")}')
+    st.caption("80 分以上偏積極，70-79 分偏試單，60-69 分先觀察，低於 60 分先避開。" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
     latest_date = candidate_frame["date"].max()
     _render_data_caption(f'{t("snapshot_as_of")}: {_format_snapshot_date(latest_date)}')
-    latest = candidate_frame[candidate_frame["date"] == latest_date].sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False]).head(8)
-    for _, row in latest.iterrows():
+    latest = (
+        candidate_frame[candidate_frame["date"] == latest_date]
+        .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+        .head(8)
+    )
+    verdicts = [_decision_verdict(row)[0] for _, row in latest.iterrows()]
+    summary_cols = st.columns(4)
+    labels = [t("verdict_buy"), t("verdict_probe"), t("verdict_wait"), t("verdict_avoid")]
+    for column, label in zip(summary_cols, labels):
+        column.metric(label, verdicts.count(label))
+    for idx, (_, row) in enumerate(latest.iterrows()):
         company_name, sector_name = _display_name_for_row(row)
         verdict_label, verdict_color = _decision_verdict(row)
-        rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
-        risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
-        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
+        score = float(row.get("composite_signal_score", 0) or 0)
         level = maybe_translate_text(str(row.get("recommendation_level", "")))
+        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
         win_label = maybe_translate_text(str(row.get("win_rate_label", "")))
         risk_label = maybe_translate_text(str(row.get("risk_level", "")))
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
-        forward_score = float(row.get("forward_score", 0))
-        forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
-        verdict_copy = ""
-        if LANG == "zh-TW":
-            verdict_copy = {
-                t("verdict_buy"): "偏向可買，可用正常部位或分批布局。",
-                t("verdict_probe"): "可以先小部位試單，等確認延續再加碼。",
-                t("verdict_wait"): "條件還沒齊，先等更明確。",
-                t("verdict_avoid"): "目前勝率或風報比不划算。",
-            }.get(verdict_label, "")
-        st.markdown(
-            f"""
-            <div class="decision-card">
-                <div class="decision-head">
-                    <div>
-                        <div class="decision-ticker">{row["ticker"]}</div>
-                        <div class="decision-meta">
-                            {company_name} | {t("sector")} {sector_name} <br/>
-                            {t("signal_type")} {localize_value(row.get("signal_type", ""))} |
-                            {localize_value(row.get("universe_bucket", "core"))} |
-                            {localize_value(row.get("recommendation_bucket", "Watchlist"))}
-                        </div>
-                    </div>
-                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
-                </div>
-                <div class="decision-meta" style="margin-bottom:8px;">
-                    {t("decision_verdict")}：
-                    <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
-                    {verdict_copy}
-                </div>
-                <span class="decision-pill">{level}</span>
-                <span class="decision-pill">{t("win_label")}: {win_label}</span>
-                <span class="decision-pill">{t("risk_label")}: {risk_label}</span>
-                <span class="decision-pill">{t("reward_risk")}: {reward_risk}</span>
-                <span class="decision-pill">{t("forward_score")}: {forward_score:.2f}</span>
-                <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
-                <div class="decision-label">{t("suggested_action")}</div>
-                <div>{suggestion}</div>
-                <div class="decision-label">{t("forward_notes")}</div>
-                <ul class="decision-list">{forward_notes}</ul>
-                <div class="decision-label">{t("rationale")}</div>
-                <ul class="decision-list">{rationale}</ul>
-                <div class="decision-label">{t("risks")}</div>
-                <ul class="decision-list">{risks}</ul>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        forward_score = float(row.get("forward_score", 0) or 0)
+        risk_note = localize_value(row.get("event_risk_note", "clear"))
+        rationale_items = [maybe_translate_text(item) for item in row.get("rationale", []) if item]
+        forward_items = [maybe_translate_text(item) for item in row.get("forward_notes", []) if item]
+        risk_items = [maybe_translate_text(item) for item in row.get("risks", []) if item]
+        title = f'{row["ticker"]} | {company_name} | {verdict_label} | {score:.1f}'
+        with st.expander(title, expanded=(idx == 0)):
+            top_left, top_right = st.columns((1.2, 1))
+            with top_left:
+                st.markdown(f'**{company_name}**')
+                bucket_label = localize_value(row.get("recommendation_bucket", "Watchlist"))
+                signal_label = localize_value(row.get("signal_type", ""))
+                universe_label = localize_value(row.get("universe_bucket", "core"))
+                st.caption(f'{t("sector")} {sector_name} | {t("signal_type")} {signal_label} | {universe_label} | {bucket_label}')
+            with top_right:
+                st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
+                st.caption(f'{t("decision_score_label")}: {score:.2f}')
+            metric_cols = st.columns(5)
+            metric_cols[0].metric(level or ("結論" if LANG == "zh-TW" else "Verdict"), f'{score:.1f}')
+            metric_cols[1].metric(t("win_label"), win_label)
+            metric_cols[2].metric(t("risk_label"), risk_label)
+            metric_cols[3].metric(t("reward_risk"), reward_risk)
+            metric_cols[4].metric(t("forward_score"), f'{forward_score:.1f}')
+            st.markdown(f'**{t("suggested_action")}**')
+            st.write(suggestion or "-")
+            if risk_note:
+                st.caption(f'{t("event_risk")}: {risk_note}')
+            notes_left, notes_right = st.columns(2)
+            with notes_left:
+                st.markdown(f'**{t("rationale")}**')
+                st.markdown("\n".join(f'- {item}' for item in rationale_items) if rationale_items else '-')
+                st.markdown(f'**{t("forward_notes")}**')
+                st.markdown("\n".join(f'- {item}' for item in forward_items) if forward_items else '-')
+            with notes_right:
+                st.markdown(f'**{t("risks")}**')
+                st.markdown("\n".join(f'- {item}' for item in risk_items) if risk_items else '-')
+
+
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     snapshot = dashboard_service.build_snapshot()
     overview = overview_service.build()
@@ -4543,18 +4556,20 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     if latest_summary:
         render_analysis_summary(latest_summary)
     render_market_terminal_header(snapshot, overview)
-    m1, m2, m3, m4 = st.columns(4)
+
+    top_metrics = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
-    m1.metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)
-    m2.metric(t("sentiment"), localize_value(snapshot.market_sentiment), delta=describe_fear_greed(overview.fear_greed_score)[0])
-    m3.metric(t("open_pnl"), f"{snapshot.total_open_pnl:.2f}%")
-    m4.metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
+    top_metrics[0].metric(t("vix"), f"{snapshot.vix:.2f}" if snapshot.vix is not None else "N/A", delta=vix_zone if snapshot.vix is not None else None)
+    top_metrics[1].metric(t("sentiment"), localize_value(snapshot.market_sentiment), delta=describe_fear_greed(overview.fear_greed_score)[0])
+    top_metrics[2].metric(t("open_pnl"), f"{snapshot.total_open_pnl:.2f}%")
+    top_metrics[3].metric(t("win_rate"), f"{snapshot.win_rate:.2f}%")
+
     render_run_controls()
     overview_tab, scan_tab, names_tab = st.tabs(
         [
-            "\u5e02\u5834\u7e3d\u89bd" if LANG == "zh-TW" else "Market Overview",
-            "\u8996\u89ba\u6383\u76e4" if LANG == "zh-TW" else "Visual Scan",
-            "\u540d\u55ae\u8207\u6c7a\u7b56" if LANG == "zh-TW" else "Lists & Decisions",
+            "市場總覽" if LANG == "zh-TW" else "Market Overview",
+            "視覺掃盤" if LANG == "zh-TW" else "Visual Scan",
+            "名單與決策" if LANG == "zh-TW" else "Lists & Decisions",
         ]
     )
     with overview_tab:
@@ -4564,10 +4579,10 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     with scan_tab:
         scan_pulse_tab, scan_heat_tab, scan_dist_tab, scan_rank_tab = st.tabs(
             [
-                "\u5e02\u5834\u8108\u640f" if LANG == "zh-TW" else "Pulse",
-                "\u985e\u80a1\u71b1\u5340" if LANG == "zh-TW" else "Heatmap",
-                "\u5efa\u8b70\u5206\u4f48" if LANG == "zh-TW" else "Distribution",
-                "\u699c\u55ae" if LANG == "zh-TW" else "Boards",
+                "市場脈搏" if LANG == "zh-TW" else "Pulse",
+                "類股熱區" if LANG == "zh-TW" else "Heatmap",
+                "建議分佈" if LANG == "zh-TW" else "Distribution",
+                "榜單" if LANG == "zh-TW" else "Boards",
             ]
         )
         with scan_pulse_tab:
@@ -4583,7 +4598,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     with names_tab:
         manual_tab, focus_tab, decision_tab = st.tabs(
             [
-                "\u624b\u52d5\u8ffd\u8e64" if LANG == "zh-TW" else "Manual Tracking",
+                "手動追蹤" if LANG == "zh-TW" else "Manual Tracking",
                 t("focus_lists"),
                 t("decision_cards"),
             ]
@@ -4593,7 +4608,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         with focus_tab:
             render_focus_lists(candidate_frame)
         with decision_tab:
-            left, right = st.columns((1.08, 0.92))
+            left, right = st.columns((1.12, 0.88))
             with left:
                 render_decision_cards(candidate_frame)
             with right:
