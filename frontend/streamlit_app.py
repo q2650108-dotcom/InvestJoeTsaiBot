@@ -2066,13 +2066,13 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     left, middle, right = st.columns((1, 1.1, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_visual_market_pulse")
     with middle:
         st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_visual_sector_heatmap")
     with right:
         st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_visual_setup_distribution")
 
 
 def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> None:
@@ -3472,7 +3472,7 @@ def render_market_state() -> None:
                 f"{'來源' if LANG == 'zh-TW' else 'Source'}: {fear_greed_source}",
                 f"{'更新時間' if LANG == 'zh-TW' else 'Updated'}: {_format_detail_time(fear_greed_updated_at)}",
             )
-            st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(build_fear_greed_gauge(overview.fear_greed_score), use_container_width=True, config={"displayModeBar": False}, key="market_state_fear_greed_gauge")
             st.markdown(
                 f"""
                 <div class="state-read">
@@ -3490,7 +3490,7 @@ def render_market_state() -> None:
                 "來源: CBOE / Yahoo Finance" if LANG == "zh-TW" else "Source: CBOE / Yahoo Finance",
                 f"{'抓取時間' if LANG == 'zh-TW' else 'Fetched'}: {render_time}",
             )
-            st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(build_vix_gauge(vix_value), use_container_width=True, config={"displayModeBar": False}, key="market_state_vix_gauge")
             st.markdown(
                 f"""
                 <div class="state-read">
@@ -4589,10 +4589,10 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
             render_visual_scan(candidate_frame, snapshot, overview)
         with scan_heat_tab:
             st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
-            st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_sector_heatmap")
         with scan_dist_tab:
             st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
-            st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_setup_distribution")
         with scan_rank_tab:
             render_rank_boards()
     with names_tab:
