@@ -3541,7 +3541,7 @@ def render_market_state() -> None:
         else:
             st.info(t("no_data"))
     with details_right:
-        st.markdown(f'<div class="section-label">{t("caution_flags")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">{t("cautions")}</div>', unsafe_allow_html=True)
         if overview.caution_items:
             st.markdown("\n".join(f'- {maybe_translate_text(item)}' for item in overview.caution_items))
         else:
