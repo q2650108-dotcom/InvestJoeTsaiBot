@@ -3540,39 +3540,48 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
         ]
     ].rename(
         columns={
-            "ticker": "??" if LANG == "zh-TW" else "Ticker",
-            "company": "??" if LANG == "zh-TW" else "Company",
-            "sector": "??" if LANG == "zh-TW" else "Sector",
-            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
-            "stage_label": "????" if LANG == "zh-TW" else "Stage",
-            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
-            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
-            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
-            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
-            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
-            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
+            "ticker": "\u4ee3\u865f" if LANG == "zh-TW" else "Ticker",
+            "company": "\u516c\u53f8" if LANG == "zh-TW" else "Company",
+            "sector": "\u985e\u80a1" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "\u6c60\u5225" if LANG == "zh-TW" else "Pool",
+            "stage_label": "\u6f0f\u6597\u968e\u6bb5" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "\u89f8\u767c\u578b\u614b" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "\u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "\u76f8\u5c0d\u5f37\u5ea6" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "\u57fa\u672c\u9762\u5feb\u7167" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "\u672a\u5165\u9078\u539f\u56e0" if LANG == "zh-TW" else "Reason",
         }
     )
     display = display.fillna("")
+    display = display.reset_index(drop=True)
+    if display.columns.duplicated().any():
+        deduped: list[str] = []
+        counts: dict[str, int] = {}
+        for name in display.columns:
+            count = counts.get(name, 0)
+            deduped.append(name if count == 0 else f"{name}_{count + 1}")
+            counts[name] = count + 1
+        display.columns = deduped
     for column in display.columns:
         display[column] = display[column].map(lambda value: "" if value is None else str(value))
-    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-label">{"\u6f0f\u6597\u904e\u7a0b" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
     st.dataframe(display, use_container_width=True, hide_index=True)
     market_key = str(getattr(summary, "market_type", "") or "tw").lower()
     stage_picker = st.selectbox(
-        "???????????" if LANG == "zh-TW" else "Add from funnel trail",
+        "\u5f9e\u6f0f\u6597\u52a0\u5165\u7ba1\u7406\u6e05\u55ae" if LANG == "zh-TW" else "Add from funnel trail",
         options=[""] + frame["ticker"].astype(str).str.upper().drop_duplicates().tolist(),
-        format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+        format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
         key=f"funnel_manage_{market_key}",
     )
     stage_buttons = st.columns(4)
     for column, (action, label) in zip(
         stage_buttons,
         [
-            ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
-            ("watch", "???" if LANG == "zh-TW" else "Watch"),
-            ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
-            ("remove", "??" if LANG == "zh-TW" else "Remove"),
+            ("favorite", "\u52a0\u6700\u611b" if LANG == "zh-TW" else "Favorite"),
+            ("watch", "\u52a0\u89c0\u5bdf" if LANG == "zh-TW" else "Watch"),
+            ("exclude", "\u5254\u9664" if LANG == "zh-TW" else "Exclude"),
+            ("remove", "\u53d6\u6d88" if LANG == "zh-TW" else "Remove"),
         ],
     ):
         if column.button(label, key=f"funnel_manage_button_{market_key}_{action}", use_container_width=True, disabled=stage_picker == ""):
