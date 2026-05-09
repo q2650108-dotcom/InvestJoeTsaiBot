@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 import logging
 from typing import Callable
 
@@ -59,6 +59,28 @@ class AnalysisRunSummary:
     stage_counts: dict[str, int] = field(default_factory=dict)
     stage_rows: list[dict[str, object]] = field(default_factory=list)
     signals: list[MarketSignal] = field(default_factory=list)
+    trade_date: str = ""
+    run_at: str = ""
+
+
+def analysis_summary_from_record(record: dict[str, object]) -> AnalysisRunSummary:
+    return AnalysisRunSummary(
+        market_type=str(record.get("market_type", "")),
+        scanned_tickers=int(record.get("scanned_tickers", 0) or 0),
+        data_ready_tickers=int(record.get("data_ready_tickers", 0) or 0),
+        skipped_data_tickers=int(record.get("skipped_data_tickers", 0) or 0),
+        no_signal_tickers=int(record.get("no_signal_tickers", 0) or 0),
+        signal_count=int(record.get("signal_count", 0) or 0),
+        skipped_reason_counts=dict(record.get("skipped_reason_counts", {}) or {}),
+        no_signal_reason_counts=dict(record.get("no_signal_reason_counts", {}) or {}),
+        core_ticker_count=int(record.get("core_ticker_count", 0) or 0),
+        explore_ticker_count=int(record.get("explore_ticker_count", 0) or 0),
+        stage_counts=dict(record.get("stage_counts", {}) or {}),
+        stage_rows=list(record.get("stage_rows", []) or []),
+        signals=[],
+        trade_date=str(record.get("trade_date", "") or ""),
+        run_at=str(record.get("run_at", "") or ""),
+    )
 
 
 class AnalysisEngine:
@@ -157,7 +179,7 @@ class AnalysisEngine:
                 len(all_tickers),
                 "分析完成" if universe.market_type == "tw" else "Analysis complete",
             )
-        return AnalysisRunSummary(
+        summary = AnalysisRunSummary(
             market_type=universe.market_type,
             scanned_tickers=len(all_tickers),
             data_ready_tickers=len(enriched_frames),
@@ -171,7 +193,28 @@ class AnalysisEngine:
             stage_counts=self._build_stage_counts(stage_rows),
             stage_rows=stage_rows,
             signals=signals,
+            trade_date=trade_date.isoformat(),
+            run_at=datetime.now().isoformat(timespec="seconds"),
         )
+        self.repository.upsert_analysis_run(
+            {
+                "market_type": summary.market_type,
+                "trade_date": summary.trade_date,
+                "scanned_tickers": summary.scanned_tickers,
+                "data_ready_tickers": summary.data_ready_tickers,
+                "skipped_data_tickers": summary.skipped_data_tickers,
+                "no_signal_tickers": summary.no_signal_tickers,
+                "signal_count": summary.signal_count,
+                "skipped_reason_counts": summary.skipped_reason_counts,
+                "no_signal_reason_counts": summary.no_signal_reason_counts,
+                "core_ticker_count": summary.core_ticker_count,
+                "explore_ticker_count": summary.explore_ticker_count,
+                "stage_counts": summary.stage_counts,
+                "stage_rows": summary.stage_rows,
+                "run_at": summary.run_at,
+            }
+        )
+        return summary
 
     def _classify_skip_reason(self, exc: Exception) -> str:
         message = str(exc).lower()

@@ -31,7 +31,7 @@ hydrate_env_from_streamlit_secrets()
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
-from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary
+from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
 from investbot.services.dashboard_service import DashboardService
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.event_risk_service import EventRiskService
@@ -1509,6 +1509,16 @@ def run_market_analysis(
     return summary
 
 
+def load_persisted_analysis_summary(market_type: str) -> AnalysisRunSummary | None:
+    record = repo.fetch_latest_analysis_run(market_type)
+    if not record:
+        return None
+    try:
+        return analysis_summary_from_record(record)
+    except Exception:
+        return None
+
+
 def _set_analysis_feedback(kind: str, message: str) -> None:
     st.session_state["analysis_feedback"] = {"kind": kind, "message": message}
 
@@ -1548,7 +1558,7 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
     c4.metric("未入選" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
-    summary_at = str(st.session_state.get("analysis_summary_at") or "")
+    summary_at = str(getattr(summary, "run_at", "") or st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
@@ -4605,10 +4615,14 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     st.title(t("app_title"))
     st.caption(t("app_caption"))
     render_analysis_feedback()
+    selected_market_key = render_market_terminal_header(snapshot, overview)
     latest_summary = st.session_state.get("analysis_summary")
+    if latest_summary and getattr(latest_summary, "market_type", "") != selected_market_key:
+        latest_summary = None
+    if latest_summary is None:
+        latest_summary = load_persisted_analysis_summary(selected_market_key)
     if latest_summary:
         render_analysis_summary(latest_summary)
-    selected_market_key = render_market_terminal_header(snapshot, overview)
     market_candidate_frame = filter_candidate_frame_for_market(candidate_frame, selected_market_key)
 
     top_metrics = st.columns(4)

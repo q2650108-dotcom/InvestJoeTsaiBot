@@ -75,6 +75,28 @@ alter table daily_analysis
 create index if not exists idx_daily_analysis_ticker_date
     on daily_analysis (ticker, date desc);
 
+create table if not exists analysis_runs (
+    id uuid primary key default gen_random_uuid(),
+    market_type text not null check (market_type in ('tw', 'us')),
+    trade_date date not null,
+    scanned_tickers integer not null default 0,
+    data_ready_tickers integer not null default 0,
+    skipped_data_tickers integer not null default 0,
+    no_signal_tickers integer not null default 0,
+    signal_count integer not null default 0,
+    skipped_reason_counts jsonb not null default '{}'::jsonb,
+    no_signal_reason_counts jsonb not null default '{}'::jsonb,
+    core_ticker_count integer not null default 0,
+    explore_ticker_count integer not null default 0,
+    stage_counts jsonb not null default '{}'::jsonb,
+    stage_rows jsonb not null default '[]'::jsonb,
+    run_at timestamptz not null default now(),
+    unique (market_type, trade_date)
+);
+
+create index if not exists idx_analysis_runs_market_trade_date
+    on analysis_runs (market_type, trade_date desc);
+
 create table if not exists paper_trades (
     id uuid primary key default gen_random_uuid(),
     ticker text not null,

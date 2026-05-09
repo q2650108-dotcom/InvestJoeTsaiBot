@@ -81,6 +81,24 @@ class DailyAnalysisRepository:
         )
         return response.data or []
 
+    def upsert_analysis_run(self, payload: dict[str, Any]) -> None:
+        self.client.table("analysis_runs").upsert(
+            payload,
+            on_conflict="market_type,trade_date",
+        ).execute()
+
+    def fetch_latest_analysis_run(self, market_type: str) -> dict[str, Any] | None:
+        response = (
+            self.client.table("analysis_runs")
+            .select("*")
+            .eq("market_type", market_type)
+            .order("trade_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0] if rows else None
+
 
 class PaperTradeRepository:
     def __init__(self, client: Client | None = None) -> None:
