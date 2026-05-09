@@ -1609,6 +1609,12 @@ def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
     return frame
 
 
+def filter_candidate_frame_for_market(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
+    if candidate_frame.empty or "type" not in candidate_frame.columns:
+        return candidate_frame.copy()
+    return candidate_frame[candidate_frame["type"].astype(str).str.lower() == market_key].copy()
+
+
 def _parse_runtime_tickers(raw_value: object) -> list[str]:
     return [item.strip().upper() for item in str(raw_value or "").split(",") if item.strip()]
 
@@ -1859,7 +1865,7 @@ def render_market_overview() -> None:
         render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
-def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
+def render_market_terminal_header(snapshot: Any, overview: Any) -> str:
     selected_market = _render_segmented_control(
         t("dashboard_market_view"),
         [t("taiwan"), t("us")],
@@ -1931,7 +1937,12 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
                     """,
                     unsafe_allow_html=True,
                 )
-                st.plotly_chart(build_benchmark_chart(benchmark["trend"], positive), use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(
+                    build_benchmark_chart(benchmark["trend"], positive),
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                    key=f"benchmark_chart_{market_key}_{selected_range_key}_{benchmark['label_key']}",
+                )
                 st.caption(_benchmark_range_caption(str(benchmark.get("range_key", "1d")), int(benchmark.get("trend_window", 0) or 0)))
                 start_at = str(benchmark.get("start_at") or "")
                 end_at = str(benchmark.get("end_at") or "")
@@ -1981,6 +1992,7 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
         """,
         unsafe_allow_html=True,
     )
+    return market_key
 
 
 def render_session_briefs() -> None:
@@ -2106,12 +2118,17 @@ def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composit
         )
 
 
-def render_rank_boards() -> None:
-    tw_summary = summary_service.build_market_summary("tw")
-    us_summary = summary_service.build_market_summary("us")
+def render_rank_boards(market_key: str | None = None) -> None:
+    if market_key in {"tw", "us"}:
+        summaries = [summary_service.build_market_summary(market_key)]
+    else:
+        summaries = [
+            summary_service.build_market_summary("tw"),
+            summary_service.build_market_summary("us"),
+        ]
     leader_rows: list[dict[str, object]] = []
     risk_rows: list[dict[str, object]] = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is None:
             continue
         leader_rows.extend(summary.top_rows)
@@ -2124,7 +2141,7 @@ def render_rank_boards() -> None:
     )[:6]
     st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
     dates = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is not None:
             dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
     if dates:
@@ -3579,7 +3596,7 @@ def render_market_overview() -> None:
         render_summary_band(t("us"), summary_service.build_market_summary("us"))
 
 
-def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
+def render_market_terminal_header(snapshot: Any, overview: Any) -> str:
     selected_market = _render_segmented_control(
         t("dashboard_market_view"),
         [t("taiwan"), t("us")],
@@ -3683,6 +3700,8 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> None:
             k3.metric(t("actionable"), summary_actionable)
             k4.metric("相對安全延續" if LANG == "zh-TW" else "Safer", summary_safer)
 
+    return market_key
+
 
 def render_session_briefs() -> None:
     tw_summary = summary_service.build_market_summary("tw")
@@ -3767,13 +3786,28 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     left, middle, right = st.columns((1, 1.1, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_market_pulse_chart(snapshot, overview, candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_market_pulse_active",
+        )
     with middle:
         st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_sector_heatmap(candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_sector_heatmap_active",
+        )
     with right:
         st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_setup_distribution_chart(candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_setup_distribution_active",
+        )
 
 
 def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composite_signal_score", meta_mode: str = "leader") -> None:
@@ -3807,12 +3841,14 @@ def _render_rank_items(rows: list[dict[str, object]], score_key: str = "composit
         )
 
 
-def render_rank_boards() -> None:
-    tw_summary = summary_service.build_market_summary("tw")
-    us_summary = summary_service.build_market_summary("us")
+def render_rank_boards(market_key: str | None = None) -> None:
+    if market_key in {"tw", "us"}:
+        summaries = [summary_service.build_market_summary(market_key)]
+    else:
+        summaries = [summary_service.build_market_summary("tw"), summary_service.build_market_summary("us")]
     leader_rows: list[dict[str, object]] = []
     risk_rows: list[dict[str, object]] = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is None:
             continue
         leader_rows.extend(summary.top_rows)
@@ -3825,7 +3861,7 @@ def render_rank_boards() -> None:
     )[:6]
     st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
     dates = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is not None:
             dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
     if dates:
@@ -4397,12 +4433,14 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
         st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
 
 
-def render_rank_boards() -> None:
-    tw_summary = summary_service.build_market_summary("tw")
-    us_summary = summary_service.build_market_summary("us")
+def render_rank_boards(market_key: str | None = None) -> None:
+    if market_key in {"tw", "us"}:
+        summaries = [summary_service.build_market_summary(market_key)]
+    else:
+        summaries = [summary_service.build_market_summary("tw"), summary_service.build_market_summary("us")]
     leader_rows: list[dict[str, object]] = []
     risk_rows: list[dict[str, object]] = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is None:
             continue
         leader_rows.extend(summary.top_rows)
@@ -4415,7 +4453,7 @@ def render_rank_boards() -> None:
     )[:6]
     st.markdown(f'<div class="section-label">{t("rank_board")}</div>', unsafe_allow_html=True)
     dates = []
-    for summary in (tw_summary, us_summary):
+    for summary in summaries:
         if summary is not None:
             dates.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
     if dates:
@@ -4555,7 +4593,8 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     latest_summary = st.session_state.get("analysis_summary")
     if latest_summary:
         render_analysis_summary(latest_summary)
-    render_market_terminal_header(snapshot, overview)
+    selected_market_key = render_market_terminal_header(snapshot, overview)
+    market_candidate_frame = filter_candidate_frame_for_market(candidate_frame, selected_market_key)
 
     top_metrics = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
@@ -4586,15 +4625,15 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
             ]
         )
         with scan_pulse_tab:
-            render_visual_scan(candidate_frame, snapshot, overview)
+            render_visual_scan(market_candidate_frame, snapshot, overview)
         with scan_heat_tab:
             st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
-            st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_sector_heatmap")
+            st.plotly_chart(build_sector_heatmap(market_candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_sector_heatmap")
         with scan_dist_tab:
             st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
-            st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_setup_distribution")
+            st.plotly_chart(build_setup_distribution_chart(market_candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_setup_distribution")
         with scan_rank_tab:
-            render_rank_boards()
+            render_rank_boards(selected_market_key)
     with names_tab:
         manual_tab, focus_tab, decision_tab = st.tabs(
             [
@@ -4604,15 +4643,15 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
             ]
         )
         with manual_tab:
-            render_manual_tracking(candidate_frame)
+            render_manual_tracking(market_candidate_frame)
         with focus_tab:
-            render_focus_lists(candidate_frame)
+            render_focus_lists(market_candidate_frame)
         with decision_tab:
             left, right = st.columns((1.12, 0.88))
             with left:
-                render_decision_cards(candidate_frame)
+                render_decision_cards(market_candidate_frame)
             with right:
-                render_rank_boards()
+                render_rank_boards(selected_market_key)
 
     left, right = st.columns((1.55, 1))
     with left:
