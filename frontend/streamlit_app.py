@@ -1625,6 +1625,86 @@ def filter_candidate_frame_for_market(candidate_frame: pd.DataFrame, market_key:
     return candidate_frame[candidate_frame["type"].astype(str).str.lower() == market_key].copy()
 
 
+def _analysis_stage_to_bucket(stage: str) -> str:
+    normalized = str(stage or "").strip().lower()
+    if normalized == "actionable":
+        return "Actionable"
+    if normalized == "candidate":
+        return "Candidate"
+    if normalized == "watch":
+        return "Watchlist"
+    return "Watchlist"
+
+
+def load_market_display_frame(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
+    filtered = filter_candidate_frame_for_market(candidate_frame, market_key)
+    if not filtered.empty:
+        return filtered
+
+    record = repo.fetch_latest_analysis_run(market_key)
+    if not record:
+        return filtered
+
+    stage_rows = list(record.get("stage_rows", []) or [])
+    if not stage_rows:
+        return filtered
+
+    trade_date = str(record.get("trade_date", "") or "")
+    fallback_rows: list[dict[str, object]] = []
+    for row in stage_rows:
+        ticker = str(row.get("ticker", "") or "").upper()
+        if not ticker:
+            continue
+        stage = str(row.get("stage", "") or "")
+        reason = str(row.get("reason", "") or "")
+        fallback_rows.append(
+            {
+                "date": trade_date,
+                "ticker": ticker,
+                "type": market_key,
+                "signal_type": ",".join(str(item) for item in (row.get("triggers", []) or [])) or stage,
+                "universe_bucket": str(row.get("universe_bucket", "core") or "core"),
+                "institutional_buy_streak": int(row.get("institutional_buy_streak", 0) or 0),
+                "relative_strength_score": float(row.get("relative_strength_score", 0) or 0),
+                "composite_signal_score": float(row.get("composite_signal_score", 0) or 0),
+                "recommendation_bucket": _analysis_stage_to_bucket(stage),
+                "recommendation_level": stage,
+                "suggested_action": reason,
+                "event_risk_note": "clear",
+                "risk_level": "",
+                "reward_risk_label": "",
+                "win_rate_label": "",
+                "forward_score": 0.0,
+                "forward_notes": [],
+                "rationale": [reason] if reason else [],
+                "risks": [],
+                "next_event_date": None,
+                "entry_quality_score": 0.0,
+                "market_regime": "",
+            }
+        )
+    if not fallback_rows:
+        return filtered
+
+    fallback_frame = pd.DataFrame(decision_support.enrich_rows(fallback_rows))
+    defaults = {
+        "recommendation_bucket": "Watchlist",
+        "universe_bucket": "core",
+        "market_regime": "Unknown",
+        "event_risk_note": "clear",
+        "institutional_buy_streak": 0,
+        "composite_signal_score": 0.0,
+        "relative_strength_score": 0.0,
+        "entry_quality_score": 0.0,
+    }
+    for column, default in defaults.items():
+        if column not in fallback_frame.columns:
+            fallback_frame[column] = default
+        else:
+            fallback_frame[column] = fallback_frame[column].fillna(default)
+    return fallback_frame
+
+
 def _parse_runtime_tickers(raw_value: object) -> list[str]:
     return [item.strip().upper() for item in str(raw_value or "").split(",") if item.strip()]
 
@@ -3863,6 +3943,21 @@ def render_rank_boards(market_key: str | None = None) -> None:
             continue
         leader_rows.extend(summary.top_rows)
         risk_rows.extend(summary.risk_rows)
+    if not leader_rows and market_key in {"tw", "us"}:
+        fallback_frame = load_market_display_frame(pd.DataFrame(), market_key)
+        if not fallback_frame.empty:
+            latest = _latest_candidates(fallback_frame)
+            leader_rows = (
+                latest.sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+                .head(6)
+                .to_dict("records")
+            )
+            risk_rows = (
+                latest[latest["event_risk_note"] != "clear"]
+                .sort_values(by=["composite_signal_score"], ascending=[True])
+                .head(6)
+                .to_dict("records")
+            )
     leader_rows = sorted(leader_rows, key=lambda row: float(row.get("composite_signal_score", 0) or 0), reverse=True)[:6]
     leader_tickers = {str(row.get("ticker", "")) for row in leader_rows}
     risk_rows = sorted(
@@ -4623,7 +4718,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         latest_summary = load_persisted_analysis_summary(selected_market_key)
     if latest_summary:
         render_analysis_summary(latest_summary)
-    market_candidate_frame = filter_candidate_frame_for_market(candidate_frame, selected_market_key)
+    market_candidate_frame = load_market_display_frame(candidate_frame, selected_market_key)
 
     top_metrics = st.columns(4)
     vix_zone, _ = describe_vix(snapshot.vix)
