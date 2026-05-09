@@ -4329,8 +4329,10 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     )
 
 
-def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
+def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
     st.markdown(f'<div class="section-label">{t("focus_lists")}</div>', unsafe_allow_html=True)
+    candidate_frame = load_market_display_frame(candidate_frame, market_key)
+    candidate_frame = filter_candidate_frame_for_market(candidate_frame, market_key)
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
