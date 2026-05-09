@@ -1257,6 +1257,9 @@ def inject_styles() -> None:
         .light-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
         .light-value { font-size:1rem; font-weight:800; color:#243047; margin-bottom:4px; }
         .light-copy { font-size:0.82rem; color:#596474; line-height:1.35; }
+        .terminal-mini-card { border:1px solid rgba(118,128,145,.16); border-radius:8px; padding:10px 12px; background:#f8fafc; min-height:92px; }
+        .terminal-mini-label { font-size:0.72rem; color:#667085; font-weight:700; margin-bottom:6px; line-height:1.2; }
+        .terminal-mini-value { font-size:1.1rem; font-weight:800; color:#243047; line-height:1.2; word-break:break-word; }
         .mini-list { margin: 0; padding-left: 18px; color: #1f2937; font-size: 0.88rem; }
         .brief-card { border:1px solid rgba(118,128,145,.18); border-radius:8px; background:#f7f9fc; padding:12px 14px; min-height:132px; }
         .brief-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px; }
@@ -2590,7 +2593,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -2604,7 +2607,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
     if t("score") in table.columns:
         chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
-    streak_label = "??????" if LANG == "zh-TW" else "Institutional Buy Streak"
+    streak_label = "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak"
     if streak_label in table.columns:
         chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
     if t("suggested_action") in table.columns:
@@ -3634,34 +3637,34 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("???" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("\u6383\u63cf\u6578" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("\u6709\u8cc7\u6599" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("\u8cc7\u6599\u4e0d\u8db3" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("\u7121\u8a0a\u865f" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
     summary_at = str(getattr(summary, "run_at", "") or st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"??????? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
+            st.caption(f"\u9019\u6b21\u6383\u63cf\u6838\u5fc3\u6c60 {core_ticker_count} \u6a94\u3001\u89c0\u5bdf\u6c60 {explore_ticker_count} \u6a94\u3002\u9019\u4e9b\u53ea\u662f\u6383\u63cf\u5b87\u5b99\uff0c\u4e0d\u4ee3\u8868\u4e00\u5b9a\u6703\u5165\u9078\u3002")
         else:
             st.caption(
                 f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
                 f"These lists define the universe, not guaranteed outputs."
             )
     if stage_counts:
-        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+        st.caption(("\u6f0f\u6597\u5206\u4f48\uff1a" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("\u8cc7\u6599\u4e0d\u8db3\u539f\u56e0\uff1a" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("\u7121\u8a0a\u865f\u4e3b\u56e0\uff1a" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("\u5206\u6790\u5b8c\u6210\uff0c\u4f46\u672c\u6b21\u6c92\u6709\u53ef\u7528\u7684\u5e02\u5834\u8cc7\u6599\u3002" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "??????????????????????????????"
+                "\u5206\u6790\u5b8c\u6210\uff0c\u4f46\u76ee\u524d\u6c92\u6709\u80a1\u7968\u540c\u6642\u901a\u904e\u5e95\u7dda\u3001\u89f8\u767c\u3001\u5206\u6578\u8207\u98a8\u96aa\u689d\u4ef6\u3002"
                 if LANG == "zh-TW"
                 else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
@@ -3669,7 +3672,7 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
         st.info(
             (
-                f"???? {signal_count} ????? {pass_rate:.1f}% ??????????????"
+                f"\u6700\u5f8c\u7559\u4e0b {signal_count} \u6a94\uff0c\u4ee3\u8868\u7d04 {pass_rate:.1f}% \u7684\u6383\u63cf\u80a1\u7968\u6210\u529f\u901a\u904e\u5b8c\u6574\u689d\u4ef6\u3002"
                 if LANG == "zh-TW"
                 else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
@@ -4027,7 +4030,7 @@ def render_market_terminal_header(snapshot: Any, overview: Any) -> str:
             k1.metric(t("breadth"), summary_breadth)
             k2.metric("候選" if LANG == "zh-TW" else "Candidates", summary_candidates)
             k3.metric(t("actionable"), summary_actionable)
-            k4.metric("相對安全延續" if LANG == "zh-TW" else "Safer", summary_safer)
+            k4.metric("相對安全" if LANG == "zh-TW" else "Safer", summary_safer)
 
     return market_key
 
@@ -4835,7 +4838,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -4849,7 +4852,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
     if t("score") in table.columns:
         chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
-    streak_label = "??????" if LANG == "zh-TW" else "Institutional Buy Streak"
+    streak_label = "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak"
     if streak_label in table.columns:
         chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
     if t("suggested_action") in table.columns:
@@ -4859,7 +4862,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
 def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None = None) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
     st.caption(
-        "80 ?????????????70-79 ??????60-69 ??????? 60 ?????"
+        "80 \u5206\u4ee5\u4e0a\u4ee3\u8868\u53ef\u76f4\u63a5\u512a\u5148\u8655\u7406\uff0c70-79 \u5206\u9069\u5408\u8a66\u55ae\uff0c60-69 \u5206\u5148\u89c0\u5bdf\uff0c\u4f4e\u65bc 60 \u5206\u5148\u907f\u958b\u3002"
         if LANG == "zh-TW"
         else f'{t("decision_score_label")}: {t("decision_score_help")}'
     )
@@ -4915,11 +4918,23 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                     _mutate_market_management_list(resolved_market_key, str(row["ticker"]), action)
                     st.rerun()
             metric_cols = st.columns(5)
-            metric_cols[0].metric(level or ("??" if LANG == "zh-TW" else "Verdict"), f'{score:.1f}')
-            metric_cols[1].metric(t("win_label"), win_label)
-            metric_cols[2].metric(t("risk_label"), risk_label)
-            metric_cols[3].metric(t("reward_risk"), reward_risk)
-            metric_cols[4].metric(t("forward_score"), f'{forward_score:.1f}')
+            mini_metrics = [
+                (level or ("\u7d50\u8ad6" if LANG == "zh-TW" else "Verdict"), f"{score:.1f}"),
+                (t("win_label"), win_label),
+                (t("risk_label"), risk_label),
+                (t("reward_risk"), reward_risk),
+                (t("forward_score"), f"{forward_score:.1f}"),
+            ]
+            for metric_col, (label, value) in zip(metric_cols, mini_metrics):
+                metric_col.markdown(
+                    f"""
+                    <div class="terminal-mini-card">
+                        <div class="terminal-mini-label">{label}</div>
+                        <div class="terminal-mini-value">{value}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             st.markdown(f'**{t("suggested_action")}**')
             st.write(suggestion or "-")
             if risk_note:
