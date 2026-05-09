@@ -4424,13 +4424,28 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
     left, middle, right = st.columns((1, 1.1, 1))
     with left:
         st.markdown(f'<div class="section-label">{t("market_pulse")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_market_pulse_chart(snapshot, overview, candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_market_pulse_chart(snapshot, overview, candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_market_pulse_active",
+        )
     with middle:
         st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_sector_heatmap(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_sector_heatmap(candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_sector_heatmap_active",
+        )
     with right:
         st.markdown(f'<div class="section-label">{t("setup_distribution")}</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_setup_distribution_chart(candidate_frame), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            build_setup_distribution_chart(candidate_frame),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="scan_visual_setup_distribution_active",
+        )
 
 
 def render_rank_boards(market_key: str | None = None) -> None:
