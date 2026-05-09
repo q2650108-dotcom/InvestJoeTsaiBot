@@ -1731,6 +1731,21 @@ def _management_label(list_name: str) -> str:
     return labels[list_name]
 
 
+def _ticker_option_label(ticker: str, market_key: str) -> str:
+    normalized = str(ticker or "").strip().upper()
+    if not normalized:
+        return ""
+    profile = get_company_profile_cached(normalized)
+    if market_key == "tw":
+        company = str(profile.get("name_zh") or profile.get("name_en") or normalized).strip()
+    else:
+        company = str(profile.get("name_en") or profile.get("name_zh") or normalized).strip()
+    sector = str(profile.get("sector") or localize_value("Unknown")).strip()
+    if company == normalized:
+        return f"{normalized} | {sector}"
+    return f"{normalized} | {company} | {sector}"
+
+
 def _read_market_management_lists(market_key: str) -> dict[str, list[str]]:
     field_map = _management_field_map(market_key)
     return {
@@ -2411,7 +2426,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
         quick_pick = st.selectbox(
             "?????????" if LANG == "zh-TW" else "Quick add from current results",
             options=[""] + visible_options,
-            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
             key=f"manage_quick_pick_{market_key}",
         )
         quick_buttons = st.columns(4)
@@ -2441,7 +2456,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
         managed_pick = st.selectbox(
             "???????" if LANG == "zh-TW" else "Edit a managed ticker",
             options=[""] + managed_tickers,
-            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
             key=f"managed_edit_pick_{market_key}",
         )
     managed_buttons = st.columns(4)
@@ -3569,7 +3584,7 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     stage_picker = st.selectbox(
         "\u5f9e\u6f0f\u6597\u52a0\u5165\u7ba1\u7406\u6e05\u55ae" if LANG == "zh-TW" else "Add from funnel trail",
         options=[""] + frame["ticker"].astype(str).str.upper().drop_duplicates().tolist(),
-        format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+        format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
         key=f"funnel_manage_{market_key}",
     )
     stage_buttons = st.columns(4)
