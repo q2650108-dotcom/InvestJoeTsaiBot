@@ -130,6 +130,8 @@ create table if not exists user_settings (
     us_manual_watch_tickers text not null default '',
     tw_manual_hot_tickers text not null default '',
     us_manual_hot_tickers text not null default '',
+    tw_excluded_tickers text not null default '',
+    us_excluded_tickers text not null default '',
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -172,6 +174,12 @@ alter table user_settings
 
 alter table user_settings
     add column if not exists us_manual_hot_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists tw_excluded_tickers text not null default '';
+
+alter table user_settings
+    add column if not exists us_excluded_tickers text not null default '';
 
 create or replace function set_updated_at()
 returns trigger as $$

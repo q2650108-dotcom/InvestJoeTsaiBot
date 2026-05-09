@@ -78,6 +78,8 @@ class UserSettingsServiceTests(TestCase):
         self.assertIn("app_language", prefs)
         self.assertIn("tw_manual_watch_tickers", prefs)
         self.assertIn("us_manual_hot_tickers", prefs)
+        self.assertIn("tw_excluded_tickers", prefs)
+        self.assertIn("us_excluded_tickers", prefs)
 
     def test_update_runtime_preferences_persists_non_secret_settings(self) -> None:
         repository = FakeUserSettingsRepository(
@@ -98,6 +100,8 @@ class UserSettingsServiceTests(TestCase):
                 "us_manual_watch_tickers": "AVGO",
                 "tw_manual_hot_tickers": "",
                 "us_manual_hot_tickers": "",
+                "tw_excluded_tickers": "",
+                "us_excluded_tickers": "",
             }
         )
         service = UserSettingsService(repository=repository)
@@ -109,6 +113,7 @@ class UserSettingsServiceTests(TestCase):
                 "tw_core_tickers": "2330.TW,2317.TW",
                 "tw_explore_limit": 15,
                 "tw_manual_hot_tickers": "2603.TW,3037.TW",
+                "tw_excluded_tickers": "1301.TW",
             },
         )
 
@@ -116,3 +121,4 @@ class UserSettingsServiceTests(TestCase):
         self.assertEqual(updated["tw_core_tickers"], "2330.TW,2317.TW")
         self.assertEqual(updated["tw_explore_limit"], 15)
         self.assertEqual(updated["tw_manual_hot_tickers"], "2603.TW,3037.TW")
+        self.assertEqual(updated["tw_excluded_tickers"], "1301.TW")

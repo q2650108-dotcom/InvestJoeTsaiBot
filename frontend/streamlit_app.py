@@ -1709,6 +1709,125 @@ def _parse_runtime_tickers(raw_value: object) -> list[str]:
     return [item.strip().upper() for item in str(raw_value or "").split(",") if item.strip()]
 
 
+def _management_field_map(market_key: str) -> dict[str, str]:
+    if market_key == "tw":
+        return {
+            "favorite": "tw_manual_hot_tickers",
+            "watch": "tw_manual_watch_tickers",
+            "exclude": "tw_excluded_tickers",
+        }
+    return {
+        "favorite": "us_manual_hot_tickers",
+        "watch": "us_manual_watch_tickers",
+        "exclude": "us_excluded_tickers",
+    }
+
+
+def _management_label(list_name: str) -> str:
+    labels = {
+        "favorite": "最愛" if LANG == "zh-TW" else "Favorite",
+        "watch": "觀察" if LANG == "zh-TW" else "Watch",
+        "exclude": "剔除" if LANG == "zh-TW" else "Exclude",
+    }
+    return labels[list_name]
+
+
+def _read_market_management_lists(market_key: str) -> dict[str, list[str]]:
+    field_map = _management_field_map(market_key)
+    return {
+        list_name: _parse_runtime_tickers(getattr(runtime_settings, field_name, ""))
+        for list_name, field_name in field_map.items()
+    }
+
+
+def _write_market_management_lists(market_key: str, lists: dict[str, list[str]]) -> None:
+    field_map = _management_field_map(market_key)
+    payload = {
+        field_map[list_name]: ",".join(dict.fromkeys(lists[list_name]))
+        for list_name in field_map
+    }
+    user_settings_service.update_runtime_preferences(chat_id, payload)
+
+
+def _mutate_market_management_list(market_key: str, ticker: str, action: str) -> None:
+    normalized = str(ticker or "").strip().upper()
+    if not normalized:
+        return
+    lists = _read_market_management_lists(market_key)
+    for key in lists:
+        lists[key] = [item for item in lists[key] if item != normalized]
+    if action in {"favorite", "watch"}:
+        lists[action].append(normalized)
+    elif action == "exclude":
+        lists["exclude"].append(normalized)
+    elif action != "remove":
+        return
+    _write_market_management_lists(market_key, lists)
+
+
+def _build_management_frame(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        latest = candidate_frame.copy()
+    if not latest.empty:
+        latest = (
+            enrich_with_company_metadata(latest)
+            .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+            .drop_duplicates(subset=["ticker"], keep="first")
+        )
+    lists = _read_market_management_lists(market_key)
+    managed_tickers = list(dict.fromkeys(lists["favorite"] + lists["watch"] + lists["exclude"]))
+    if not managed_tickers:
+        return pd.DataFrame()
+
+    indexed = latest.set_index("ticker", drop=False) if not latest.empty and "ticker" in latest.columns else pd.DataFrame()
+    rows: list[dict[str, object]] = []
+    for ticker in managed_tickers:
+        if not indexed.empty and ticker in indexed.index:
+            source_row = indexed.loc[ticker]
+            if isinstance(source_row, pd.DataFrame):
+                record = source_row.iloc[0].to_dict()
+            else:
+                record = source_row.to_dict()
+        else:
+            record = {
+                "ticker": ticker,
+                "type": market_key,
+                "date": "",
+                "signal_type": "",
+                "recommendation_bucket": "Watchlist",
+                "composite_signal_score": None,
+                "institutional_buy_streak": None,
+                "close_price": None,
+                "relative_strength_score": None,
+                "suggested_action": "Run analysis to refresh details." if LANG != "zh-TW" else "請先執行分析以刷新細節。",
+                "event_risk_note": "",
+            }
+        record["favorite_flag"] = "Yes" if ticker in lists["favorite"] else ""
+        record["watch_flag"] = "Yes" if ticker in lists["watch"] else ""
+        record["exclude_flag"] = "Yes" if ticker in lists["exclude"] else ""
+        rows.append(record)
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    frame = enrich_with_company_metadata(frame)
+    frame["recommendation_bucket"] = frame["recommendation_bucket"].fillna("Watchlist").map(localize_value)
+    frame["suggested_action"] = frame["suggested_action"].fillna("").astype(str).map(maybe_translate_text)
+    frame["trend_mini"] = frame["ticker"].astype(str).map(lambda ticker: _normalize_trend(get_ticker_trend_cached(ticker)))
+    frame["score_trend"] = frame["ticker"].astype(str).map(lambda ticker: get_ticker_score_trend_cached(ticker))
+    frame["search_blob"] = (
+        frame["ticker"].fillna("").astype(str)
+        + " "
+        + frame["company"].fillna("").astype(str)
+        + " "
+        + frame["sector"].fillna("").astype(str)
+        + " "
+        + frame["suggested_action"].fillna("").astype(str)
+    ).str.lower()
+    return frame
+
+
 def render_run_controls() -> None:
     st.markdown(f'<div class="section-label">{t("run_analysis")}</div>', unsafe_allow_html=True)
     st.caption(t("cooldown_force_hint"))
@@ -2252,41 +2371,164 @@ def render_rank_boards(market_key: str | None = None) -> None:
                 st.info("目前沒有與領先名單明顯不同的高風險標的。" if LANG == "zh-TW" else "No distinct risk names beyond the current leaders.")
 
 
-def render_manual_tracking(candidate_frame: pd.DataFrame) -> None:
-    latest = _latest_candidates(candidate_frame)
-    if latest.empty:
-        return
-    latest = enrich_with_company_metadata(latest)
-    groups = [
-        ("台股手動觀察" if LANG == "zh-TW" else "TW Manual Watch", _parse_runtime_tickers(getattr(runtime_settings, "tw_manual_watch_tickers", ""))),
-        ("美股手動觀察" if LANG == "zh-TW" else "US Manual Watch", _parse_runtime_tickers(getattr(runtime_settings, "us_manual_watch_tickers", ""))),
-        ("台股手動熱區" if LANG == "zh-TW" else "TW Manual Hot", _parse_runtime_tickers(getattr(runtime_settings, "tw_manual_hot_tickers", ""))),
-        ("美股手動熱區" if LANG == "zh-TW" else "US Manual Hot", _parse_runtime_tickers(getattr(runtime_settings, "us_manual_hot_tickers", ""))),
-    ]
-    st.markdown(f'<div class="section-label">{"手動追蹤" if LANG == "zh-TW" else "Manual Tracking"}</div>', unsafe_allow_html=True)
-    left, right = st.columns(2)
-    for column, (title, tickers) in zip([left, right, left, right], groups):
-        with column:
-            st.markdown(f"**{title}**")
-            if not tickers:
-                st.caption("尚未設定。" if LANG == "zh-TW" else "No tickers configured.")
-                continue
-            subset = latest[latest["ticker"].isin(tickers)].copy()
-            if subset.empty:
-                st.caption("本次快照沒有這些標的的資料。" if LANG == "zh-TW" else "No rows for these tickers in the latest snapshot.")
-                continue
-            display = subset[["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score"]].copy()
-            display["recommendation_bucket"] = display["recommendation_bucket"].map(localize_value)
-            display = display.rename(
-                columns={
-                    "ticker": "代號" if LANG == "zh-TW" else "Ticker",
-                    "company": "公司" if LANG == "zh-TW" else "Company",
-                    "sector": "類股" if LANG == "zh-TW" else "Sector",
-                    "recommendation_bucket": "系統歸類" if LANG == "zh-TW" else "Bucket",
-                    "composite_signal_score": "綜合分數" if LANG == "zh-TW" else "Score",
-                }
+def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> None:
+    st.markdown(
+        f'<div class="section-label">{"????" if LANG == "zh-TW" else "Managed Lists"}</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "?????? UI ?????????????????????????"
+        if LANG == "zh-TW"
+        else "Manage favorites, watch names, and excluded names here with search, sorting, and strategy context."
+    )
+    market_label = "??" if market_key == "tw" and LANG == "zh-TW" else "??" if market_key == "us" and LANG == "zh-TW" else market_key.upper()
+    add_col, quick_col = st.columns((1.12, 1.38))
+    with add_col:
+        with st.form(f"manage_add_form_{market_key}"):
+            ticker_input = st.text_input(
+                "??????" if LANG == "zh-TW" else "Add ticker manually",
+                placeholder="2330.TW, 2454.TW" if market_key == "tw" else "AAPL, NVDA",
             )
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            target_list = st.selectbox(
+                "???" if LANG == "zh-TW" else "Add into",
+                options=["favorite", "watch", "exclude"],
+                format_func=_management_label,
+                key=f"manage_target_{market_key}",
+            )
+            submitted = st.form_submit_button("????" if LANG == "zh-TW" else "Add to list", use_container_width=True)
+        if submitted:
+            for ticker in _parse_runtime_tickers(ticker_input):
+                _mutate_market_management_list(market_key, ticker, target_list)
+            st.rerun()
+    with quick_col:
+        visible_rows = _latest_candidates(candidate_frame)
+        if visible_rows.empty:
+            visible_rows = candidate_frame.copy()
+        visible_options = (
+            visible_rows["ticker"].dropna().astype(str).str.upper().drop_duplicates().tolist()
+            if not visible_rows.empty and "ticker" in visible_rows.columns
+            else []
+        )
+        quick_pick = st.selectbox(
+            "?????????" if LANG == "zh-TW" else "Quick add from current results",
+            options=[""] + visible_options,
+            format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            key=f"manage_quick_pick_{market_key}",
+        )
+        quick_buttons = st.columns(4)
+        for column, (action, label) in zip(
+            quick_buttons,
+            [
+                ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
+                ("watch", "???" if LANG == "zh-TW" else "Watch"),
+                ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
+                ("remove", "??" if LANG == "zh-TW" else "Remove"),
+            ],
+        ):
+            if column.button(label, key=f"manage_quick_{market_key}_{action}", use_container_width=True, disabled=quick_pick == ""):
+                _mutate_market_management_list(market_key, quick_pick, action)
+                st.rerun()
+    management_frame = _build_management_frame(candidate_frame, market_key)
+    if management_frame.empty:
+        st.info(
+            f"{market_label}??????????? / ?? / ?????"
+            if LANG == "zh-TW"
+            else f"No managed {market_label} names yet."
+        )
+        return
+    managed_tickers = management_frame["ticker"].dropna().astype(str).str.upper().tolist()
+    edit_col, _ = st.columns((1.1, 1.9))
+    with edit_col:
+        managed_pick = st.selectbox(
+            "?????????" if LANG == "zh-TW" else "Edit a managed ticker",
+            options=[""] + managed_tickers,
+            format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            key=f"managed_edit_pick_{market_key}",
+        )
+    managed_buttons = st.columns(4)
+    for column, (action, label) in zip(
+        managed_buttons,
+        [
+            ("favorite", "????" if LANG == "zh-TW" else "Set Favorite"),
+            ("watch", "????" if LANG == "zh-TW" else "Set Watch"),
+            ("exclude", "????" if LANG == "zh-TW" else "Set Exclude"),
+            ("remove", "????" if LANG == "zh-TW" else "Remove"),
+        ],
+    ):
+        if column.button(label, key=f"managed_edit_{market_key}_{action}", use_container_width=True, disabled=managed_pick == ""):
+            _mutate_market_management_list(market_key, managed_pick, action)
+            st.rerun()
+    search_text = st.text_input(
+        "??????" if LANG == "zh-TW" else "Search managed list",
+        placeholder="2330 / TSMC / ???" if LANG == "zh-TW" else "AAPL / Apple / Software",
+        key=f"managed_search_{market_key}",
+    ).strip().lower()
+    if search_text:
+        management_frame = management_frame[management_frame["search_blob"].str.contains(search_text, na=False)]
+    display = management_frame[
+        [
+            "ticker",
+            "company",
+            "sector",
+            "favorite_flag",
+            "watch_flag",
+            "exclude_flag",
+            "trend_mini",
+            "score_trend",
+            "close_price",
+            "recommendation_bucket",
+            "composite_signal_score",
+            "relative_strength_score",
+            "institutional_buy_streak",
+            "suggested_action",
+        ]
+    ].copy().fillna("")
+    display = display.rename(
+        columns={
+            "ticker": "??" if LANG == "zh-TW" else "Ticker",
+            "company": "??" if LANG == "zh-TW" else "Company",
+            "sector": "??" if LANG == "zh-TW" else "Sector",
+            "favorite_flag": "??" if LANG == "zh-TW" else "Favorite",
+            "watch_flag": "??" if LANG == "zh-TW" else "Watch",
+            "exclude_flag": "??" if LANG == "zh-TW" else "Exclude",
+            "trend_mini": "????" if LANG == "zh-TW" else "Trend",
+            "score_trend": "????" if LANG == "zh-TW" else "Score Trend",
+            "close_price": "????" if LANG == "zh-TW" else "Last Price",
+            "recommendation_bucket": "????" if LANG == "zh-TW" else "Bucket",
+            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
+            "suggested_action": "????" if LANG == "zh-TW" else "Action / Why",
+        }
+    )
+    st.dataframe(
+        display,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            ("????" if LANG == "zh-TW" else "Trend"): st.column_config.LineChartColumn(
+                "????" if LANG == "zh-TW" else "Trend", width="medium", y_min=-12, y_max=12
+            ),
+            ("????" if LANG == "zh-TW" else "Score Trend"): st.column_config.LineChartColumn(
+                "????" if LANG == "zh-TW" else "Score Trend", width="medium", y_min=0, y_max=100
+            ),
+            ("????" if LANG == "zh-TW" else "Last Price"): st.column_config.NumberColumn(
+                "????" if LANG == "zh-TW" else "Last Price", format="%.2f"
+            ),
+            ("????" if LANG == "zh-TW" else "Score"): st.column_config.NumberColumn(
+                "????" if LANG == "zh-TW" else "Score", format="%.2f"
+            ),
+            ("????" if LANG == "zh-TW" else "RS"): st.column_config.NumberColumn(
+                "????" if LANG == "zh-TW" else "RS", format="%.1f"
+            ),
+            ("??????" if LANG == "zh-TW" else "Buy Streak"): st.column_config.NumberColumn(
+                "??????" if LANG == "zh-TW" else "Buy Streak", format="%d"
+            ),
+            ("????" if LANG == "zh-TW" else "Action / Why"): st.column_config.TextColumn(
+                "????" if LANG == "zh-TW" else "Action / Why", width="large"
+            ),
+        },
+    )
 
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -2342,8 +2584,10 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     )
 
 
-def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
+def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
     st.markdown(f'<div class="section-label">{t("focus_lists")}</div>', unsafe_allow_html=True)
+    candidate_frame = load_market_display_frame(candidate_frame, market_key)
+    candidate_frame = filter_candidate_frame_for_market(candidate_frame, market_key)
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -3270,12 +3514,12 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
     frame["fundamental_snapshot"] = frame.apply(
         lambda row: (
-            f"營收 YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
             if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
             else (
                 f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
                 if pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
-                else "—"
+                else ""
             )
         ),
         axis=1,
@@ -3296,24 +3540,44 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
         ]
     ].rename(
         columns={
-            "ticker": "代號" if LANG == "zh-TW" else "Ticker",
-            "company": "公司" if LANG == "zh-TW" else "Company",
-            "sector": "類股" if LANG == "zh-TW" else "Sector",
-            "universe_bucket": "池別" if LANG == "zh-TW" else "Pool",
-            "stage_label": "漏斗階段" if LANG == "zh-TW" else "Stage",
-            "triggers_label": "觸發型態" if LANG == "zh-TW" else "Trigger",
-            "composite_signal_score": "綜合分數" if LANG == "zh-TW" else "Score",
-            "relative_strength_score": "相對強度" if LANG == "zh-TW" else "RS",
-            "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Buy Streak",
-            "fundamental_snapshot": "基本面快照" if LANG == "zh-TW" else "Fundamental Snapshot",
-            "reason_label": "未入選 / 歸類原因" if LANG == "zh-TW" else "Reason",
+            "ticker": "??" if LANG == "zh-TW" else "Ticker",
+            "company": "??" if LANG == "zh-TW" else "Company",
+            "sector": "??" if LANG == "zh-TW" else "Sector",
+            "universe_bucket": "??" if LANG == "zh-TW" else "Pool",
+            "stage_label": "????" if LANG == "zh-TW" else "Stage",
+            "triggers_label": "????" if LANG == "zh-TW" else "Trigger",
+            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
+            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
+            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
+            "fundamental_snapshot": "?????" if LANG == "zh-TW" else "Fundamental Snapshot",
+            "reason_label": "??? / ????" if LANG == "zh-TW" else "Reason",
         }
     )
     display = display.fillna("")
     for column in display.columns:
         display[column] = display[column].map(lambda value: "" if value is None else str(value))
-    st.markdown(f'<div class="section-label">{"漏斗過程" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-label">{"????" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
     st.dataframe(display, use_container_width=True, hide_index=True)
+    market_key = str(getattr(summary, "market_type", "") or "tw").lower()
+    stage_picker = st.selectbox(
+        "???????????" if LANG == "zh-TW" else "Add from funnel trail",
+        options=[""] + frame["ticker"].astype(str).str.upper().drop_duplicates().tolist(),
+        format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+        key=f"funnel_manage_{market_key}",
+    )
+    stage_buttons = st.columns(4)
+    for column, (action, label) in zip(
+        stage_buttons,
+        [
+            ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
+            ("watch", "???" if LANG == "zh-TW" else "Watch"),
+            ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
+            ("remove", "??" if LANG == "zh-TW" else "Remove"),
+        ],
+    ):
+        if column.button(label, key=f"funnel_manage_button_{market_key}_{action}", use_container_width=True, disabled=stage_picker == ""):
+            _mutate_market_management_list(market_key, stage_picker, action)
+            st.rerun()
 
 
 def _analysis_cooldown_key(market_type: str) -> str:
@@ -4095,29 +4359,6 @@ def render_focus_lists(candidate_frame: pd.DataFrame) -> None:
             ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
         )
 
-    core_tab, explore_tab, risk_tab = st.tabs([t("core_tab"), t("explore_tab"), t("risk_tab")])
-    with core_tab:
-        render_terminal_table(
-            latest[latest["universe_bucket"] == "core"]
-            .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
-            .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
-        )
-    with explore_tab:
-        render_terminal_table(
-            latest[latest["universe_bucket"] == "explore"]
-            .sort_values(by=["composite_signal_score"], ascending=[False])
-            .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
-        )
-    with risk_tab:
-        render_terminal_table(
-            latest[latest["event_risk_note"] != "clear"]
-            .sort_values(by=["composite_signal_score"], ascending=[True])
-            .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
-        )
-
 
 def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
@@ -4639,9 +4880,9 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     st.dataframe(table, use_container_width=True, hide_index=True, column_config=chart_config or None)
 
 
-def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
+def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None = None) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption("80 分以上偏積極，70-79 分偏試單，60-69 分先觀察，低於 60 分先避開。" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
+    st.caption("80+ ?????70-79 ??????60-69 ???????? 60 ??????" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -4657,6 +4898,7 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
     labels = [t("verdict_buy"), t("verdict_probe"), t("verdict_wait"), t("verdict_avoid")]
     for column, label in zip(summary_cols, labels):
         column.metric(label, verdicts.count(label))
+    resolved_market_key = market_key or str(latest.iloc[0].get("type", "tw") or "tw").lower()
     for idx, (_, row) in enumerate(latest.iterrows()):
         company_name, sector_name = _display_name_for_row(row)
         verdict_label, verdict_color = _decision_verdict(row)
@@ -4683,8 +4925,21 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
             with top_right:
                 st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
                 st.caption(f'{t("decision_score_label")}: {score:.2f}')
+            action_cols = st.columns(4)
+            for column, (action, label) in zip(
+                action_cols,
+                [
+                    ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
+                    ("watch", "???" if LANG == "zh-TW" else "Watch"),
+                    ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
+                    ("remove", "??" if LANG == "zh-TW" else "Remove"),
+                ],
+            ):
+                if column.button(label, key=f'decision_manage_{resolved_market_key}_{row["ticker"]}_{action}', use_container_width=True):
+                    _mutate_market_management_list(resolved_market_key, str(row["ticker"]), action)
+                    st.rerun()
             metric_cols = st.columns(5)
-            metric_cols[0].metric(level or ("結論" if LANG == "zh-TW" else "Verdict"), f'{score:.1f}')
+            metric_cols[0].metric(level or ("??" if LANG == "zh-TW" else "Verdict"), f'{score:.1f}')
             metric_cols[1].metric(t("win_label"), win_label)
             metric_cols[2].metric(t("risk_label"), risk_label)
             metric_cols[3].metric(t("reward_risk"), reward_risk)
@@ -4767,13 +5022,13 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
             ]
         )
         with manual_tab:
-            render_manual_tracking(market_candidate_frame)
+            render_manual_tracking(market_candidate_frame, selected_market_key)
         with focus_tab:
-            render_focus_lists(market_candidate_frame)
+            render_focus_lists(market_candidate_frame, selected_market_key)
         with decision_tab:
             left, right = st.columns((1.12, 0.88))
             with left:
-                render_decision_cards(market_candidate_frame)
+                render_decision_cards(market_candidate_frame, selected_market_key)
             with right:
                 render_rank_boards(selected_market_key)
 

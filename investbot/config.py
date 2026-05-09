@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     us_explore_tickers: str = Field(default="", alias="US_EXPLORE_TICKERS")
     tw_explore_limit: int = Field(default=12, alias="TW_EXPLORE_LIMIT")
     us_explore_limit: int = Field(default=12, alias="US_EXPLORE_LIMIT")
+    tw_manual_watch_tickers: str = Field(default="", alias="TW_MANUAL_WATCH_TICKERS")
+    us_manual_watch_tickers: str = Field(default="", alias="US_MANUAL_WATCH_TICKERS")
+    tw_manual_hot_tickers: str = Field(default="", alias="TW_MANUAL_HOT_TICKERS")
+    us_manual_hot_tickers: str = Field(default="", alias="US_MANUAL_HOT_TICKERS")
+    tw_excluded_tickers: str = Field(default="", alias="TW_EXCLUDED_TICKERS")
+    us_excluded_tickers: str = Field(default="", alias="US_EXCLUDED_TICKERS")
     enable_live_forward_signals: bool = Field(default=False, alias="ENABLE_LIVE_FORWARD_SIGNALS")
 
 

@@ -32,6 +32,8 @@ class UserSettingsService:
             "us_manual_watch_tickers": getattr(self.settings, "us_manual_watch_tickers", ""),
             "tw_manual_hot_tickers": getattr(self.settings, "tw_manual_hot_tickers", ""),
             "us_manual_hot_tickers": getattr(self.settings, "us_manual_hot_tickers", ""),
+            "tw_excluded_tickers": getattr(self.settings, "tw_excluded_tickers", ""),
+            "us_excluded_tickers": getattr(self.settings, "us_excluded_tickers", ""),
         }
         return self.repository.upsert_settings(payload)
 
@@ -126,6 +128,14 @@ class UserSettingsService:
                 "us_manual_hot_tickers",
                 getattr(self.settings, "us_manual_hot_tickers", ""),
             ),
+            "tw_excluded_tickers": current.get(
+                "tw_excluded_tickers",
+                getattr(self.settings, "tw_excluded_tickers", ""),
+            ),
+            "us_excluded_tickers": current.get(
+                "us_excluded_tickers",
+                getattr(self.settings, "us_excluded_tickers", ""),
+            ),
         }
 
     def _load_settings(self):
@@ -139,9 +149,19 @@ class UserSettingsService:
                 default_risk_tolerance_percent = 5.0
                 default_min_institutional_buy_streak = 3
                 telegram_allowed_chat_id = "0"
+                app_language = "zh-TW"
+                high_risk_event_dates = ""
+                tw_core_tickers = ""
+                us_core_tickers = ""
+                tw_explore_tickers = ""
+                us_explore_tickers = ""
+                tw_explore_limit = 12
+                us_explore_limit = 8
                 tw_manual_watch_tickers = ""
                 us_manual_watch_tickers = ""
                 tw_manual_hot_tickers = ""
                 us_manual_hot_tickers = ""
+                tw_excluded_tickers = ""
+                us_excluded_tickers = ""
 
             return FallbackSettings()
