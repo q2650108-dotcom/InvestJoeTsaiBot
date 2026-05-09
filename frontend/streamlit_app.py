@@ -1387,14 +1387,13 @@ def _stage_reason_label(reason: str) -> str:
 
 def _trigger_label_list(values: list[str]) -> str:
     mapping = {
-        "SMART_MONEY_TREND": "法人順勢動能" if LANG == "zh-TW" else "Smart Money Trend",
-        "VCP_BREAKOUT": "VCP 量縮突破" if LANG == "zh-TW" else "VCP Breakout",
-        "PANIC_REVERSAL": "恐慌極端反轉" if LANG == "zh-TW" else "Panic Reversal",
+        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "—"
+        return "?" if LANG == "zh-TW" else "-"
     return " / ".join(mapping.get(value, value) for value in values)
-
 
 def _format_stage_counts(stage_counts: dict[str, int]) -> str:
     if not stage_counts:
@@ -2377,7 +2376,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
         unsafe_allow_html=True,
     )
     st.caption(
-        "?????? UI ?????????????????????????"
+        "? UI ????????????????????????"
         if LANG == "zh-TW"
         else "Manage favorites, watch names, and excluded names here with search, sorting, and strategy context."
     )
@@ -2412,7 +2411,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
         quick_pick = st.selectbox(
             "?????????" if LANG == "zh-TW" else "Quick add from current results",
             options=[""] + visible_options,
-            format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
             key=f"manage_quick_pick_{market_key}",
         )
         quick_buttons = st.columns(4)
@@ -2431,7 +2430,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
     management_frame = _build_management_frame(candidate_frame, market_key)
     if management_frame.empty:
         st.info(
-            f"{market_label}??????????? / ?? / ?????"
+            f"{market_label}????????????????"
             if LANG == "zh-TW"
             else f"No managed {market_label} names yet."
         )
@@ -2440,9 +2439,9 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
     edit_col, _ = st.columns((1.1, 1.9))
     with edit_col:
         managed_pick = st.selectbox(
-            "?????????" if LANG == "zh-TW" else "Edit a managed ticker",
+            "???????" if LANG == "zh-TW" else "Edit a managed ticker",
             options=[""] + managed_tickers,
-            format_func=lambda value: ("?????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
+            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else value,
             key=f"managed_edit_pick_{market_key}",
         )
     managed_buttons = st.columns(4)
@@ -2452,7 +2451,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
             ("favorite", "????" if LANG == "zh-TW" else "Set Favorite"),
             ("watch", "????" if LANG == "zh-TW" else "Set Watch"),
             ("exclude", "????" if LANG == "zh-TW" else "Set Exclude"),
-            ("remove", "????" if LANG == "zh-TW" else "Remove"),
+            ("remove", "??" if LANG == "zh-TW" else "Remove"),
         ],
     ):
         if column.button(label, key=f"managed_edit_{market_key}_{action}", use_container_width=True, disabled=managed_pick == ""):
@@ -2494,11 +2493,11 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
             "trend_mini": "????" if LANG == "zh-TW" else "Trend",
             "score_trend": "????" if LANG == "zh-TW" else "Score Trend",
             "close_price": "????" if LANG == "zh-TW" else "Last Price",
-            "recommendation_bucket": "????" if LANG == "zh-TW" else "Bucket",
+            "recommendation_bucket": "??" if LANG == "zh-TW" else "Bucket",
             "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
             "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
             "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
-            "suggested_action": "????" if LANG == "zh-TW" else "Action / Why",
+            "suggested_action": "?? / ??" if LANG == "zh-TW" else "Action / Why",
         }
     )
     st.dataframe(
@@ -3482,14 +3481,13 @@ def _stage_reason_label(reason: str) -> str:
 
 def _trigger_label_list(values: list[str]) -> str:
     mapping = {
-        "SMART_MONEY_TREND": "法人順勢動能" if LANG == "zh-TW" else "Smart Money Trend",
-        "VCP_BREAKOUT": "VCP 量縮突破" if LANG == "zh-TW" else "VCP Breakout",
-        "PANIC_REVERSAL": "恐慌極端反轉" if LANG == "zh-TW" else "Panic Reversal",
+        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "—"
+        return "?" if LANG == "zh-TW" else "-"
     return " / ".join(mapping.get(value, value) for value in values)
-
 
 def _format_stage_counts(stage_counts: dict[str, int]) -> str:
     if not stage_counts:
@@ -4891,7 +4889,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
 
 def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None = None) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption("80+ ?????70-79 ??????60-69 ???????? 60 ??????" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
+    st.caption("80 ???????70-79 ?????60-69 ??????? 60 ?????" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
