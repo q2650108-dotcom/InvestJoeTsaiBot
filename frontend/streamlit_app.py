@@ -1392,7 +1392,7 @@ def _trigger_label_list(values: list[str]) -> str:
         "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "?" if LANG == "zh-TW" else "-"
+        return "-"
     return " / ".join(mapping.get(value, value) for value in values)
 
 def _format_stage_counts(stage_counts: dict[str, int]) -> str:
@@ -1552,34 +1552,34 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("掃描" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("未入選" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("\u6383\u63cf\u6578" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("\u6709\u8cc7\u6599" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("\u8cc7\u6599\u4e0d\u8db3" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("\u7121\u8a0a\u865f" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
     summary_at = str(getattr(summary, "run_at", "") or st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"核心池 {core_ticker_count} 檔、觀察池 {explore_ticker_count} 檔。這些是掃描宇宙，不是保證最後會入選。")
+            st.caption(f"\u9019\u6b21\u6383\u63cf\u6838\u5fc3\u6c60 {core_ticker_count} \u6a94\u3001\u89c0\u5bdf\u6c60 {explore_ticker_count} \u6a94\u3002\u9019\u4e9b\u53ea\u662f\u6383\u63cf\u5b87\u5b99\uff0c\u4e0d\u4ee3\u8868\u4e00\u5b9a\u6703\u5165\u9078\u3002")
         else:
             st.caption(
                 f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
                 f"These lists define the universe, not guaranteed outputs."
             )
     if stage_counts:
-        st.caption(("漏斗分佈：" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+        st.caption(("\u6f0f\u6597\u5206\u4f48\uff1a" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("\u8cc7\u6599\u4e0d\u8db3\u539f\u56e0\uff1a" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("未入選主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("\u7121\u8a0a\u865f\u4e3b\u56e0\uff1a" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("流程有跑完，但沒有拿到足夠可用資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("\u5206\u6790\u5b8c\u6210\uff0c\u4f46\u672c\u6b21\u6c92\u6709\u53ef\u7528\u7684\u5e02\u5834\u8cc7\u6599\u3002" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "流程有跑完，但目前沒有股票同時通過底線、型態、分數與風險檢查。"
+                "\u5206\u6790\u5b8c\u6210\uff0c\u4f46\u76ee\u524d\u6c92\u6709\u80a1\u7968\u540c\u6642\u901a\u904e\u5e95\u7dda\u3001\u89f8\u767c\u3001\u5206\u6578\u8207\u98a8\u96aa\u689d\u4ef6\u3002"
                 if LANG == "zh-TW"
                 else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
@@ -1587,13 +1587,12 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
         st.info(
             (
-                f"最後只有 {signal_count} 檔進入結果，不代表偏好池失效，而是只有 {pass_rate:.1f}% 同時通過底線、觸發、分數與風險門檻。"
+                f"\u6700\u5f8c\u7559\u4e0b {signal_count} \u6a94\uff0c\u4ee3\u8868\u7d04 {pass_rate:.1f}% \u7684\u6383\u63cf\u80a1\u7968\u6210\u529f\u901a\u904e\u5b8c\u6574\u689d\u4ef6\u3002"
                 if LANG == "zh-TW"
                 else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
         )
     render_funnel_stage_table(summary)
-
 
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
     frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
@@ -1724,12 +1723,41 @@ def _management_field_map(market_key: str) -> dict[str, str]:
 
 def _management_label(list_name: str) -> str:
     labels = {
-        "favorite": "最愛" if LANG == "zh-TW" else "Favorite",
-        "watch": "觀察" if LANG == "zh-TW" else "Watch",
-        "exclude": "剔除" if LANG == "zh-TW" else "Exclude",
+        "favorite": "\u6700\u611b" if LANG == "zh-TW" else "Favorite",
+        "watch": "\u89c0\u5bdf" if LANG == "zh-TW" else "Watch",
+        "exclude": "\u5254\u9664" if LANG == "zh-TW" else "Exclude",
     }
     return labels[list_name]
 
+
+def _management_action_label(action: str, mode: str = "short") -> str:
+    zh_short = {
+        "favorite": "\u52a0\u6700\u611b",
+        "watch": "\u52a0\u89c0\u5bdf",
+        "exclude": "\u5254\u9664",
+        "remove": "\u53d6\u6d88",
+    }
+    zh_set = {
+        "favorite": "\u8a2d\u70ba\u6700\u611b",
+        "watch": "\u8a2d\u70ba\u89c0\u5bdf",
+        "exclude": "\u8a2d\u70ba\u5254\u9664",
+        "remove": "\u5f9e\u6e05\u55ae\u79fb\u9664",
+    }
+    en_short = {
+        "favorite": "Favorite",
+        "watch": "Watch",
+        "exclude": "Exclude",
+        "remove": "Remove",
+    }
+    en_set = {
+        "favorite": "Set Favorite",
+        "watch": "Set Watch",
+        "exclude": "Set Exclude",
+        "remove": "Remove from List",
+    }
+    if LANG == "zh-TW":
+        return (zh_set if mode == "set" else zh_short).get(action, action)
+    return (en_set if mode == "set" else en_short).get(action, action)
 
 def _ticker_option_label(ticker: str, market_key: str) -> str:
     normalized = str(ticker or "").strip().upper()
@@ -2386,30 +2414,28 @@ def render_rank_boards(market_key: str | None = None) -> None:
 
 
 def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> None:
-    st.markdown(
-        f'<div class="section-label">{"????" if LANG == "zh-TW" else "Managed Lists"}</div>',
-        unsafe_allow_html=True,
-    )
+    section_label = "\u7ba1\u7406\u6e05\u55ae" if LANG == "zh-TW" else "Managed Lists"
+    st.markdown(f'<div class="section-label">{section_label}</div>', unsafe_allow_html=True)
     st.caption(
-        "? UI ????????????????????????"
+        "\u5728\u9019\u88e1\u7ba1\u7406\u6700\u611b\u3001\u89c0\u5bdf\u8207\u5254\u9664\u540d\u55ae\uff0c\u4fdd\u7559\u641c\u5c0b\u3001\u6392\u5e8f\u8207\u7b56\u7565\u8a3b\u8a18\u3002"
         if LANG == "zh-TW"
         else "Manage favorites, watch names, and excluded names here with search, sorting, and strategy context."
     )
-    market_label = "??" if market_key == "tw" and LANG == "zh-TW" else "??" if market_key == "us" and LANG == "zh-TW" else market_key.upper()
+    market_label = ("\u53f0\u80a1" if market_key == "tw" else "\u7f8e\u80a1") if LANG == "zh-TW" else market_key.upper()
     add_col, quick_col = st.columns((1.12, 1.38))
     with add_col:
         with st.form(f"manage_add_form_{market_key}"):
             ticker_input = st.text_input(
-                "??????" if LANG == "zh-TW" else "Add ticker manually",
+                "\u624b\u52d5\u65b0\u589e\u80a1\u7968" if LANG == "zh-TW" else "Add ticker manually",
                 placeholder="2330.TW, 2454.TW" if market_key == "tw" else "AAPL, NVDA",
             )
             target_list = st.selectbox(
-                "???" if LANG == "zh-TW" else "Add into",
+                "\u52a0\u5165\u5230" if LANG == "zh-TW" else "Add into",
                 options=["favorite", "watch", "exclude"],
                 format_func=_management_label,
                 key=f"manage_target_{market_key}",
             )
-            submitted = st.form_submit_button("????" if LANG == "zh-TW" else "Add to list", use_container_width=True)
+            submitted = st.form_submit_button("\u52a0\u5165\u6e05\u55ae" if LANG == "zh-TW" else "Add to list", use_container_width=True)
         if submitted:
             for ticker in _parse_runtime_tickers(ticker_input):
                 _mutate_market_management_list(market_key, ticker, target_list)
@@ -2424,28 +2450,25 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
             else []
         )
         quick_pick = st.selectbox(
-            "?????????" if LANG == "zh-TW" else "Quick add from current results",
+            "\u5f9e\u76ee\u524d\u7d50\u679c\u5feb\u901f\u52a0\u5165" if LANG == "zh-TW" else "Quick add from current results",
             options=[""] + visible_options,
-            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
+            format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
             key=f"manage_quick_pick_{market_key}",
         )
         quick_buttons = st.columns(4)
-        for column, (action, label) in zip(
-            quick_buttons,
-            [
-                ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
-                ("watch", "???" if LANG == "zh-TW" else "Watch"),
-                ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
-                ("remove", "??" if LANG == "zh-TW" else "Remove"),
-            ],
-        ):
-            if column.button(label, key=f"manage_quick_{market_key}_{action}", use_container_width=True, disabled=quick_pick == ""):
+        for column, action in zip(quick_buttons, ["favorite", "watch", "exclude", "remove"]):
+            if column.button(
+                _management_action_label(action),
+                key=f"manage_quick_{market_key}_{action}",
+                use_container_width=True,
+                disabled=quick_pick == "",
+            ):
                 _mutate_market_management_list(market_key, quick_pick, action)
                 st.rerun()
     management_frame = _build_management_frame(candidate_frame, market_key)
     if management_frame.empty:
         st.info(
-            f"{market_label}????????????????"
+            f"\u76ee\u524d\u9084\u6c92\u6709{market_label}\u7684\u7ba1\u7406\u6e05\u55ae\u3002"
             if LANG == "zh-TW"
             else f"No managed {market_label} names yet."
         )
@@ -2454,96 +2477,95 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
     edit_col, _ = st.columns((1.1, 1.9))
     with edit_col:
         managed_pick = st.selectbox(
-            "???????" if LANG == "zh-TW" else "Edit a managed ticker",
+            "\u7de8\u8f2f\u5df2\u7ba1\u7406\u80a1\u7968" if LANG == "zh-TW" else "Edit a managed ticker",
             options=[""] + managed_tickers,
-            format_func=lambda value: ("????" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
+            format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
             key=f"managed_edit_pick_{market_key}",
         )
     managed_buttons = st.columns(4)
-    for column, (action, label) in zip(
-        managed_buttons,
-        [
-            ("favorite", "????" if LANG == "zh-TW" else "Set Favorite"),
-            ("watch", "????" if LANG == "zh-TW" else "Set Watch"),
-            ("exclude", "????" if LANG == "zh-TW" else "Set Exclude"),
-            ("remove", "??" if LANG == "zh-TW" else "Remove"),
-        ],
-    ):
-        if column.button(label, key=f"managed_edit_{market_key}_{action}", use_container_width=True, disabled=managed_pick == ""):
+    for column, action in zip(managed_buttons, ["favorite", "watch", "exclude", "remove"]):
+        if column.button(
+            _management_action_label(action, mode="set"),
+            key=f"managed_edit_{market_key}_{action}",
+            use_container_width=True,
+            disabled=managed_pick == "",
+        ):
             _mutate_market_management_list(market_key, managed_pick, action)
             st.rerun()
     search_text = st.text_input(
-        "??????" if LANG == "zh-TW" else "Search managed list",
-        placeholder="2330 / TSMC / ???" if LANG == "zh-TW" else "AAPL / Apple / Software",
+        "\u641c\u5c0b\u7ba1\u7406\u6e05\u55ae" if LANG == "zh-TW" else "Search managed list",
+        placeholder="2330 / \u53f0\u7a4d\u96fb / \u534a\u5c0e\u9ad4" if LANG == "zh-TW" else "AAPL / Apple / Software",
         key=f"managed_search_{market_key}",
     ).strip().lower()
     if search_text:
         management_frame = management_frame[management_frame["search_blob"].str.contains(search_text, na=False)]
-    display = management_frame[
-        [
-            "ticker",
-            "company",
-            "sector",
-            "favorite_flag",
-            "watch_flag",
-            "exclude_flag",
-            "trend_mini",
-            "score_trend",
-            "close_price",
-            "recommendation_bucket",
-            "composite_signal_score",
-            "relative_strength_score",
-            "institutional_buy_streak",
-            "suggested_action",
-        ]
-    ].copy().fillna("")
-    display = display.rename(
-        columns={
-            "ticker": "??" if LANG == "zh-TW" else "Ticker",
-            "company": "??" if LANG == "zh-TW" else "Company",
-            "sector": "??" if LANG == "zh-TW" else "Sector",
-            "favorite_flag": "??" if LANG == "zh-TW" else "Favorite",
-            "watch_flag": "??" if LANG == "zh-TW" else "Watch",
-            "exclude_flag": "??" if LANG == "zh-TW" else "Exclude",
-            "trend_mini": "????" if LANG == "zh-TW" else "Trend",
-            "score_trend": "????" if LANG == "zh-TW" else "Score Trend",
-            "close_price": "????" if LANG == "zh-TW" else "Last Price",
-            "recommendation_bucket": "??" if LANG == "zh-TW" else "Bucket",
-            "composite_signal_score": "????" if LANG == "zh-TW" else "Score",
-            "relative_strength_score": "????" if LANG == "zh-TW" else "RS",
-            "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Buy Streak",
-            "suggested_action": "?? / ??" if LANG == "zh-TW" else "Action / Why",
-        }
-    )
+    display = management_frame[[
+        "ticker", "company", "sector", "favorite_flag", "watch_flag", "exclude_flag",
+        "trend_mini", "score_trend", "close_price", "recommendation_bucket",
+        "composite_signal_score", "relative_strength_score", "institutional_buy_streak", "suggested_action",
+    ]].copy().fillna("")
+    display = display.rename(columns={
+        "ticker": "\u4ee3\u865f" if LANG == "zh-TW" else "Ticker",
+        "company": "\u516c\u53f8" if LANG == "zh-TW" else "Company",
+        "sector": "\u985e\u80a1" if LANG == "zh-TW" else "Sector",
+        "favorite_flag": "\u6700\u611b" if LANG == "zh-TW" else "Favorite",
+        "watch_flag": "\u89c0\u5bdf" if LANG == "zh-TW" else "Watch",
+        "exclude_flag": "\u5254\u9664" if LANG == "zh-TW" else "Exclude",
+        "trend_mini": "\u77ed\u7dda\u8d70\u52e2" if LANG == "zh-TW" else "Trend",
+        "score_trend": "\u5206\u6578\u7bc0\u594f" if LANG == "zh-TW" else "Score Trend",
+        "close_price": "\u6700\u65b0\u80a1\u50f9" if LANG == "zh-TW" else "Last Price",
+        "recommendation_bucket": "\u5206\u7d44" if LANG == "zh-TW" else "Bucket",
+        "composite_signal_score": "\u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Score",
+        "relative_strength_score": "\u76f8\u5c0d\u5f37\u5ea6" if LANG == "zh-TW" else "RS",
+        "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Buy Streak",
+        "suggested_action": "\u5efa\u8b70 / \u7406\u7531" if LANG == "zh-TW" else "Action / Why",
+    })
     st.dataframe(
         display,
         use_container_width=True,
         hide_index=True,
         column_config={
-            ("????" if LANG == "zh-TW" else "Trend"): st.column_config.LineChartColumn(
-                "????" if LANG == "zh-TW" else "Trend", width="medium", y_min=-12, y_max=12
+            ("\u77ed\u7dda\u8d70\u52e2" if LANG == "zh-TW" else "Trend"): st.column_config.LineChartColumn(
+                "\u77ed\u7dda\u8d70\u52e2" if LANG == "zh-TW" else "Trend", width="medium", y_min=-12, y_max=12
             ),
-            ("????" if LANG == "zh-TW" else "Score Trend"): st.column_config.LineChartColumn(
-                "????" if LANG == "zh-TW" else "Score Trend", width="medium", y_min=0, y_max=100
+            ("\u5206\u6578\u7bc0\u594f" if LANG == "zh-TW" else "Score Trend"): st.column_config.LineChartColumn(
+                "\u5206\u6578\u7bc0\u594f" if LANG == "zh-TW" else "Score Trend", width="medium", y_min=0, y_max=100
             ),
-            ("????" if LANG == "zh-TW" else "Last Price"): st.column_config.NumberColumn(
-                "????" if LANG == "zh-TW" else "Last Price", format="%.2f"
+            ("\u6700\u65b0\u80a1\u50f9" if LANG == "zh-TW" else "Last Price"): st.column_config.NumberColumn(
+                "\u6700\u65b0\u80a1\u50f9" if LANG == "zh-TW" else "Last Price", format="%.2f"
             ),
-            ("????" if LANG == "zh-TW" else "Score"): st.column_config.NumberColumn(
-                "????" if LANG == "zh-TW" else "Score", format="%.2f"
+            ("\u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Score"): st.column_config.NumberColumn(
+                "\u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Score", format="%.2f"
             ),
-            ("????" if LANG == "zh-TW" else "RS"): st.column_config.NumberColumn(
-                "????" if LANG == "zh-TW" else "RS", format="%.1f"
+            ("\u76f8\u5c0d\u5f37\u5ea6" if LANG == "zh-TW" else "RS"): st.column_config.NumberColumn(
+                "\u76f8\u5c0d\u5f37\u5ea6" if LANG == "zh-TW" else "RS", format="%.1f"
             ),
-            ("??????" if LANG == "zh-TW" else "Buy Streak"): st.column_config.NumberColumn(
-                "??????" if LANG == "zh-TW" else "Buy Streak", format="%d"
+            ("\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Buy Streak"): st.column_config.NumberColumn(
+                "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Buy Streak", format="%d"
             ),
-            ("????" if LANG == "zh-TW" else "Action / Why"): st.column_config.TextColumn(
-                "????" if LANG == "zh-TW" else "Action / Why", width="large"
+            ("\u5efa\u8b70 / \u7406\u7531" if LANG == "zh-TW" else "Action / Why"): st.column_config.TextColumn(
+                "\u5efa\u8b70 / \u7406\u7531" if LANG == "zh-TW" else "Action / Why", width="large"
             ),
         },
     )
-
+    st.markdown(f'<div class="section-label">{"\u8868\u683c\u5217\u7d1a\u64cd\u4f5c" if LANG == "zh-TW" else "Row Actions"}</div>', unsafe_allow_html=True)
+    st.caption(
+        "\u4e0d\u7528\u518d\u900f\u904e\u4e0b\u62c9\u9078\u55ae\uff0c\u53ef\u76f4\u63a5\u5728\u5217\u8868\u4e2d\u8abf\u6574\u9019\u4e9b\u80a1\u7968\u7684\u7ba1\u7406\u72c0\u614b\u3002"
+        if LANG == "zh-TW"
+        else "Adjust managed names directly from the list instead of routing through a selector."
+    )
+    for idx, row in management_frame.head(18).reset_index(drop=True).iterrows():
+        row_cols = st.columns((2.2, 1.2, 0.8, 0.8, 0.8, 0.8))
+        row_cols[0].markdown(f'**{_ticker_option_label(str(row["ticker"]), market_key)}**')
+        row_cols[1].caption(maybe_translate_text(str(row.get("suggested_action", ""))) or "—")
+        for col, action in zip(row_cols[2:], ["favorite", "watch", "exclude", "remove"]):
+            if col.button(
+                _management_action_label(action),
+                key=f'managed_row_{market_key}_{row["ticker"]}_{idx}_{action}',
+                use_container_width=True,
+            ):
+                _mutate_market_management_list(market_key, str(row["ticker"]), action)
+                st.rerun()
 
 def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     if frame.empty:
@@ -2568,7 +2590,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -2577,26 +2599,17 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     table = table.rename(columns=rename_map)
     chart_config: dict[str, Any] = {}
     if t("trend_mini") in table.columns:
-        chart_config[t("trend_mini")] = st.column_config.LineChartColumn(
-            t("trend_mini"),
-            width="medium",
-            y_min=-12,
-            y_max=12,
-        )
+        chart_config[t("trend_mini")] = st.column_config.LineChartColumn(t("trend_mini"), width="medium", y_min=-12, y_max=12)
     if t("score_trend") in table.columns:
-        chart_config[t("score_trend")] = st.column_config.LineChartColumn(
-            t("score_trend"),
-            width="medium",
-            y_min=0,
-            y_max=100,
-        )
-    st.dataframe(
-        table,
-        use_container_width=True,
-        hide_index=True,
-        column_config=chart_config or None,
-    )
-
+        chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
+    if t("score") in table.columns:
+        chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
+    streak_label = "??????" if LANG == "zh-TW" else "Institutional Buy Streak"
+    if streak_label in table.columns:
+        chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
+    if t("suggested_action") in table.columns:
+        chart_config[t("suggested_action")] = st.column_config.TextColumn(t("suggested_action"), width="large")
+    st.dataframe(table, use_container_width=True, hide_index=True, column_config=chart_config or None)
 
 def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
     st.markdown(f'<div class="section-label">{t("focus_lists")}</div>', unsafe_allow_html=True)
@@ -2632,10 +2645,10 @@ def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
         )
 
 
-def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
+def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None = None) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
     st.caption(
-        "綜合分數越高，代表越接近可執行。75 分以上通常進入可執行或候選，65-74 分代表差臨門一腳。"
+        "80 \u5206\u4ee5\u4e0a\u4ee3\u8868\u53ef\u76f4\u63a5\u512a\u5148\u8655\u7406\uff0c70-79 \u5206\u9069\u5408\u8a66\u55ae\uff0c60-69 \u5206\u5148\u89c0\u5bdf\uff0c\u4f4e\u65bc 60 \u5206\u5148\u907f\u958b\u3002"
         if LANG == "zh-TW"
         else f'{t("decision_score_label")}: {t("decision_score_help")}'
     )
@@ -2649,124 +2662,66 @@ def render_decision_cards(candidate_frame: pd.DataFrame) -> None:
         .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
         .head(8)
     )
-    for _, row in latest.iterrows():
+    verdicts = [_decision_verdict(row)[0] for _, row in latest.iterrows()]
+    summary_cols = st.columns(4)
+    labels = [t("verdict_buy"), t("verdict_probe"), t("verdict_wait"), t("verdict_avoid")]
+    for column, label in zip(summary_cols, labels):
+        column.metric(label, verdicts.count(label))
+    resolved_market_key = market_key or str(latest.iloc[0].get("type", "tw") or "tw").lower()
+    for idx, (_, row) in enumerate(latest.iterrows()):
         company_name, sector_name = _display_name_for_row(row)
         verdict_label, verdict_color = _decision_verdict(row)
-        rationale = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("rationale", []))
-        risks = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("risks", []))
-        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
+        score = float(row.get("composite_signal_score", 0) or 0)
         level = maybe_translate_text(str(row.get("recommendation_level", "")))
+        suggestion = maybe_translate_text(str(row.get("suggested_action", "")))
         win_label = maybe_translate_text(str(row.get("win_rate_label", "")))
         risk_label = maybe_translate_text(str(row.get("risk_level", "")))
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
-        forward_score = float(row.get("forward_score", 0))
-        forward_notes = "".join(f"<li>{maybe_translate_text(item)}</li>" for item in row.get("forward_notes", []))
-        if LANG == "zh-TW":
-            verdict_copy = {
-                t("verdict_buy"): "條件完整，可直接依風控計畫執行。",
-                t("verdict_probe"): "先用小部位試單，確認延續後再加碼。",
-                t("verdict_wait"): "先觀察，等條件更完整再出手。",
-                t("verdict_avoid"): "目前風險偏高，暫時不要出手。",
-            }.get(verdict_label, "")
-        else:
-            verdict_copy = ""
-        st.markdown(
-            f"""
-            <div class="decision-card">
-                <div class="decision-head">
-                    <div>
-                        <div class="decision-ticker">{row["ticker"]}</div>
-                        <div class="decision-meta">
-                            {company_name} | {t("sector")} {sector_name} <br/>
-                            {t("signal_type")} {localize_value(row.get("signal_type", ""))} |
-                            {localize_value(row.get("universe_bucket", "core"))} |
-                            {localize_value(row.get("recommendation_bucket", "Watchlist"))}
-                        </div>
-                    </div>
-                    <div class="decision-meta">{t("decision_score_label")} {float(row.get("composite_signal_score", 0)):.2f}</div>
-                </div>
-                <div class="decision-meta" style="margin-bottom:8px;">
-                    {t("decision_verdict")}：
-                    <span style="color:{verdict_color};font-weight:800;">{verdict_label}</span>
-                    {verdict_copy}
-                </div>
-                <span class="decision-pill">{level}</span>
-                <span class="decision-pill">{t("win_label")}: {win_label}</span>
-                <span class="decision-pill">{t("risk_label")}: {risk_label}</span>
-                <span class="decision-pill">{t("reward_risk")}: {reward_risk}</span>
-                <span class="decision-pill">{t("forward_score")}: {forward_score:.2f}</span>
-                <span class="decision-pill">{t("event_risk")}: {localize_value(row.get("event_risk_note", "clear"))}</span>
-                <div class="decision-label">{t("suggested_action")}</div>
-                <div>{suggestion}</div>
-                <div class="decision-label">{t("forward_notes")}</div>
-                <ul class="decision-list">{forward_notes}</ul>
-                <div class="decision-label">{t("rationale")}</div>
-                <ul class="decision-list">{rationale}</ul>
-                <div class="decision-label">{t("risks")}</div>
-                <ul class="decision-list">{risks}</ul>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-
-COPY["zh-TW"].update(
-    {
-        "decision_score_label": "綜合判讀分數",
-        "decision_score_help": "80 分以上偏強，可正常看待；70-79 分可先小部位試單；60-69 分先觀察；60 分以下先避開。",
-        "decision_verdict": "結論",
-        "verdict_buy": "可買",
-        "verdict_probe": "可試單",
-        "verdict_wait": "先觀察",
-        "verdict_avoid": "先避開",
-        "leader_board_help": "這裡放的是目前最強、最接近可執行的標的。",
-        "risk_board_help": "這裡放的是事件風險較高、容易影響勝率或不適合追價的標的。",
-        "trend_mini": "短線走勢",
-        "score_trend": "分數節奏",
-        "rank_board": "熱度榜",
-        "leader_board": "領先名單",
-        "risk_board": "風險名單",
-        "market_pulse": "市場脈搏",
-        "sector_heatmap": "類股熱區",
-        "setup_distribution": "訊號分布",
-    }
-)
-TEXT = COPY["zh-TW"] | COPY.get(LANG, {})
-
-ZH_DECISION_TEXT.update(
-    {
-        "Institutional buying has just turned positive.": "法人買盤剛轉正。",
-        "Institutional buying is building into a second session.": "法人買盤延續到第 2 天。",
-        "Relative strength is decisively above the market benchmark.": "相對強度明顯優於市場基準。",
-        "Relative strength is supportive versus the benchmark.": "相對強度仍比市場基準健康。",
-        "Price location is constructive and not excessively extended.": "價位位置健康，且未過度乖離。",
-        "Entry quality is acceptable if execution stays disciplined.": "進場品質尚可，前提是執行紀律要嚴格。",
-        "The market regime is supportive for trend-following entries.": "市場環境偏向有利順勢操作。",
-        "The broader market is neutral, so follow-through may be slower.": "大盤偏中性，延續力可能較慢。",
-        "The broader market is risk-off, so hit rates can fall quickly.": "大盤偏防守，勝率容易快速下降。",
-        "This idea is in the Explore pool, so it should not outrank core large-cap names.": "這檔屬於觀察池，不應高於核心大型股的優先順序。",
-        "This name belongs to the core monitoring pool.": "此標的屬於核心追蹤池。",
-        "Event risk is manageable but still worth monitoring.": "事件風險可控，但仍值得持續追蹤。",
-        "No major risk flags are active right now, but standard stop discipline still applies.": "目前沒有重大風險警示，但停損紀律仍要保留。",
-        "The current signal does not yet have enough stacked evidence.": "目前訊號還沒有堆出足夠證據。",
-        "Normal position sizing or staged entries on minor pullbacks.": "可用正常部位，或等待小拉回分批進場。",
-        "Pilot size first, then add if confirmation holds.": "先用試單部位，確認延續後再加碼。",
-        "Observe only until the odds improve.": "先觀察，等勝率提升再行動。",
-        "Small trial size only; keep core capital focused on large caps.": "僅適合小部位試單，核心資金仍應聚焦大型股。",
-        "High Conviction Core": "核心可買",
-        "Actionable Setup": "可試單",
-        "Watch and Wait": "先觀察",
-        "High": "高",
-        "Medium-High": "中高",
-        "Medium-Low": "中低",
-        "Medium": "中",
-        "Favorable": "報酬優勢",
-        "Balanced": "風報平衡",
-        "Unclear": "風報不明",
-    }
-)
-
+        forward_score = float(row.get("forward_score", 0) or 0)
+        risk_note = localize_value(row.get("event_risk_note", "clear"))
+        rationale_items = [maybe_translate_text(item) for item in row.get("rationale", []) if item]
+        forward_items = [maybe_translate_text(item) for item in row.get("forward_notes", []) if item]
+        risk_items = [maybe_translate_text(item) for item in row.get("risks", []) if item]
+        title = f'{row["ticker"]} | {company_name} | {verdict_label} | {score:.1f}'
+        with st.expander(title, expanded=(idx == 0)):
+            top_left, top_right = st.columns((1.2, 1))
+            with top_left:
+                st.markdown(f'**{company_name}**')
+                bucket_label = localize_value(row.get("recommendation_bucket", "Watchlist"))
+                signal_label = localize_value(row.get("signal_type", ""))
+                universe_label = localize_value(row.get("universe_bucket", "core"))
+                st.caption(f'{t("sector")} {sector_name} | {t("signal_type")} {signal_label} | {universe_label} | {bucket_label}')
+            with top_right:
+                st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
+                st.caption(f'{t("decision_score_label")}: {score:.2f}')
+            action_cols = st.columns(4)
+            for column, action in zip(action_cols, ["favorite", "watch", "exclude", "remove"]):
+                if column.button(
+                    _management_action_label(action),
+                    key=f'decision_manage_{resolved_market_key}_{row["ticker"]}_{action}',
+                    use_container_width=True,
+                ):
+                    _mutate_market_management_list(resolved_market_key, str(row["ticker"]), action)
+                    st.rerun()
+            metric_cols = st.columns(5)
+            metric_cols[0].metric(level or ("\u7d50\u8ad6" if LANG == "zh-TW" else "Verdict"), f'{score:.1f}')
+            metric_cols[1].metric(t("win_label"), win_label)
+            metric_cols[2].metric(t("risk_label"), risk_label)
+            metric_cols[3].metric(t("reward_risk"), reward_risk)
+            metric_cols[4].metric(t("forward_score"), f'{forward_score:.1f}')
+            st.markdown(f'**{t("suggested_action")}**')
+            st.write(suggestion or "-")
+            if risk_note:
+                st.caption(f'{t("event_risk")}: {risk_note}')
+            notes_left, notes_right = st.columns(2)
+            with notes_left:
+                st.markdown(f'**{t("rationale")}**')
+                st.markdown("\\n".join(f'- {item}' for item in rationale_items) if rationale_items else '-')
+                st.markdown(f'**{t("forward_notes")}**')
+                st.markdown("\\n".join(f'- {item}' for item in forward_items) if forward_items else '-')
+            with notes_right:
+                st.markdown(f'**{t("risks")}**')
+                st.markdown("\\n".join(f'- {item}' for item in risk_items) if risk_items else '-')
 
 def _translate_macro_event_label(label: str) -> str:
     cleaned = str(label or "").strip().replace("_", " ").lower()
@@ -3496,12 +3451,12 @@ def _stage_reason_label(reason: str) -> str:
 
 def _trigger_label_list(values: list[str]) -> str:
     mapping = {
-        "SMART_MONEY_TREND": "??????" if LANG == "zh-TW" else "Smart Money Trend",
-        "VCP_BREAKOUT": "VCP ????" if LANG == "zh-TW" else "VCP Breakout",
-        "PANIC_REVERSAL": "??????" if LANG == "zh-TW" else "Panic Reversal",
+        "SMART_MONEY_TREND": "\u6cd5\u4eba\u9806\u52e2\u52d5\u80fd" if LANG == "zh-TW" else "Smart Money Trend",
+        "VCP_BREAKOUT": "VCP \u91cf\u7e2e\u7a81\u7834" if LANG == "zh-TW" else "VCP Breakout",
+        "PANIC_REVERSAL": "\u6050\u614c\u6975\u7aef\u53cd\u8f49" if LANG == "zh-TW" else "Panic Reversal",
     }
     if not values:
-        return "?" if LANG == "zh-TW" else "-"
+        return "\u2014" if LANG == "zh-TW" else "-"
     return " / ".join(mapping.get(value, value) for value in values)
 
 def _format_stage_counts(stage_counts: dict[str, int]) -> str:
@@ -3527,7 +3482,7 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
     frame["fundamental_snapshot"] = frame.apply(
         lambda row: (
-            f"?? YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
+            f"\u71df\u6536 YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
             if LANG == "zh-TW" and pd.notna(row.get("revenue_yoy")) and pd.notna(row.get("eps_ttm"))
             else (
                 f"Revenue YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
@@ -3581,25 +3536,24 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     st.markdown(f'<div class="section-label">{"\u6f0f\u6597\u904e\u7a0b" if LANG == "zh-TW" else "Funnel Trail"}</div>', unsafe_allow_html=True)
     st.dataframe(display, use_container_width=True, hide_index=True)
     market_key = str(getattr(summary, "market_type", "") or "tw").lower()
-    stage_picker = st.selectbox(
-        "\u5f9e\u6f0f\u6597\u52a0\u5165\u7ba1\u7406\u6e05\u55ae" if LANG == "zh-TW" else "Add from funnel trail",
-        options=[""] + frame["ticker"].astype(str).str.upper().drop_duplicates().tolist(),
-        format_func=lambda value: ("\u9078\u64c7\u80a1\u7968" if LANG == "zh-TW" else "Select ticker") if value == "" else _ticker_option_label(value, market_key),
-        key=f"funnel_manage_{market_key}",
+    st.caption(
+        "\u4f60\u53ef\u4ee5\u76f4\u63a5\u5f9e\u6f0f\u6597\u904e\u7a0b\u5c07\u559c\u6b61\u7684\u80a1\u7968\u52a0\u9032\u6700\u611b\u3001\u89c0\u5bdf\u6216\u5254\u9664\u540d\u55ae\u3002"
+        if LANG == "zh-TW"
+        else "Add names into favorites, watch, or exclude directly from the funnel trail."
     )
-    stage_buttons = st.columns(4)
-    for column, (action, label) in zip(
-        stage_buttons,
-        [
-            ("favorite", "\u52a0\u6700\u611b" if LANG == "zh-TW" else "Favorite"),
-            ("watch", "\u52a0\u89c0\u5bdf" if LANG == "zh-TW" else "Watch"),
-            ("exclude", "\u5254\u9664" if LANG == "zh-TW" else "Exclude"),
-            ("remove", "\u53d6\u6d88" if LANG == "zh-TW" else "Remove"),
-        ],
-    ):
-        if column.button(label, key=f"funnel_manage_button_{market_key}_{action}", use_container_width=True, disabled=stage_picker == ""):
-            _mutate_market_management_list(market_key, stage_picker, action)
-            st.rerun()
+    for idx, row in frame.head(20).reset_index(drop=True).iterrows():
+        row_cols = st.columns((2.2, 1.4, 1.2, 0.8, 0.8, 0.8, 0.8))
+        row_cols[0].markdown(f'**{_ticker_option_label(str(row["ticker"]), market_key)}**')
+        row_cols[1].caption(_stage_name_label(str(row.get("stage", ""))))
+        row_cols[2].caption(_stage_reason_label(str(row.get("reason", ""))))
+        for col, action in zip(row_cols[3:], ["favorite", "watch", "exclude", "remove"]):
+            if col.button(
+                _management_action_label(action),
+                key=f'funnel_row_{market_key}_{row["ticker"]}_{idx}_{action}',
+                use_container_width=True,
+            ):
+                _mutate_market_management_list(market_key, str(row["ticker"]), action)
+                st.rerun()
 
 
 def _analysis_cooldown_key(market_type: str) -> str:
@@ -3680,34 +3634,34 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     stage_counts = getattr(summary, "stage_counts", {}) or {}
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("掃描" if LANG == "zh-TW" else "Scanned", scanned_tickers)
-    c2.metric("有資料" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
-    c3.metric("資料不足" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
-    c4.metric("未入選" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
+    c1.metric("???" if LANG == "zh-TW" else "Scanned", scanned_tickers)
+    c2.metric("???" if LANG == "zh-TW" else "Data Ready", data_ready_tickers)
+    c3.metric("????" if LANG == "zh-TW" else "Missing", skipped_data_tickers)
+    c4.metric("???" if LANG == "zh-TW" else "No Signal", no_signal_tickers)
     c5.metric(t("records"), signal_count)
-    summary_at = str(st.session_state.get("analysis_summary_at") or "")
+    summary_at = str(getattr(summary, "run_at", "") or st.session_state.get("analysis_summary_at") or "")
     if summary_at:
         _render_data_caption(f'{t("page_rendered_at")}: {summary_at}')
     if core_ticker_count or explore_ticker_count:
         if LANG == "zh-TW":
-            st.caption(f"核心池 {core_ticker_count} 檔、觀察池 {explore_ticker_count} 檔。這些是掃描宇宙，不是保證最後會入選。")
+            st.caption(f"??????? {core_ticker_count} ????? {explore_ticker_count} ????????????????????")
         else:
             st.caption(
                 f"Scanned {core_ticker_count} core names and {explore_ticker_count} explore names. "
                 f"These lists define the universe, not guaranteed outputs."
             )
     if stage_counts:
-        st.caption(("漏斗分佈：" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
+        st.caption(("?????" if LANG == "zh-TW" else "Funnel counts: ") + _format_stage_counts(stage_counts))
     if skipped_reason_counts:
-        st.caption(("資料不足原因：" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
+        st.caption(("???????" if LANG == "zh-TW" else "Missing-data reasons: ") + format_skip_reasons(skipped_reason_counts))
     if no_signal_reason_counts:
-        st.caption(("未入選主因：" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
+        st.caption(("??????" if LANG == "zh-TW" else "Main no-signal reasons: ") + format_no_signal_reasons(no_signal_reason_counts))
     if signal_count == 0:
         if data_ready_tickers == 0:
-            st.warning("流程有跑完，但沒有拿到足夠可用資料。" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
+            st.warning("????????????????" if LANG == "zh-TW" else "Execution completed, but no usable market data was available.")
         else:
             st.info(
-                "流程有跑完，但目前沒有股票同時通過底線、型態、分數與風險檢查。"
+                "??????????????????????????????"
                 if LANG == "zh-TW"
                 else "Execution completed, but no names passed the baseline, trigger, score, and risk filters together."
             )
@@ -3715,13 +3669,12 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
         pass_rate = (signal_count / scanned_tickers * 100) if scanned_tickers else 0.0
         st.info(
             (
-                f"最後只有 {signal_count} 檔進入結果，不代表偏好池失效，而是只有 {pass_rate:.1f}% 同時通過底線、觸發、分數與風險門檻。"
+                f"???? {signal_count} ????? {pass_rate:.1f}% ??????????????"
                 if LANG == "zh-TW"
                 else f"Only {signal_count} names survived. That means {pass_rate:.1f}% cleared baseline, trigger, score, and risk checks."
             )
         )
     render_funnel_stage_table(summary)
-
 
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
     frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
@@ -4882,7 +4835,7 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
-        "institutional_buy_streak": "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak",
+        "institutional_buy_streak": "??????" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
         "next_event_date": t("next_event"),
@@ -4896,17 +4849,20 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
     if t("score") in table.columns:
         chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
-    streak_label = "法人連買天數" if LANG == "zh-TW" else "Institutional Buy Streak"
+    streak_label = "??????" if LANG == "zh-TW" else "Institutional Buy Streak"
     if streak_label in table.columns:
         chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
     if t("suggested_action") in table.columns:
         chart_config[t("suggested_action")] = st.column_config.TextColumn(t("suggested_action"), width="large")
     st.dataframe(table, use_container_width=True, hide_index=True, column_config=chart_config or None)
 
-
 def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None = None) -> None:
     st.markdown(f'<div class="section-label">{t("decision_cards")}</div>', unsafe_allow_html=True)
-    st.caption("80 ???????70-79 ?????60-69 ??????? 60 ?????" if LANG == "zh-TW" else f'{t("decision_score_label")}: {t("decision_score_help")}')
+    st.caption(
+        "80 ?????????????70-79 ??????60-69 ??????? 60 ?????"
+        if LANG == "zh-TW"
+        else f'{t("decision_score_label")}: {t("decision_score_help")}'
+    )
     if candidate_frame.empty:
         st.info(t("no_data"))
         return
@@ -4950,16 +4906,12 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                 st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
                 st.caption(f'{t("decision_score_label")}: {score:.2f}')
             action_cols = st.columns(4)
-            for column, (action, label) in zip(
-                action_cols,
-                [
-                    ("favorite", "???" if LANG == "zh-TW" else "Favorite"),
-                    ("watch", "???" if LANG == "zh-TW" else "Watch"),
-                    ("exclude", "??" if LANG == "zh-TW" else "Exclude"),
-                    ("remove", "??" if LANG == "zh-TW" else "Remove"),
-                ],
-            ):
-                if column.button(label, key=f'decision_manage_{resolved_market_key}_{row["ticker"]}_{action}', use_container_width=True):
+            for column, action in zip(action_cols, ["favorite", "watch", "exclude", "remove"]):
+                if column.button(
+                    _management_action_label(action),
+                    key=f'decision_manage_{resolved_market_key}_{row["ticker"]}_{action}',
+                    use_container_width=True,
+                ):
                     _mutate_market_management_list(resolved_market_key, str(row["ticker"]), action)
                     st.rerun()
             metric_cols = st.columns(5)
@@ -4981,7 +4933,6 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
             with notes_right:
                 st.markdown(f'**{t("risks")}**')
                 st.markdown("\n".join(f'- {item}' for item in risk_items) if risk_items else '-')
-
 
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     snapshot = dashboard_service.build_snapshot()
