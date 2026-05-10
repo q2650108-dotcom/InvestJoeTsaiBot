@@ -76,6 +76,26 @@ TW_INDUSTRY_CODE_MAP = {
 }
 
 
+US_FALLBACK_PROFILE = {
+    "AAPL": {"name_zh": "\u860b\u679c", "name_en": "Apple", "sector": "Consumer Electronics"},
+    "MSFT": {"name_zh": "\u5fae\u8edf", "name_en": "Microsoft", "sector": "Software"},
+    "NVDA": {"name_zh": "\u8f1d\u9054", "name_en": "NVIDIA", "sector": "Semiconductors"},
+    "AMZN": {"name_zh": "\u4e9e\u99ac\u905c", "name_en": "Amazon", "sector": "Internet Retail"},
+    "META": {"name_zh": "Meta", "name_en": "Meta Platforms", "sector": "Internet Content & Information"},
+    "GOOGL": {"name_zh": "Alphabet", "name_en": "Alphabet", "sector": "Internet Content & Information"},
+    "GOOG": {"name_zh": "Alphabet", "name_en": "Alphabet", "sector": "Internet Content & Information"},
+    "SPY": {"name_zh": "\u6a19\u666e500 ETF", "name_en": "SPDR S&P 500 ETF", "sector": "ETF"},
+    "QQQ": {"name_zh": "\u7d0d\u6307100 ETF", "name_en": "Invesco QQQ Trust", "sector": "ETF"},
+    "AVGO": {"name_zh": "\u535a\u901a", "name_en": "Broadcom", "sector": "Semiconductors"},
+    "AMD": {"name_zh": "\u8d85\u5fae", "name_en": "AMD", "sector": "Semiconductors"},
+    "NFLX": {"name_zh": "Netflix", "name_en": "Netflix", "sector": "Entertainment"},
+    "PLTR": {"name_zh": "Palantir", "name_en": "Palantir", "sector": "Software"},
+    "TSLA": {"name_zh": "\u7279\u65af\u62c9", "name_en": "Tesla", "sector": "Auto Manufacturers"},
+    "IWM": {"name_zh": "\u7f85\u7d202000 ETF", "name_en": "iShares Russell 2000 ETF", "sector": "ETF"},
+    "DIA": {"name_zh": "\u9053\u74ca ETF", "name_en": "SPDR Dow Jones Industrial Average ETF", "sector": "ETF"},
+    "SMH": {"name_zh": "\u534a\u5c0e\u9ad4 ETF", "name_en": "VanEck Semiconductor ETF", "sector": "ETF"},
+}
+
 @dataclass(slots=True)
 class FearGreedSnapshot:
     score: float
@@ -89,6 +109,7 @@ class YahooMarketDataClient:
     def __init__(self, quote_router: QuoteProviderRouter | None = None) -> None:
         self.quote_router = quote_router or self._build_router()
         self._tw_profile_cache: dict[str, dict[str, str]] | None = None
+        self._us_profile_cache: dict[str, dict[str, str]] = {}
         self._growth_cache: dict[str, dict[str, object]] = {}
         self._fear_greed_cache: FearGreedSnapshot | None = None
         self._fear_greed_cache_at: float = 0.0
@@ -732,18 +753,10 @@ class YahooMarketDataClient:
         return self._tw_profile_cache
 
     def _get_us_company_profile(self, ticker: str) -> dict[str, str]:
-        zh_hint = {
-            "AAPL": "蘋果",
-            "MSFT": "微軟",
-            "NVDA": "輝達",
-            "AMZN": "亞馬遜",
-            "META": "Meta",
-            "GOOGL": "Alphabet",
-            "SPY": "標普500 ETF",
-            "QQQ": "那斯達克100 ETF",
-        }
+        if ticker in self._us_profile_cache:
+            return self._us_profile_cache[ticker]
+        fallback = dict(US_FALLBACK_PROFILE.get(ticker, {"name_zh": "", "name_en": ticker, "sector": "Unknown"}))
 
-        # Prefer FMP profile first.
         keys = self._split_api_keys(self._get_fmp_keys())
         for key in keys:
             url = f"https://financialmodelingprep.com/api/v3/profile/{quote_plus(ticker)}?apikey={key}"
@@ -755,21 +768,41 @@ class YahooMarketDataClient:
                 continue
             if isinstance(payload, list) and payload:
                 item = payload[0]
-                name_en = str(item.get("companyName") or ticker).strip() or ticker
-                sector = str(item.get("sector") or "Unknown").strip() or "Unknown"
-                return {"name_zh": zh_hint.get(ticker, ""), "name_en": name_en, "sector": sector}
+                name_en = str(item.get("companyName") or fallback["name_en"] or ticker).strip() or ticker
+                sector = str(item.get("sector") or fallback["sector"] or "Unknown").strip() or "Unknown"
+                profile = {"name_zh": fallback.get("name_zh", ""), "name_en": name_en, "sector": sector}
+                self._us_profile_cache[ticker] = profile
+                return profile
 
-        # Fallback to yfinance info.
+        finnhub_keys = self._split_api_keys(self._get_finnhub_keys())
+        for key in finnhub_keys:
+            url = f"https://finnhub.io/api/v1/stock/profile2?symbol={quote_plus(ticker)}&token={key}"
+            try:
+                response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                item = response.json()
+            except Exception:
+                continue
+            if isinstance(item, dict) and item:
+                name_en = str(item.get("name") or fallback["name_en"] or ticker).strip() or ticker
+                sector = str(item.get("finnhubIndustry") or fallback["sector"] or "Unknown").strip() or "Unknown"
+                profile = {"name_zh": fallback.get("name_zh", ""), "name_en": name_en, "sector": sector}
+                self._us_profile_cache[ticker] = profile
+                return profile
+
         try:
             import yfinance as yf
 
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 info = yf.Ticker(ticker).info
-            name_en = str(info.get("longName") or info.get("shortName") or ticker).strip() or ticker
-            sector = str(info.get("sector") or "Unknown").strip() or "Unknown"
-            return {"name_zh": zh_hint.get(ticker, ""), "name_en": name_en, "sector": sector}
+            name_en = str(info.get("longName") or info.get("shortName") or fallback["name_en"] or ticker).strip() or ticker
+            sector = str(info.get("sector") or info.get("industryDisp") or fallback["sector"] or "Unknown").strip() or "Unknown"
+            profile = {"name_zh": fallback.get("name_zh", ""), "name_en": name_en, "sector": sector}
+            self._us_profile_cache[ticker] = profile
+            return profile
         except Exception:
-            return {"name_zh": zh_hint.get(ticker, ""), "name_en": ticker, "sector": "Unknown"}
+            self._us_profile_cache[ticker] = fallback
+            return fallback
 
     def _get_tw_growth_snapshot(self, ticker: str) -> dict[str, object]:
         stock_no = ticker.replace(".TW", "").replace(".TWO", "")
@@ -858,6 +891,15 @@ class YahooMarketDataClient:
             from investbot.config import get_settings
 
             return get_settings().finmind_api_token
+        except Exception:
+            return ""
+
+    def _get_finnhub_keys(self) -> str:
+        try:
+            from investbot.config import get_settings
+
+            settings = get_settings()
+            return settings.finnhub_api_keys or settings.finnhub_api_key
         except Exception:
             return ""
 
