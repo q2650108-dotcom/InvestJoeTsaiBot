@@ -167,5 +167,8 @@ class UserSettingsRepository:
         return rows[0] if rows else None
 
     def upsert_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
-        response = self.client.table("user_settings").upsert(payload).execute()
+        response = self.client.table("user_settings").upsert(
+            payload,
+            on_conflict="telegram_chat_id",
+        ).execute()
         return response.data[0]

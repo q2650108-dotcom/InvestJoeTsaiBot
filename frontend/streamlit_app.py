@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1831,13 +1832,29 @@ def _read_market_management_lists(market_key: str) -> dict[str, list[str]]:
     }
 
 
+def _apply_runtime_updates_locally(updates: dict[str, object]) -> None:
+    for key, value in updates.items():
+        setattr(runtime_settings, key, value)
+
+
+def _persist_runtime_updates_async(updates: dict[str, object]) -> None:
+    def worker() -> None:
+        try:
+            user_settings_service.update_runtime_preferences(chat_id, updates)
+        except Exception:
+            return
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
 def _write_market_management_lists(market_key: str, lists: dict[str, list[str]]) -> None:
     field_map = _management_field_map(market_key)
     payload = {
         field_map[list_name]: ",".join(dict.fromkeys(lists[list_name]))
         for list_name in field_map
     }
-    user_settings_service.update_runtime_preferences(chat_id, payload)
+    _apply_runtime_updates_locally(payload)
+    _persist_runtime_updates_async(payload)
 
 
 def _mutate_market_management_list(market_key: str, ticker: str, action: str) -> None:
