@@ -33,10 +33,10 @@ from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
-from investbot.services.dashboard_service import DashboardService
+from investbot.services.dashboard_service import DashboardService, DashboardSnapshot
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.event_risk_service import EventRiskService
-from investbot.services.market_overview_service import MarketOverviewService
+from investbot.services.market_overview_service import MarketOverview, MarketOverviewService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
 from investbot.services.universe_builder import UniverseBuilder
@@ -1640,7 +1640,7 @@ def render_analysis_summary(summary: AnalysisRunSummary) -> None:
     render_funnel_stage_table(summary)
 
 def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
-    frame = pd.DataFrame(repo.fetch_recent_candidates(limit=limit))
+    frame = pd.DataFrame(load_recent_candidates_cached(limit=limit))
     if frame.empty:
         return frame
     frame = pd.DataFrame(decision_support.enrich_rows(frame.to_dict("records")))
@@ -1665,6 +1665,52 @@ def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
         else:
             frame[column] = frame[column].fillna(default)
     return frame
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_recent_candidates_cached(limit: int = 220) -> list[dict[str, Any]]:
+    return repo.fetch_recent_candidates(limit=limit)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_dashboard_snapshot_cached() -> DashboardSnapshot:
+    return dashboard_service.build_snapshot()
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def load_market_overview_cached() -> MarketOverview:
+    return overview_service.build()
+
+
+def build_dashboard_snapshot_fallback() -> DashboardSnapshot:
+    empty_frame = pd.DataFrame()
+    return DashboardSnapshot(
+        vix=None,
+        market_sentiment="Unknown",
+        total_open_pnl=0.0,
+        win_rate=0.0,
+        open_trade_count=0,
+        equity_curve=empty_frame,
+        open_positions=empty_frame,
+        recent_closed_trades=empty_frame,
+    )
+
+
+def build_market_overview_fallback() -> MarketOverview:
+    return MarketOverview(
+        overall_trend="Balanced / Selective",
+        sentiment_label="Unknown",
+        fear_greed_score=50,
+        fear_greed_rating="Neutral",
+        fear_greed_source="Unavailable",
+        fear_greed_updated_at="",
+        breadth_snapshot=50.0,
+        momentum_zones=[],
+        caution_items=["Market overview data is temporarily unavailable."],
+        upcoming_macro_events=[],
+        tw_futures_snapshot=None,
+        us_derivatives_note="No truly equivalent daily official institutional index-futures positioning feed for U.S. equities.",
+    )
 
 
 def filter_candidate_frame_for_market(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
@@ -5112,11 +5158,38 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                 st.markdown("\n".join(f'- {item}' for item in risk_items) if risk_items else '-')
 
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
-    snapshot = dashboard_service.build_snapshot()
-    overview = overview_service.build()
     st.title(t("app_title"))
     st.caption(t("app_caption"))
     render_analysis_feedback()
+    load_notice = st.empty()
+    load_notice.info("正在載入市場快照與情緒資料..." if LANG == "zh-TW" else "Loading market snapshot and sentiment data...")
+    snapshot_error = None
+    overview_error = None
+    try:
+        snapshot = load_dashboard_snapshot_cached()
+    except Exception as exc:
+        snapshot_error = exc
+        snapshot = build_dashboard_snapshot_fallback()
+    try:
+        overview = load_market_overview_cached()
+    except Exception as exc:
+        overview_error = exc
+        overview = build_market_overview_fallback()
+    load_notice.empty()
+    if snapshot_error or overview_error:
+        problems = []
+        if snapshot_error:
+            problems.append("市場快照")
+        if overview_error:
+            problems.append("市場概覽")
+        label = "、".join(problems) if LANG == "zh-TW" else ", ".join(problems)
+        st.warning(
+            (
+                f"{label} 暫時抓取失敗，先顯示可用內容，稍後重新整理通常會恢復。"
+                if LANG == "zh-TW"
+                else f"{label} could not be loaded just now. Showing available content first; a refresh usually recovers it."
+            )
+        )
     selected_market_key = render_market_terminal_header(snapshot, overview)
     latest_summary = st.session_state.get("analysis_summary")
     if latest_summary and getattr(latest_summary, "market_type", "") != selected_market_key:
