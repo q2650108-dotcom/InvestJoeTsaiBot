@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from investbot.data_sources.derivatives_data import TaifexDerivativesClient, TaifexInstitutionSnapshot
 from investbot.data_sources.economic_calendar import FmpEconomicCalendarClient
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository
@@ -54,6 +55,8 @@ class MarketOverview:
     momentum_zones: list[str]
     caution_items: list[str]
     upcoming_macro_events: list[str]
+    tw_futures_snapshot: TaifexInstitutionSnapshot | None
+    us_derivatives_note: str
 
 
 class MarketOverviewService:
@@ -63,11 +66,13 @@ class MarketOverviewService:
         summary_service: SummaryService | None = None,
         market_data: YahooMarketDataClient | None = None,
         calendar_client: FmpEconomicCalendarClient | None = None,
+        derivatives_client: TaifexDerivativesClient | None = None,
     ) -> None:
         self.repository = repository or DailyAnalysisRepository()
         self.summary_service = summary_service or SummaryService(repository=self.repository)
         self.market_data = market_data or YahooMarketDataClient()
         self.calendar_client = calendar_client or self._build_calendar_client()
+        self.derivatives_client = derivatives_client or TaifexDerivativesClient()
 
     def build(self) -> MarketOverview:
         tw_summary = self.summary_service.build_market_summary("tw")
@@ -99,6 +104,8 @@ class MarketOverviewService:
         momentum_zones = self._top_momentum_zones(frame)
         caution_items = self._build_cautions(vix=vix, breadth_snapshot=breadth_snapshot, frame=frame)
         upcoming_macro_events = self._build_upcoming_macro_events()
+        tw_futures_snapshot = self.derivatives_client.get_tw_tx_institution_snapshot()
+        us_derivatives_note = "No truly equivalent daily official institutional index-futures positioning feed for U.S. equities."
 
         return MarketOverview(
             overall_trend=overall_trend,
@@ -111,6 +118,8 @@ class MarketOverviewService:
             momentum_zones=momentum_zones,
             caution_items=caution_items,
             upcoming_macro_events=upcoming_macro_events,
+            tw_futures_snapshot=tw_futures_snapshot,
+            us_derivatives_note=us_derivatives_note,
         )
 
     def _score_fear_greed(self, vix: float | None, breadth_snapshot: float, frame: pd.DataFrame) -> int:

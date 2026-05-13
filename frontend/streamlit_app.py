@@ -3786,7 +3786,7 @@ def render_runtime_settings_panel() -> None:
             st.rerun()
 
 
-def render_market_state() -> None:
+def render_market_state(selected_market_key: str = "tw") -> None:
     overview = overview_service.build()
     vix_value = market_data.get_vix_value()
     render_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -3799,7 +3799,7 @@ def render_market_state() -> None:
 
     def _format_detail_time(value: str) -> str:
         if not value:
-            return "—"
+            return "-"
         try:
             parsed = pd.to_datetime(value)
             return parsed.strftime("%Y-%m-%d %H:%M:%S")
@@ -3813,7 +3813,7 @@ def render_market_state() -> None:
             freshness_bits.append(f'{summary.market_type.upper()}: {_format_snapshot_date(summary.summary_date)}')
     _render_data_caption(*freshness_bits)
 
-    left_card, right_card = st.columns(2)
+    left_card, middle_card, right_card = st.columns(3)
     with left_card:
         with st.container(border=True):
             st.markdown(f"**{t('fear_greed')}**")
@@ -3832,7 +3832,7 @@ def render_market_state() -> None:
                 """,
                 unsafe_allow_html=True,
             )
-    with right_card:
+    with middle_card:
         with st.container(border=True):
             st.markdown("**VIX**")
             _render_data_caption(
@@ -3850,6 +3850,59 @@ def render_market_state() -> None:
                 """,
                 unsafe_allow_html=True,
             )
+    with right_card:
+        with st.container(border=True):
+            if selected_market_key == "tw":
+                snapshot = getattr(overview, "tw_futures_snapshot", None)
+                st.markdown("**台指期三大法人未平倉**" if LANG == "zh-TW" else "**TAIEX Futures Institutional OI**")
+                if snapshot is None or not snapshot.rows:
+                    st.info("暫時抓不到台指期三大法人未平倉資料。" if LANG == "zh-TW" else "TAIEX futures institutional OI data is unavailable.")
+                else:
+                    start_date = snapshot.rows[-1].trade_date.strftime("%Y-%m-%d")
+                    end_date = snapshot.rows[0].trade_date.strftime("%Y-%m-%d")
+                    _render_data_caption(
+                        f"{'來源' if LANG == 'zh-TW' else 'Source'}: {snapshot.source}",
+                        f"{'抓取時間' if LANG == 'zh-TW' else 'Fetched'}: {snapshot.fetched_at.strftime('%Y-%m-%d %H:%M:%S')}",
+                        f"{'資料區間' if LANG == 'zh-TW' else 'Data Window'}: {start_date} -> {end_date}",
+                    )
+                    latest_row = snapshot.latest_row
+                    delta_label = f"{snapshot.weekly_change_foreign:+,}" if snapshot.weekly_change_foreign else "0"
+                    st.markdown(
+                        f"""
+                        <div class="state-read">
+                            <div class="state-read-title">{'外資台指期淨口數' if LANG == 'zh-TW' else 'Foreign Net OI (TX)'}</div>
+                            <div class="state-read-main">{latest_row.foreign_net_oi:+,}</div>
+                            <div class="state-read-copy">{'近一週變化' if LANG == 'zh-TW' else '1W change'}: {delta_label}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    mini = pd.DataFrame([
+                        {
+                            '日期' if LANG == 'zh-TW' else 'Date': row.trade_date.strftime('%m-%d'),
+                            '外資' if LANG == 'zh-TW' else 'Foreign': row.foreign_net_oi,
+                            '投信' if LANG == 'zh-TW' else 'Trust': row.trust_net_oi,
+                            '自營商' if LANG == 'zh-TW' else 'Dealer': row.dealer_net_oi,
+                        }
+                        for row in snapshot.rows
+                    ])
+                    st.dataframe(mini, use_container_width=True, hide_index=True, height=215)
+            else:
+                st.markdown("**美股指數期貨法人部位**" if LANG == "zh-TW" else "**US Index-Futures Positioning**")
+                _render_data_caption(
+                    "來源: CFTC / CME（僅作背景參考，非日更對等資料）" if LANG == "zh-TW" else "Source: CFTC / CME (background only; not a daily equivalent)",
+                    f"{'抓取時間' if LANG == 'zh-TW' else 'Fetched'}: {render_time}",
+                )
+                st.markdown(
+                    f"""
+                    <div class="state-read">
+                        <div class="state-read-title">{'資料可得性' if LANG == 'zh-TW' else 'Availability'}</div>
+                        <div class="state-read-main">{'目前沒有完全對等的日更官方資料' if LANG == 'zh-TW' else 'No daily official equivalent'}</div>
+                        <div class="state-read-copy">{'美股較接近的是延遲的週資料 COT / OI，語意上不等同台股三大法人台指期淨口數。' if LANG == 'zh-TW' else 'U.S. equivalents are mostly delayed weekly COT / OI context, not the same as Taiwan daily institutional net contracts.'}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     st.markdown(
         f"""
@@ -3894,8 +3947,7 @@ def render_market_state() -> None:
         if overview.caution_items:
             st.markdown("\n".join(f'- {maybe_translate_text(item)}' for item in overview.caution_items))
         else:
-            st.info("目前沒有明顯的市場級風險提醒。" if LANG == "zh-TW" else "No major market-wide warnings are active right now.")
-
+            st.info("目前沒有額外的市場級警示。" if LANG == "zh-TW" else "No additional market-wide cautions are active right now.")
 
 def render_summary_band(label: str, summary: Any) -> None:
     if summary is None:
@@ -4995,7 +5047,7 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         ]
     )
     with overview_tab:
-        render_market_state()
+        render_market_state(selected_market_key)
         render_session_briefs()
         render_market_overview()
     with scan_tab:

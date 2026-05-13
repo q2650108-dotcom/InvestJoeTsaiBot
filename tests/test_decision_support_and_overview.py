@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from unittest import TestCase
 
+from investbot.data_sources.derivatives_data import TaifexInstitutionRow, TaifexInstitutionSnapshot
 from investbot.data_sources.market_data import FearGreedSnapshot
 from investbot.data_sources.economic_calendar import EconomicCalendarEvent
 from investbot.services.decision_support import DecisionSupportService
@@ -87,6 +88,19 @@ class FakeCalendarClient:
         ]
 
 
+class FakeDerivativesClient:
+    def get_tw_tx_institution_snapshot(self, lookback_rows: int = 5, max_age_seconds: int = 1800) -> TaifexInstitutionSnapshot:
+        return TaifexInstitutionSnapshot(
+            latest_date=date(2026, 5, 6),
+            source="TAIFEX",
+            fetched_at=datetime(2026, 5, 6, 15, 0, 0),
+            rows=[
+                TaifexInstitutionRow(date(2026, 5, 6), foreign_net_oi=-51132, trust_net_oi=46177, dealer_net_oi=-1034),
+                TaifexInstitutionRow(date(2026, 5, 5), foreign_net_oi=-48000, trust_net_oi=43000, dealer_net_oi=-900),
+            ],
+        )
+
+
 class DecisionSupportAndOverviewTests(TestCase):
     def test_decision_support_generates_action_and_risk_text(self) -> None:
         service = DecisionSupportService()
@@ -116,6 +130,7 @@ class DecisionSupportAndOverviewTests(TestCase):
             summary_service=SummaryService(repository=repository),
             market_data=FakeOverviewMarketData(),
             calendar_client=FakeCalendarClient(),
+            derivatives_client=FakeDerivativesClient(),
         ).build()
 
         self.assertGreaterEqual(overview.fear_greed_score, 50)
@@ -124,3 +139,4 @@ class DecisionSupportAndOverviewTests(TestCase):
         self.assertTrue(overview.momentum_zones)
         self.assertTrue(overview.caution_items)
         self.assertTrue(overview.upcoming_macro_events)
+        self.assertIsNotNone(overview.tw_futures_snapshot)
