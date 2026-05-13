@@ -11,6 +11,7 @@ from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.data_sources.twse import TwseClient
 from investbot.db.repositories import DailyAnalysisRepository
 from investbot.models import MarketSignal
+from investbot.services.confluence_engine import ConfluenceEngine
 from investbot.services.event_risk_service import EventRiskAssessment, EventRiskService
 
 
@@ -41,6 +42,7 @@ class MarketContext:
     regime_score: float
     breadth_score: float
     benchmark_return_20d: float
+    benchmark_return_60d: float
     vix_value: float | None
 
 
@@ -94,11 +96,13 @@ class AnalysisEngine:
         twse_client: TwseClient | None = None,
         repository: DailyAnalysisRepository | None = None,
         event_risk_service: EventRiskService | None = None,
+        confluence_engine: ConfluenceEngine | None = None,
     ) -> None:
         self.market_data = market_data or YahooMarketDataClient()
         self.twse_client = twse_client or TwseClient()
         self.repository = repository or DailyAnalysisRepository()
         self.event_risk_service = event_risk_service or EventRiskService(market_data=self.market_data)
+        self.confluence_engine = confluence_engine or ConfluenceEngine()
 
     def run(self, universe: AnalysisUniverse, target_date: date | None = None) -> list[MarketSignal]:
         return self.run_with_summary(universe, target_date=target_date).signals
@@ -114,6 +118,7 @@ class AnalysisEngine:
         all_tickers = universe.all_tickers()
         net_buy_map = self.twse_client.get_institutional_net_buy_map(all_tickers)
         buy_history_map = self.twse_client.get_institutional_buy_history(all_tickers, lookback_days=5)
+        raw_frames: dict[str, pd.DataFrame] = {}
         enriched_frames: dict[str, pd.DataFrame] = {}
         skipped_data_tickers = 0
         skipped_reason_counts: dict[str, int] = {}
@@ -128,7 +133,7 @@ class AnalysisEngine:
             if progress_callback:
                 progress_callback("fetch", index, len(all_tickers), f"抓取 {ticker}" if universe.market_type == "tw" else f"Fetching {ticker}")
             try:
-                history = self.market_data.get_price_history(ticker)
+                history = self.market_data.get_price_history(ticker, period="2y")
                 enriched = self._build_indicators(history)
             except Exception as exc:
                 self.logger.warning("Skip ticker with unavailable market data: %s", ticker, exc_info=True)
@@ -137,6 +142,7 @@ class AnalysisEngine:
                 skipped_reason_counts[skipped_reason] = skipped_reason_counts.get(skipped_reason, 0) + 1
                 continue
             if not enriched.empty:
+                raw_frames[ticker.upper()] = history
                 enriched_frames[ticker.upper()] = enriched
 
         if progress_callback:
@@ -148,6 +154,7 @@ class AnalysisEngine:
             if progress_callback:
                 progress_callback("score", index, len(all_tickers), f"評分 {ticker}" if universe.market_type == "tw" else f"Scoring {ticker}")
             enriched = enriched_frames.get(ticker.upper())
+            raw_history = raw_frames.get(ticker.upper())
             if enriched is None or enriched.empty:
                 continue
 
@@ -156,6 +163,7 @@ class AnalysisEngine:
             ticker_signals, stage_row, no_signal_reason = self._evaluate_strategies(
                 ticker=ticker,
                 market_type=universe.market_type,
+                history=raw_history if raw_history is not None else enriched,
                 enriched=enriched,
                 trade_date=trade_date,
                 institutional_net_buy=net_buy_map.get(ticker.upper(), 0),
@@ -242,6 +250,7 @@ class AnalysisEngine:
         frame["5D_VOL_AVG"] = frame["Volume"].rolling(window=5).mean()
         frame["20D_VOL_AVG"] = frame["Volume"].rolling(window=20).mean()
         frame["20D_RETURN"] = frame["Close"].pct_change(periods=20)
+        frame["60D_RETURN"] = frame["Close"].pct_change(periods=60)
         frame["ATR20"] = true_range.rolling(window=20).mean()
         frame["lower_shadow"] = frame[["Open", "Close"]].min(axis=1) - frame["Low"]
         frame["body_size"] = (frame["Close"] - frame["Open"]).abs()
@@ -278,6 +287,7 @@ class AnalysisEngine:
                 regime_score=regime_score,
                 breadth_score=breadth_score,
                 benchmark_return_20d=benchmark_return_20d,
+                benchmark_return_60d=float(latest["60D_RETURN"]),
                 vix_value=vix_value,
             )
         except Exception:
@@ -286,6 +296,7 @@ class AnalysisEngine:
                 regime_score=50.0,
                 breadth_score=breadth_score,
                 benchmark_return_20d=0.0,
+                benchmark_return_60d=0.0,
                 vix_value=vix_value,
             )
 
@@ -293,6 +304,7 @@ class AnalysisEngine:
         self,
         ticker: str,
         market_type: str,
+        history: pd.DataFrame,
         enriched: pd.DataFrame,
         trade_date: date,
         institutional_net_buy: int,
@@ -313,16 +325,23 @@ class AnalysisEngine:
         ma_60_prev = float(prev["60MA"])
         ma60_up = ma_60 > ma_60_prev
         recent_3d_net_buy = int(sum(institutional_buy_history[-3:])) if institutional_buy_history else 0
-        growth_snapshot = self.market_data.get_growth_snapshot(ticker) if universe_bucket == "explore" else {
-            "revenue_yoy": None,
-            "eps_ttm": None,
-            "as_of": None,
-            "source": "",
-        }
+        buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
+        growth_snapshot = self.market_data.get_growth_snapshot(ticker)
         revenue_yoy = growth_snapshot.get("revenue_yoy")
         eps_ttm = growth_snapshot.get("eps_ttm")
+        confluence_result = self.confluence_engine.evaluate(
+            ticker=ticker,
+            df_price=history,
+            fund_data={
+                "eps_yoy": growth_snapshot.get("eps_yoy"),
+                "rev_yoy": revenue_yoy,
+                "pe_ratio": growth_snapshot.get("pe_ratio"),
+                "pb_ratio": growth_snapshot.get("pb_ratio"),
+                "inst_buy_days": buy_streak,
+            },
+            market_ret_60=market_context.benchmark_return_60d,
+        )
 
-        buy_streak = self._get_institutional_buy_streak(institutional_buy_history)
         event_risk = self.event_risk_service.assess(ticker.upper(), trade_date)
         relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
         institutional_conviction_score = self._score_institutional_conviction(buy_streak, institutional_net_buy)
@@ -369,6 +388,7 @@ class AnalysisEngine:
                     relative_strength_score=relative_strength_score,
                     institutional_buy_streak=buy_streak,
                     growth_snapshot=growth_snapshot,
+                    confluence_result=confluence_result,
                 ),
                 baseline_reason,
             )
@@ -404,6 +424,7 @@ class AnalysisEngine:
                     relative_strength_score=relative_strength_score,
                     institutional_buy_streak=buy_streak,
                     growth_snapshot=growth_snapshot,
+                    confluence_result=confluence_result,
                 ),
                 no_signal_reason,
             )
@@ -427,6 +448,7 @@ class AnalysisEngine:
             institutional_buy_streak=buy_streak,
             growth_snapshot=growth_snapshot,
             trigger_labels=trigger_labels,
+            confluence_result=confluence_result,
         )
         if recommendation_bucket == "Watchlist":
             return results, stage_row, stage_reason
@@ -459,6 +481,11 @@ class AnalysisEngine:
                     entry_quality_score=entry_quality_score,
                     composite_signal_score=composite_signal_score,
                     recommendation_bucket=recommendation_bucket,
+                    confluence_score=float(confluence_result["confluence_score"]),
+                    confluence_classification=str(confluence_result["classification"]),
+                    strategy_scores=dict(confluence_result["scores"]),
+                    confluence_reasons=list(confluence_result["reasons"]),
+                    stop_loss_price=float(confluence_result["stop_loss_price"]) if confluence_result["stop_loss_price"] is not None else None,
                 )
             )
         else:
@@ -486,6 +513,11 @@ class AnalysisEngine:
                     entry_quality_score=entry_quality_score,
                     composite_signal_score=composite_signal_score,
                     recommendation_bucket=recommendation_bucket,
+                    confluence_score=float(confluence_result["confluence_score"]),
+                    confluence_classification=str(confluence_result["classification"]),
+                    strategy_scores=dict(confluence_result["scores"]),
+                    confluence_reasons=list(confluence_result["reasons"]),
+                    stop_loss_price=float(confluence_result["stop_loss_price"]) if confluence_result["stop_loss_price"] is not None else None,
                 )
             )
         return results, stage_row, None
@@ -769,6 +801,7 @@ class AnalysisEngine:
         relative_strength_score: float,
         institutional_buy_streak: int,
         growth_snapshot: dict[str, object],
+        confluence_result: dict[str, object],
         trigger_labels: list[str] | None = None,
     ) -> dict[str, object]:
         return {
@@ -782,7 +815,15 @@ class AnalysisEngine:
             "institutional_buy_streak": institutional_buy_streak,
             "revenue_yoy": growth_snapshot.get("revenue_yoy"),
             "eps_ttm": growth_snapshot.get("eps_ttm"),
+            "eps_yoy": growth_snapshot.get("eps_yoy"),
+            "pe_ratio": growth_snapshot.get("pe_ratio"),
+            "pb_ratio": growth_snapshot.get("pb_ratio"),
             "fundamental_as_of": growth_snapshot.get("as_of"),
             "growth_source": growth_snapshot.get("source"),
+            "confluence_score": confluence_result.get("confluence_score"),
+            "confluence_classification": confluence_result.get("classification"),
+            "strategy_scores": confluence_result.get("scores"),
+            "confluence_reasons": confluence_result.get("reasons"),
+            "stop_loss_price": confluence_result.get("stop_loss_price"),
             "triggers": trigger_labels or [],
         }

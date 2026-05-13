@@ -26,6 +26,11 @@ create table if not exists daily_analysis (
     entry_quality_score double precision,
     composite_signal_score double precision,
     recommendation_bucket text,
+    confluence_score double precision,
+    confluence_classification text,
+    strategy_scores jsonb,
+    confluence_reasons jsonb,
+    stop_loss_price double precision,
     created_at timestamptz not null default now(),
     unique (date, ticker, signal_type)
 );
@@ -71,6 +76,21 @@ alter table daily_analysis
 
 alter table daily_analysis
     add column if not exists recommendation_bucket text;
+
+alter table daily_analysis
+    add column if not exists confluence_score double precision;
+
+alter table daily_analysis
+    add column if not exists confluence_classification text;
+
+alter table daily_analysis
+    add column if not exists strategy_scores jsonb;
+
+alter table daily_analysis
+    add column if not exists confluence_reasons jsonb;
+
+alter table daily_analysis
+    add column if not exists stop_loss_price double precision;
 
 create index if not exists idx_daily_analysis_ticker_date
     on daily_analysis (ticker, date desc);

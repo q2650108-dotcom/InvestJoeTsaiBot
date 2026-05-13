@@ -9,7 +9,10 @@ import time
 from urllib.parse import quote_plus
 
 import pandas as pd
-import requests
+try:
+    import requests
+except ModuleNotFoundError:  # pragma: no cover - local bundled runtime fallback
+    requests = None  # type: ignore[assignment]
 
 from investbot.data_sources.provider_router import ProviderError, QuoteProviderRouter
 
@@ -215,6 +218,9 @@ class YahooMarketDataClient:
         return list(dict.fromkeys(candidates))
 
     def _fetch_from_yahoo_chart(self, ticker: str, period: str, interval: str) -> pd.DataFrame:
+        http = self._get_requests_module()
+        if http is None:
+            return pd.DataFrame()
         range_map = {"1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "3y": "3y", "5y": "5y"}
         query_range = range_map.get(period, period)
         url = (
@@ -222,7 +228,7 @@ class YahooMarketDataClient:
             f"{quote_plus(ticker)}?interval={interval}&range={query_range}&events=history&includePrePost=false"
         )
         try:
-            response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+            response = http.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
             payload = response.json()
             result = (payload.get("chart") or {}).get("result") or []
@@ -250,6 +256,9 @@ class YahooMarketDataClient:
         return frame.reset_index(drop=True)
 
     def _fetch_from_twse_monthly(self, ticker: str, period: str, deadline: float | None = None) -> pd.DataFrame:
+        http = self._get_requests_module()
+        if http is None:
+            return pd.DataFrame()
         stock_no = ticker.upper().replace(".TW", "").strip()
         if not stock_no.isdigit():
             return pd.DataFrame()
@@ -258,7 +267,7 @@ class YahooMarketDataClient:
         max_probe_months = max(months + 3, 36)
         today = self._get_twse_latest_trade_date() or date.today()
         rows: list[dict[str, object]] = []
-        session = requests.Session()
+        session = http.Session()
         consecutive_empty = 0
 
         for offset in range(max_probe_months + 1):
@@ -334,8 +343,11 @@ class YahooMarketDataClient:
         return []
 
     def _get_twse_latest_trade_date(self) -> date | None:
+        http = self._get_requests_module()
+        if http is None:
+            return None
         try:
-            response = requests.get(
+            response = http.get(
                 "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
                 timeout=8,
                 headers={"User-Agent": "Mozilla/5.0"},
@@ -352,12 +364,15 @@ class YahooMarketDataClient:
             return None
 
     def _fetch_from_stooq_csv(self, ticker: str) -> pd.DataFrame:
+        http = self._get_requests_module()
+        if http is None:
+            return pd.DataFrame()
         symbol = ticker.lower()
         if "." not in symbol and symbol not in {"^vix", "^gspc", "^twii"}:
             symbol = f"{symbol}.us"
         url = f"https://stooq.com/q/d/l/?s={quote_plus(symbol)}&i=d"
         try:
-            response = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+            response = http.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
             text = response.text.strip()
         except Exception:
@@ -478,6 +493,9 @@ class YahooMarketDataClient:
         # date offsets and TWSE may return "no data" for future months.
         mapping = {"1d": 6, "5d": 6, "1mo": 12, "3mo": 18, "6mo": 24, "1y": 30, "2y": 36, "3y": 48, "5y": 72}
         return mapping.get(period, 24)
+
+    def _get_requests_module(self):
+        return requests
 
     def _month_back(self, source: date, offset: int) -> date:
         year = source.year
@@ -805,6 +823,7 @@ class YahooMarketDataClient:
             return fallback
 
     def _get_tw_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        http = self._get_requests_module()
         stock_no = ticker.replace(".TW", "").replace(".TWO", "")
         end_date = self._get_twse_latest_trade_date() or date.today()
         start_date = end_date - timedelta(days=430)
@@ -818,7 +837,9 @@ class YahooMarketDataClient:
         if token:
             params["token"] = token
         try:
-            response = requests.get(
+            if http is None:
+                raise RuntimeError("requests unavailable")
+            response = http.get(
                 "https://api.finmindtrade.com/api/v4/data",
                 params=params,
                 timeout=12,
@@ -849,9 +870,13 @@ class YahooMarketDataClient:
                     if not prev.empty and float(prev.iloc[-1]["revenue"]) > 0:
                         revenue_yoy = round(((float(latest["revenue"]) / float(prev.iloc[-1]["revenue"])) - 1) * 100, 2)
 
+        valuation = self._get_equity_valuation_snapshot(ticker)
         return {
             "revenue_yoy": revenue_yoy,
-            "eps_ttm": None,
+            "eps_ttm": valuation.get("eps_ttm"),
+            "eps_yoy": valuation.get("eps_yoy"),
+            "pe_ratio": valuation.get("pe_ratio"),
+            "pb_ratio": valuation.get("pb_ratio"),
             "as_of": as_of or end_date.isoformat(),
             "source": "finmind_tw_revenue",
         }
@@ -867,6 +892,9 @@ class YahooMarketDataClient:
 
         revenue_growth = info.get("revenueGrowth")
         trailing_eps = info.get("trailingEps")
+        earnings_growth = info.get("earningsQuarterlyGrowth")
+        trailing_pe = info.get("trailingPE")
+        price_to_book = info.get("priceToBook")
         as_of = None
         earnings_date = self.get_next_earnings_date(ticker)
         if earnings_date:
@@ -874,8 +902,28 @@ class YahooMarketDataClient:
         return {
             "revenue_yoy": round(float(revenue_growth) * 100, 2) if revenue_growth not in (None, "") else None,
             "eps_ttm": round(float(trailing_eps), 2) if trailing_eps not in (None, "") else None,
+            "eps_yoy": round(float(earnings_growth) * 100, 2) if earnings_growth not in (None, "") else None,
+            "pe_ratio": round(float(trailing_pe), 2) if trailing_pe not in (None, "") else None,
+            "pb_ratio": round(float(price_to_book), 2) if price_to_book not in (None, "") else None,
             "as_of": as_of or date.today().isoformat(),
             "source": "yfinance_info",
+        }
+
+    def _get_equity_valuation_snapshot(self, ticker: str) -> dict[str, float | None]:
+        try:
+            import yfinance as yf
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                info = yf.Ticker(ticker).info
+        except Exception:
+            info = {}
+        return {
+            "eps_ttm": round(float(info.get("trailingEps")), 2) if info.get("trailingEps") not in (None, "") else None,
+            "eps_yoy": round(float(info.get("earningsQuarterlyGrowth")) * 100, 2)
+            if info.get("earningsQuarterlyGrowth") not in (None, "")
+            else None,
+            "pe_ratio": round(float(info.get("trailingPE")), 2) if info.get("trailingPE") not in (None, "") else None,
+            "pb_ratio": round(float(info.get("priceToBook")), 2) if info.get("priceToBook") not in (None, "") else None,
         }
 
     def _get_fmp_keys(self) -> str:

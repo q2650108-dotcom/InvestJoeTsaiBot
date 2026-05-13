@@ -1408,6 +1408,42 @@ def _format_stage_counts(stage_counts: dict[str, int]) -> str:
     return " | ".join(parts)
 
 
+def _confluence_label(value: object) -> str:
+    mapping = {
+        "Actionable": "多策略共振" if LANG == "zh-TW" else "Confluence Actionable",
+        "Candidate": "待觀察共振" if LANG == "zh-TW" else "Confluence Candidate",
+        "Watch": "僅作觀察" if LANG == "zh-TW" else "Confluence Watch",
+    }
+    text = str(value or "")
+    return mapping.get(text, text or ("未評估" if LANG == "zh-TW" else "Not Scored"))
+
+
+def _format_strategy_scores(value: object) -> str:
+    if isinstance(value, dict) and value:
+        order = ["CAN_SLIM", "VCP", "Weinstein", "Graham"]
+        short = {
+            "CAN_SLIM": "CAN",
+            "VCP": "VCP",
+            "Weinstein": "WST",
+            "Graham": "GRH",
+        }
+        parts: list[str] = []
+        for key in order:
+            if key in value:
+                try:
+                    parts.append(f'{short[key]} {int(float(value[key]))}')
+                except Exception:
+                    parts.append(f'{short[key]} {value[key]}')
+        return " | ".join(parts) if parts else "—"
+    return "—"
+
+
+def _normalize_reason_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [maybe_translate_text(str(item)) for item in value if str(item).strip()]
+    return []
+
+
 def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     stage_rows = getattr(summary, "stage_rows", None) or []
     if not stage_rows:
@@ -1419,6 +1455,8 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
     frame["stage_label"] = frame["stage"].map(_stage_name_label)
     frame["reason_label"] = frame["reason"].map(_stage_reason_label)
     frame["triggers_label"] = frame["triggers"].apply(lambda values: _trigger_label_list(list(values) if isinstance(values, list) else []))
+    frame["confluence_label"] = frame.get("confluence_classification", pd.Series([""] * len(frame))).map(_confluence_label)
+    frame["strategy_mix"] = frame.get("strategy_scores", pd.Series([{}] * len(frame))).apply(_format_strategy_scores)
     frame["fundamental_snapshot"] = frame.apply(
         lambda row: (
             f"營收 YoY {float(row['revenue_yoy']):.1f}% / EPS {float(row['eps_ttm']):.2f}"
@@ -1440,6 +1478,9 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
             "stage_label",
             "triggers_label",
             "composite_signal_score",
+            "confluence_score",
+            "confluence_label",
+            "strategy_mix",
             "relative_strength_score",
             "institutional_buy_streak",
             "fundamental_snapshot",
@@ -1609,8 +1650,13 @@ def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
         "event_risk_note": "clear",
         "institutional_buy_streak": 0,
         "composite_signal_score": 0.0,
+        "confluence_score": 0.0,
+        "confluence_classification": "Watch",
         "relative_strength_score": 0.0,
         "entry_quality_score": 0.0,
+        "strategy_scores": {},
+        "confluence_reasons": [],
+        "stop_loss_price": 0.0,
     }
     for column, default in defaults.items():
         if column not in frame.columns:
@@ -2578,6 +2624,10 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
     for column in ["universe_bucket", "recommendation_bucket", "event_risk_note"]:
         if column in display.columns:
             display[column] = display[column].map(localize_value)
+    if "confluence_classification" in display.columns:
+        display["confluence_classification"] = display["confluence_classification"].map(_confluence_label)
+    if "strategy_scores" in display.columns:
+        display["strategy_scores"] = display["strategy_scores"].apply(_format_strategy_scores)
     if "suggested_action" in display.columns:
         display["suggested_action"] = display["suggested_action"].astype(str).map(maybe_translate_text)
     if "ticker" in display.columns:
@@ -2593,6 +2643,9 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         "score_trend": t("score_trend"),
         "recommendation_bucket": t("bucket"),
         "composite_signal_score": t("score"),
+        "confluence_score": "\u5171\u632f\u5206\u6578" if LANG == "zh-TW" else "Confluence",
+        "confluence_classification": "\u5171\u632f\u5206\u7d1a" if LANG == "zh-TW" else "Confluence Class",
+        "strategy_scores": "\u7b56\u7565\u62c6\u89e3" if LANG == "zh-TW" else "Strategy Mix",
         "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak",
         "risk_level": t("risk_label"),
         "event_risk_note": t("event_risk"),
@@ -2607,6 +2660,9 @@ def render_terminal_table(frame: pd.DataFrame, columns: list[str]) -> None:
         chart_config[t("score_trend")] = st.column_config.LineChartColumn(t("score_trend"), width="medium", y_min=0, y_max=100)
     if t("score") in table.columns:
         chart_config[t("score")] = st.column_config.NumberColumn(t("score"), format="%.2f")
+    confluence_label = "\u5171\u632f\u5206\u6578" if LANG == "zh-TW" else "Confluence"
+    if confluence_label in table.columns:
+        chart_config[confluence_label] = st.column_config.NumberColumn(confluence_label, format="%.2f")
     streak_label = "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Institutional Buy Streak"
     if streak_label in table.columns:
         chart_config[streak_label] = st.column_config.NumberColumn(streak_label, format="%d")
@@ -2630,21 +2686,21 @@ def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
             latest[latest["universe_bucket"] == "core"]
             .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "institutional_buy_streak", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "confluence_score", "institutional_buy_streak", "suggested_action"],
         )
     with explore_tab:
         render_terminal_table(
             latest[latest["universe_bucket"] == "explore"]
             .sort_values(by=["composite_signal_score"], ascending=[False])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "risk_level", "suggested_action"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "composite_signal_score", "confluence_score", "risk_level", "suggested_action"],
         )
     with risk_tab:
         render_terminal_table(
             latest[latest["event_risk_note"] != "clear"]
             .sort_values(by=["composite_signal_score"], ascending=[True])
             .head(12),
-            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "event_risk_note", "next_event_date", "risk_level"],
+            ["ticker", "company", "sector", "trend_mini", "score_trend", "recommendation_bucket", "confluence_classification", "event_risk_note", "next_event_date", "risk_level"],
         )
 
 
@@ -2681,10 +2737,15 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
         risk_label = maybe_translate_text(str(row.get("risk_level", "")))
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
         forward_score = float(row.get("forward_score", 0) or 0)
+        confluence_score = float(row.get("confluence_score", 0) or 0)
+        confluence_label = _confluence_label(row.get("confluence_classification", ""))
+        stop_loss_price = float(row.get("stop_loss_price", 0) or 0)
+        strategy_mix = _format_strategy_scores(row.get("strategy_scores", {}))
         risk_note = localize_value(row.get("event_risk_note", "clear"))
         rationale_items = [maybe_translate_text(item) for item in row.get("rationale", []) if item]
         forward_items = [maybe_translate_text(item) for item in row.get("forward_notes", []) if item]
         risk_items = [maybe_translate_text(item) for item in row.get("risks", []) if item]
+        confluence_items = _normalize_reason_list(row.get("confluence_reasons", []))
         title = f'{row["ticker"]} | {company_name} | {verdict_label} | {score:.1f}'
         with st.expander(title, expanded=(idx == 0)):
             top_left, top_right = st.columns((1.2, 1))
@@ -2694,6 +2755,9 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                 signal_label = localize_value(row.get("signal_type", ""))
                 universe_label = localize_value(row.get("universe_bucket", "core"))
                 st.caption(f'{t("sector")} {sector_name} | {t("signal_type")} {signal_label} | {universe_label} | {bucket_label}')
+                st.caption(
+                    f'{"多策略共振" if LANG == "zh-TW" else "Confluence"} {confluence_score:.1f} | {confluence_label} | {strategy_mix}'
+                )
             with top_right:
                 st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
                 st.caption(f'{t("decision_score_label")}: {score:.2f}')
@@ -3518,6 +3582,9 @@ def render_funnel_stage_table(summary: AnalysisRunSummary) -> None:
             "stage_label": "\u6f0f\u6597\u968e\u6bb5" if LANG == "zh-TW" else "Stage",
             "triggers_label": "\u89f8\u767c\u578b\u614b" if LANG == "zh-TW" else "Trigger",
             "composite_signal_score": "\u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Score",
+            "confluence_score": "\u5171\u632f\u5206\u6578" if LANG == "zh-TW" else "Confluence",
+            "confluence_label": "\u5171\u632f\u5206\u7d1a" if LANG == "zh-TW" else "Confluence Class",
+            "strategy_mix": "\u7b56\u7565\u62c6\u89e3" if LANG == "zh-TW" else "Strategy Mix",
             "relative_strength_score": "\u76f8\u5c0d\u5f37\u5ea6" if LANG == "zh-TW" else "RS",
             "institutional_buy_streak": "\u6cd5\u4eba\u9023\u8cb7\u5929\u6578" if LANG == "zh-TW" else "Buy Streak",
             "fundamental_snapshot": "\u57fa\u672c\u9762\u5feb\u7167" if LANG == "zh-TW" else "Fundamental Snapshot",
@@ -4958,10 +5025,15 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
         risk_label = maybe_translate_text(str(row.get("risk_level", "")))
         reward_risk = maybe_translate_text(str(row.get("reward_risk_label", "")))
         forward_score = float(row.get("forward_score", 0) or 0)
+        confluence_score = float(row.get("confluence_score", 0) or 0)
+        confluence_label = _confluence_label(row.get("confluence_classification", ""))
+        stop_loss_price = float(row.get("stop_loss_price", 0) or 0)
+        strategy_mix = _format_strategy_scores(row.get("strategy_scores", {}))
         risk_note = localize_value(row.get("event_risk_note", "clear"))
         rationale_items = [maybe_translate_text(item) for item in row.get("rationale", []) if item]
         forward_items = [maybe_translate_text(item) for item in row.get("forward_notes", []) if item]
         risk_items = [maybe_translate_text(item) for item in row.get("risks", []) if item]
+        confluence_items = _normalize_reason_list(row.get("confluence_reasons", []))
         title = f'{row["ticker"]} | {company_name} | {verdict_label} | {score:.1f}'
         with st.expander(title, expanded=(idx == 0)):
             top_left, top_right = st.columns((1.2, 1))
@@ -4971,6 +5043,9 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                 signal_label = localize_value(row.get("signal_type", ""))
                 universe_label = localize_value(row.get("universe_bucket", "core"))
                 st.caption(f'{t("sector")} {sector_name} | {t("signal_type")} {signal_label} | {universe_label} | {bucket_label}')
+                st.caption(
+                    f'{"多策略共振" if LANG == "zh-TW" else "Confluence"} {confluence_score:.1f} | {confluence_label} | {strategy_mix}'
+                )
             with top_right:
                 st.markdown(f'<div style="text-align:right;color:{verdict_color};font-weight:800;">{verdict_label}</div>', unsafe_allow_html=True)
                 st.caption(f'{t("decision_score_label")}: {score:.2f}')
@@ -4986,9 +5061,9 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
             metric_cols = st.columns(5)
             mini_metrics = [
                 (level or ("\u7d50\u8ad6" if LANG == "zh-TW" else "Verdict"), f"{score:.1f}"),
+                ("\u5171\u632f\u5206\u6578" if LANG == "zh-TW" else "Confluence", f"{confluence_score:.1f}"),
                 (t("win_label"), win_label),
                 (t("risk_label"), risk_label),
-                (t("reward_risk"), reward_risk),
                 (t("forward_score"), f"{forward_score:.1f}"),
             ]
             for metric_col, (label, value) in zip(metric_cols, mini_metrics):
@@ -5005,10 +5080,14 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
             st.write(suggestion or "-")
             if risk_note:
                 st.caption(f'{t("event_risk")}: {risk_note}')
+            if stop_loss_price > 0:
+                st.caption(f'{"科學停損價" if LANG == "zh-TW" else "Stop Loss"}: {stop_loss_price:.2f}')
             notes_left, notes_right = st.columns(2)
             with notes_left:
                 st.markdown(f'**{t("rationale")}**')
                 st.markdown("\n".join(f'- {item}' for item in rationale_items) if rationale_items else '-')
+                st.markdown(f'**{"多策略共振原因" if LANG == "zh-TW" else "Confluence Reasons"}**')
+                st.markdown("\n".join(f'- {item}' for item in confluence_items) if confluence_items else '-')
                 st.markdown(f'**{t("forward_notes")}**')
                 st.markdown("\n".join(f'- {item}' for item in forward_items) if forward_items else '-')
             with notes_right:
@@ -5143,6 +5222,10 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
         for column in ["universe_bucket", "recommendation_bucket", "entry_timing", "market_regime", "event_risk_note"]:
             if column in display.columns:
                 display[column] = display[column].map(localize_value)
+        if "confluence_classification" in display.columns:
+            display["confluence_classification"] = display["confluence_classification"].map(_confluence_label)
+        if "strategy_scores" in display.columns:
+            display["strategy_scores"] = display["strategy_scores"].apply(_format_strategy_scores)
         st.dataframe(
             display[
                 [
@@ -5156,6 +5239,9 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                         "signal_type",
                         "recommendation_bucket",
                         "composite_signal_score",
+                        "confluence_score",
+                        "confluence_classification",
+                        "strategy_scores",
                         "recommendation_level",
                         "win_rate_label",
                         "risk_level",
@@ -5216,11 +5302,34 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
                 ),
                 use_container_width=True,
             )
+            if "confluence_score" in history.columns:
+                st.plotly_chart(
+                    px.line(
+                        history,
+                        x="date",
+                        y=["confluence_score", "composite_signal_score"],
+                        markers=True,
+                        title="\u591a\u7b56\u7565\u5171\u632f vs \u7d9c\u5408\u5206\u6578" if LANG == "zh-TW" else "Confluence vs Composite",
+                    ),
+                    use_container_width=True,
+                )
         with why_tab:
             st.markdown(f"**{t('suggested_action')}**  \n{maybe_translate_text(str(latest_row.get('suggested_action', '')))}")
+            st.markdown(
+                f"**{'\u591a\u7b56\u7565\u5171\u632f' if LANG == 'zh-TW' else 'Confluence'}**  \n"
+                f"{float(latest_row.get('confluence_score', 0) or 0):.1f} | {_confluence_label(latest_row.get('confluence_classification', ''))}"
+            )
+            st.markdown(
+                f"**{'\u7b56\u7565\u62c6\u89e3' if LANG == 'zh-TW' else 'Strategy Mix'}**  \n"
+                f"{_format_strategy_scores(latest_row.get('strategy_scores', {}))}"
+            )
             st.markdown(f"**{t('rationale')}**")
             for item in latest_row.get("rationale", []):
                 st.write(f"- {maybe_translate_text(item)}")
+            if latest_row.get("confluence_reasons"):
+                st.markdown(f"**{'\u591a\u7b56\u7565\u5171\u632f\u539f\u56e0' if LANG == 'zh-TW' else 'Confluence Reasons'}**")
+                for item in latest_row.get("confluence_reasons", []):
+                    st.write(f"- {maybe_translate_text(str(item))}")
             st.markdown(f"**{t('risks')}**")
             for item in latest_row.get("risks", []):
                 st.write(f"- {maybe_translate_text(item)}")

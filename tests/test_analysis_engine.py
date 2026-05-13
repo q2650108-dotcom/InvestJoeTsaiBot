@@ -35,7 +35,15 @@ class FakeMarketDataClient:
     def get_growth_snapshot(self, ticker: str) -> dict[str, object]:
         return self.growth_map.get(
             ticker.upper(),
-            {"revenue_yoy": 12.0, "eps_ttm": 5.0, "as_of": "2026-04", "source": "test"},
+            {
+                "revenue_yoy": 12.0,
+                "eps_ttm": 5.0,
+                "eps_yoy": 10.0,
+                "pe_ratio": 18.0,
+                "pb_ratio": 2.5,
+                "as_of": "2026-04",
+                "source": "test",
+            },
         )
 
 
@@ -58,9 +66,13 @@ class FakeTwseClient:
 class FakeDailyAnalysisRepository:
     def __init__(self) -> None:
         self.rows: list[dict[str, object]] = []
+        self.analysis_runs: list[dict[str, object]] = []
 
     def upsert_many(self, rows: list[dict[str, object]]) -> None:
         self.rows.extend(rows)
+
+    def upsert_analysis_run(self, payload: dict[str, object]) -> None:
+        self.analysis_runs.append(payload)
 
 
 class FakeEventRiskService:
@@ -351,6 +363,50 @@ class AnalysisEngineTests(TestCase):
         self.assertEqual(summary.skipped_data_tickers, 0)
         self.assertEqual(summary.no_signal_tickers, 0)
         self.assertEqual(summary.signal_count, 1)
+
+    def test_run_attaches_confluence_scores_to_signal_and_stage_rows(self) -> None:
+        history = build_price_history(close_values=[100 + (i * 1.2) for i in range(260)], volume_values=[800000] * 260)
+        benchmark_history = build_price_history(close_values=[200 + (i * 0.4) for i in range(260)], volume_values=[5000000] * 260)
+        repository = FakeDailyAnalysisRepository()
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(
+                {"2330.TW": history, "^TWII": benchmark_history},
+                vix_value=14.0,
+                growth_map={
+                    "2330.TW": {
+                        "revenue_yoy": 30.0,
+                        "eps_ttm": 12.5,
+                        "eps_yoy": 26.0,
+                        "pe_ratio": 18.0,
+                        "pb_ratio": 4.0,
+                        "as_of": "2026-04",
+                        "source": "test",
+                    }
+                },
+            ),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": 1600},
+                buy_history_map={"2330.TW": [200, 300, 400, 500]},
+            ),
+            repository=repository,
+            event_risk_service=FakeEventRiskService(),
+        )
+
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(summary.signal_count, 1)
+        signal = summary.signals[0]
+        self.assertIsNotNone(signal.confluence_score)
+        self.assertIsNotNone(signal.confluence_classification)
+        self.assertTrue(signal.strategy_scores)
+        self.assertTrue(signal.confluence_reasons)
+        self.assertIsNotNone(signal.stop_loss_price)
+        self.assertIn("confluence_score", repository.rows[0])
+        self.assertIn("strategy_scores", repository.rows[0])
+        self.assertIn("confluence_score", summary.stage_rows[0])
+        self.assertIn("strategy_scores", summary.stage_rows[0])
+        self.assertEqual(repository.analysis_runs[0]["stage_rows"][0]["ticker"], "2330.TW")
 
     def test_run_with_summary_counts_no_signal_ticker(self) -> None:
         history = build_price_history(close_values=[100 + i for i in range(65)], volume_values=[1000] * 65)

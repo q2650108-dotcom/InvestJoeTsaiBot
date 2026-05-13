@@ -30,6 +30,11 @@ class MarketSignal:
     entry_quality_score: float | None = None
     composite_signal_score: float | None = None
     recommendation_bucket: str | None = None
+    confluence_score: float | None = None
+    confluence_classification: str | None = None
+    strategy_scores: dict[str, int] | None = None
+    confluence_reasons: list[str] | None = None
+    stop_loss_price: float | None = None
 
     def to_record(self) -> dict[str, object]:
         return {
@@ -57,4 +62,9 @@ class MarketSignal:
             "entry_quality_score": self.entry_quality_score,
             "composite_signal_score": self.composite_signal_score,
             "recommendation_bucket": self.recommendation_bucket,
+            "confluence_score": self.confluence_score,
+            "confluence_classification": self.confluence_classification,
+            "strategy_scores": self.strategy_scores,
+            "confluence_reasons": self.confluence_reasons,
+            "stop_loss_price": self.stop_loss_price,
         }

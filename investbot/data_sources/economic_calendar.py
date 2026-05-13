@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-import requests
+try:
+    import requests
+except ModuleNotFoundError:  # pragma: no cover - local bundled runtime fallback
+    requests = None  # type: ignore[assignment]
 
 
 @dataclass(slots=True)
@@ -48,6 +51,8 @@ class FmpEconomicCalendarClient:
 
     def _fetch_window(self, start_date: date, days_ahead: int) -> list[EconomicCalendarEvent]:
         if not self.api_keys:
+            return []
+        if requests is None:
             return []
 
         end_date = start_date + timedelta(days=days_ahead)
