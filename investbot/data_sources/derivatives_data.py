@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from io import StringIO
+import re
 import time
 
 import pandas as pd
@@ -63,11 +64,16 @@ class TaifexDerivativesClient:
             return self._snapshot_cache
 
         rows: list[TaifexInstitutionRow] = []
-        probe_date = date.today()
+        latest_row = self._fetch_latest_snapshot_page()
+        if latest_row is not None:
+            rows.append(latest_row)
+            probe_date = latest_row.trade_date - timedelta(days=1)
+        else:
+            probe_date = date.today()
         attempts = 0
         while len(rows) < lookback_rows and attempts < 14:
             parsed = self._fetch_day_snapshot(probe_date)
-            if parsed is not None:
+            if parsed is not None and all(existing.trade_date != parsed.trade_date for existing in rows):
                 rows.append(parsed)
             probe_date -= timedelta(days=1)
             attempts += 1
@@ -85,6 +91,20 @@ class TaifexDerivativesClient:
         self._snapshot_cache_at = time.monotonic()
         return snapshot
 
+    def _fetch_latest_snapshot_page(self) -> TaifexInstitutionRow | None:
+        import requests
+
+        response = requests.get(
+            self.QUERY_URL,
+            timeout=12,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        query_date = self._extract_page_date(response.text)
+        if query_date is None:
+            return None
+        return self._parse_day_snapshot(response.text, query_date)
+
     def _fetch_day_snapshot(self, query_date: date) -> TaifexInstitutionRow | None:
         import requests
 
@@ -100,6 +120,16 @@ class TaifexDerivativesClient:
         )
         response.raise_for_status()
         return self._parse_day_snapshot(response.text, query_date)
+
+    @staticmethod
+    def _extract_page_date(html: str) -> date | None:
+        match = re.search(r"日期\s*(\d{4})/(\d{2})/(\d{2})", html)
+        if not match:
+            return None
+        try:
+            return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        except ValueError:
+            return None
 
     def _parse_day_snapshot(self, html: str, query_date: date) -> TaifexInstitutionRow | None:
         try:

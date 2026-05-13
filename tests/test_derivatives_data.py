@@ -41,6 +41,13 @@ TAIFEX_HTML = """
 
 
 class TaifexDerivativesTests(TestCase):
+    def test_extract_page_date(self) -> None:
+        client = TaifexDerivativesClient()
+
+        parsed = client._extract_page_date("單位：口數 日期2026/05/13")
+
+        self.assertEqual(parsed, date(2026, 5, 13))
+
     def test_parse_day_snapshot_extracts_tx_net_oi(self) -> None:
         client = TaifexDerivativesClient()
 
