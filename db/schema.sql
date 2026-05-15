@@ -214,3 +214,32 @@ create trigger trg_user_settings_updated_at
 before update on user_settings
 for each row
 execute procedure set_updated_at();
+
+create table if not exists user_watchlist (
+    id uuid primary key default gen_random_uuid(),
+    telegram_chat_id text not null,
+    ticker text not null,
+    added_from text not null default 'Manual',
+    created_at timestamptz not null default now(),
+    unique (telegram_chat_id, ticker)
+);
+
+create index if not exists idx_user_watchlist_chat_market
+    on user_watchlist (telegram_chat_id, ticker);
+
+create table if not exists guru_portfolios (
+    id uuid primary key default gen_random_uuid(),
+    guru_name text not null,
+    quarter text not null,
+    disclosed_at date,
+    holdings jsonb not null default '[]'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (guru_name, quarter)
+);
+
+drop trigger if exists trg_guru_portfolios_updated_at on guru_portfolios;
+create trigger trg_guru_portfolios_updated_at
+before update on guru_portfolios
+for each row
+execute procedure set_updated_at();

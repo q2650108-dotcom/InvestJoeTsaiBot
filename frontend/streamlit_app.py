@@ -31,11 +31,12 @@ hydrate_env_from_streamlit_secrets()
 
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
-from investbot.db.repositories import DailyAnalysisRepository
+from investbot.db.repositories import DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
 from investbot.services.dashboard_service import DashboardService, DashboardSnapshot
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.event_risk_service import EventRiskService
+from investbot.services.holdings_library_service import HoldingsLibraryService
 from investbot.services.market_overview_service import MarketOverview, MarketOverviewService
 from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
@@ -55,6 +56,14 @@ dashboard_service = DashboardService(portfolio_service=portfolio_service, market
 decision_support = DecisionSupportService()
 summary_service = SummaryService(repository=repo, decision_support=decision_support)
 overview_service = MarketOverviewService(repository=repo, summary_service=summary_service, market_data=market_data)
+watchlist_repository = UserWatchlistRepository()
+guru_portfolio_repository = GuruPortfolioRepository()
+holdings_library_service = HoldingsLibraryService(
+    analysis_repository=repo,
+    watchlist_repository=watchlist_repository,
+    guru_repository=guru_portfolio_repository,
+    market_data=market_data,
+)
 
 
 BENCHMARK_SETS = {
@@ -5230,6 +5239,255 @@ def render_decision_cards(candidate_frame: pd.DataFrame, market_key: str | None 
                 st.markdown(f'**{t("risks")}**')
                 st.markdown("\n".join(f'- {item}' for item in risk_items) if risk_items else '-')
 
+
+@st.cache_data(ttl=1800)
+def load_holdings_sources_cached() -> list[dict[str, object]]:
+    return holdings_library_service.list_sources()
+
+
+@st.cache_data(ttl=1800)
+def load_holdings_snapshot_cached(source_id: str) -> dict[str, object]:
+    return holdings_library_service.get_source_snapshot(source_id)
+
+
+def _market_key_for_ticker(ticker: str) -> str:
+    normalized = str(ticker).upper()
+    if normalized.endswith(".TW") or normalized.endswith(".TWO"):
+        return "tw"
+    return "us"
+
+
+def _source_option_label(row: dict[str, object]) -> str:
+    disclosed = str(row.get("last_disclosed_at") or "-")
+    return f'{row.get("group_label", "")} | {row.get("display_name", "")} | {row.get("symbol", "")} | {disclosed}'
+
+
+def _build_holdings_workbench_frame(snapshot: dict[str, object]) -> pd.DataFrame:
+    rows = snapshot.get("holdings", []) or []
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows).copy()
+    if "ticker" in frame.columns:
+        frame["ticker"] = frame["ticker"].astype(str).str.upper()
+        frame["trend_mini"] = frame["ticker"].map(lambda value: _normalize_trend(get_ticker_trend_cached(str(value))))
+        frame["score_trend"] = frame["ticker"].map(lambda value: get_ticker_score_trend_cached(str(value)))
+    for column in ["company", "sector", "change", "recommendation_bucket", "suggested_action", "source_label"]:
+        if column not in frame.columns:
+            frame[column] = ""
+    frame["search_blob"] = (
+        frame["ticker"].fillna("").astype(str)
+        + " "
+        + frame["company"].fillna("").astype(str)
+        + " "
+        + frame["sector"].fillna("").astype(str)
+        + " "
+        + frame["source_label"].fillna("").astype(str)
+    ).str.lower()
+    return frame
+
+
+def _render_holdings_donut(frame: pd.DataFrame, source_name: str, chart_key: str) -> None:
+    if frame.empty or "weight" not in frame.columns:
+        st.info("目前沒有可顯示的持股比例。" if LANG == "zh-TW" else "No holding weights available.")
+        return
+    weight_frame = frame[["company", "weight"]].copy().sort_values("weight", ascending=False)
+    top = weight_frame.head(8).copy()
+    others_weight = float(weight_frame["weight"].iloc[8:].sum()) if len(weight_frame) > 8 else 0.0
+    if others_weight > 0:
+        top.loc[len(top)] = {"company": "Others", "weight": others_weight}
+    figure = px.pie(top, names="company", values="weight", hole=0.58)
+    figure.update_layout(
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.18, xanchor="left", x=0),
+        annotations=[dict(text=source_name, x=0.5, y=0.5, showarrow=False, font=dict(size=13, color="#243047"))],
+    )
+    figure.update_traces(texttemplate="%{percent}", hovertemplate="%{label}<br>%{value:.2f}%<extra></extra>")
+    st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False}, key=chart_key)
+
+
+def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> None:
+    st.markdown('<div class="section-label">持股來源庫</div>', unsafe_allow_html=True)
+    st.caption("把 ETF 與機構持股、權重、揭露時間與個股速覽放在同一個工作台，並可直接加入最愛或觀察。")
+
+    source_rows = load_holdings_sources_cached()
+    source_frame = pd.DataFrame(source_rows)
+    if source_frame.empty:
+        st.info("目前還沒有可用的持股來源。")
+        return
+
+    if market_key == "tw":
+        preferred_groups = {"tw_etf", "guru_13f"}
+    else:
+        preferred_groups = {"us_etf", "guru_13f"}
+    preferred = source_frame[source_frame["group_key"].isin(preferred_groups)].copy()
+    if preferred.empty:
+        preferred = source_frame.copy()
+
+    source_search = st.text_input(
+        "搜尋來源",
+        placeholder="0050 / Berkshire / QQQ",
+        key=f"holdings_source_search_{market_key}",
+    ).strip().lower()
+    if source_search:
+        preferred = preferred[
+            (
+                preferred["display_name"].fillna("").astype(str)
+                + " "
+                + preferred["symbol"].fillna("").astype(str)
+                + " "
+                + preferred["group_label"].fillna("").astype(str)
+            ).str.lower().str.contains(source_search, na=False)
+        ]
+
+    source_options = preferred.to_dict("records")
+    if not source_options:
+        st.info("沒有符合搜尋條件的來源。")
+        return
+
+    default_source_id = st.session_state.get(f"holdings_source_selected_{market_key}")
+    option_ids = [str(row["source_id"]) for row in source_options]
+    default_index = option_ids.index(default_source_id) if default_source_id in option_ids else 0
+    selected_source_id = st.selectbox(
+        "選擇來源",
+        options=option_ids,
+        index=default_index,
+        format_func=lambda value: _source_option_label(next(row for row in source_options if row["source_id"] == value)),
+        key=f"holdings_source_picker_{market_key}",
+    )
+    st.session_state[f"holdings_source_selected_{market_key}"] = selected_source_id
+    snapshot = load_holdings_snapshot_cached(selected_source_id)
+    source_meta = snapshot.get("source", {})
+    frame = _build_holdings_workbench_frame(snapshot)
+
+    top_left, top_right = st.columns((1.55, 1))
+    with top_left:
+        st.markdown(
+            f"""
+            <div class="summary-band">
+                <div>
+                    <div class="summary-band-title">{source_meta.get("display_name", "")} ({source_meta.get("symbol", "")})</div>
+                    <div class="summary-band-copy">{source_meta.get("source_note", "")}</div>
+                    <div class="summary-band-copy">最後揭露時間: {source_meta.get("as_of", "-")} | 資料抓取時間: {source_meta.get("fetched_at", "-")}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        summary_cols = st.columns(4)
+        summary_cols[0].metric("持股檔數", len(frame))
+        summary_cols[1].metric("Top 1 權重", f'{float(frame["weight"].max()):.2f}%' if not frame.empty and "weight" in frame else "0.00%")
+        summary_cols[2].metric("Top 5 權重", f'{float(frame["weight"].nlargest(min(5, len(frame))).sum()):.2f}%' if not frame.empty and "weight" in frame else "0.00%")
+        overlap_count = int(frame["ticker"].nunique()) if "ticker" in frame.columns else 0
+        summary_cols[3].metric("可比對個股", overlap_count)
+    with top_right:
+        _render_holdings_donut(frame, str(source_meta.get("symbol") or source_meta.get("display_name") or ""), f"holdings_donut_{selected_source_id}")
+
+    if frame.empty:
+        st.info("這個來源目前沒有可顯示的持股內容。")
+        return
+
+    filter_cols = st.columns((1.1, 1.1, 1.1, 1.2))
+    holding_search = filter_cols[0].text_input("搜尋個股", placeholder="2330 / 台積電 / 半導體", key=f"holdings_item_search_{market_key}_{selected_source_id}").strip().lower()
+    only_favorite = filter_cols[1].checkbox("只看最愛", key=f"holdings_only_favorite_{market_key}_{selected_source_id}")
+    only_watch = filter_cols[2].checkbox("只看觀察", key=f"holdings_only_watch_{market_key}_{selected_source_id}")
+    min_score = filter_cols[3].slider("最低綜合分數", 0, 100, 0, key=f"holdings_min_score_{market_key}_{selected_source_id}")
+
+    management_state = _current_management_lists(market_key)
+    working = frame.copy()
+    working["favorite_flag"] = working["ticker"].isin(management_state["favorite"])
+    working["watch_flag"] = working["ticker"].isin(management_state["watch"])
+    working["exclude_flag"] = working["ticker"].isin(management_state["exclude"])
+    if holding_search:
+        working = working[working["search_blob"].str.contains(holding_search, na=False)]
+    if only_favorite:
+        working = working[working["favorite_flag"]]
+    if only_watch:
+        working = working[working["watch_flag"]]
+    if "composite_signal_score" in working.columns:
+        working = working[(working["composite_signal_score"].fillna(0).astype(float)) >= float(min_score)]
+
+    left, right = st.columns((1.6, 1))
+    with left:
+        display = working[
+            [
+                "ticker",
+                "company",
+                "sector",
+                "weight",
+                "change",
+                "close_price",
+                "trend_mini",
+                "score_trend",
+                "composite_signal_score",
+                "recommendation_bucket",
+                "favorite_flag",
+                "watch_flag",
+            ]
+        ].copy()
+        display["favorite_flag"] = display["favorite_flag"].map(lambda flag: "Yes" if flag else "")
+        display["watch_flag"] = display["watch_flag"].map(lambda flag: "Yes" if flag else "")
+        display["recommendation_bucket"] = display["recommendation_bucket"].map(localize_value)
+        display = display.rename(
+            columns={
+                "ticker": "代號",
+                "company": "公司",
+                "sector": "類股",
+                "weight": "持股比例(%)",
+                "change": "增減持",
+                "close_price": "最新股價",
+                "trend_mini": "短線走勢",
+                "score_trend": "分數節奏",
+                "composite_signal_score": "綜合分數",
+                "recommendation_bucket": "推薦分級",
+                "favorite_flag": "最愛",
+                "watch_flag": "觀察",
+            }
+        )
+        st.dataframe(
+            display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "持股比例(%)": st.column_config.NumberColumn("持股比例(%)", format="%.2f"),
+                "最新股價": st.column_config.NumberColumn("最新股價", format="%.2f"),
+                "綜合分數": st.column_config.NumberColumn("綜合分數", format="%.2f"),
+                "短線走勢": st.column_config.LineChartColumn("短線走勢", width="medium", y_min=-12, y_max=12),
+                "分數節奏": st.column_config.LineChartColumn("分數節奏", width="medium", y_min=0, y_max=100),
+            },
+        )
+    with right:
+        selected_ticker_options = working["ticker"].dropna().astype(str).tolist()
+        selected_ticker = st.selectbox(
+            "個股速覽",
+            options=selected_ticker_options,
+            format_func=lambda value: _ticker_option_label(value, _market_key_for_ticker(value)),
+            key=f"holdings_detail_pick_{market_key}_{selected_source_id}",
+        )
+        detail_row = working[working["ticker"] == selected_ticker].head(1)
+        if not detail_row.empty:
+            row = detail_row.iloc[0]
+            st.markdown(f'**{row["company"]}**')
+            st.caption(f'{row["ticker"]} | {row["sector"]} | 持股比例 {float(row.get("weight") or 0):.2f}%')
+            metrics = st.columns(2)
+            metrics[0].metric("最新股價", f'{float(row["close_price"]):.2f}' if pd.notna(row.get("close_price")) else "N/A")
+            metrics[1].metric("綜合分數", f'{float(row["composite_signal_score"]):.2f}' if pd.notna(row.get("composite_signal_score")) else "N/A")
+            metrics2 = st.columns(2)
+            metrics2[0].metric("推薦分級", localize_value(row.get("recommendation_bucket", "")) or "-")
+            metrics2[1].metric("法人連買天數", str(int(row["institutional_buy_streak"])) if pd.notna(row.get("institutional_buy_streak")) else "N/A")
+            action_cols = st.columns(2)
+            row_market_key = _market_key_for_ticker(str(row["ticker"]))
+            if action_cols[0].button("加最愛", key=f"holdings_add_favorite_{selected_source_id}_{selected_ticker}", use_container_width=True):
+                _mutate_market_management_list(row_market_key, selected_ticker, "favorite")
+                holdings_library_service.add_to_watchlist(chat_id, selected_ticker, str(source_meta.get("display_name") or source_meta.get("added_from") or "Manual"))
+                st.rerun()
+            if action_cols[1].button("加觀察", key=f"holdings_add_watch_{selected_source_id}_{selected_ticker}", use_container_width=True):
+                _mutate_market_management_list(row_market_key, selected_ticker, "watch")
+                holdings_library_service.add_to_watchlist(chat_id, selected_ticker, str(source_meta.get("display_name") or source_meta.get("added_from") or "Manual"))
+                st.rerun()
+            st.caption(f'最後揭露時間: {source_meta.get("as_of", "-")}')
+            st.caption(f'來源標註: {source_meta.get("added_from", "-")}')
+
 def render_dashboard(candidate_frame: pd.DataFrame) -> None:
     st.title(t("app_title"))
     st.caption(t("app_caption"))
@@ -5312,11 +5570,12 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
         with scan_rank_tab:
             render_rank_boards(selected_market_key)
     with names_tab:
-        manual_tab, focus_tab, decision_tab = st.tabs(
+        manual_tab, focus_tab, decision_tab, holdings_tab = st.tabs(
             [
                 "手動追蹤" if LANG == "zh-TW" else "Manual Tracking",
                 t("focus_lists"),
                 t("decision_cards"),
+                "持股來源庫" if LANG == "zh-TW" else "Holdings Library",
             ]
         )
         with manual_tab:
@@ -5329,6 +5588,8 @@ def render_dashboard(candidate_frame: pd.DataFrame) -> None:
                 render_decision_cards(market_candidate_frame, selected_market_key)
             with right:
                 render_rank_boards(selected_market_key)
+        with holdings_tab:
+            render_holdings_library(market_candidate_frame, selected_market_key)
 
     left, right = st.columns((1.55, 1))
     with left:

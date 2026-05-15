@@ -172,3 +172,61 @@ class UserSettingsRepository:
             on_conflict="telegram_chat_id",
         ).execute()
         return response.data[0]
+
+
+class UserWatchlistRepository:
+    def __init__(self, client: Client | None = None) -> None:
+        self.client = client or get_supabase()
+
+    def upsert_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(payload)
+        normalized["ticker"] = str(payload.get("ticker", "")).upper()
+        response = self.client.table("user_watchlist").upsert(
+            normalized,
+            on_conflict="telegram_chat_id,ticker",
+        ).execute()
+        return response.data[0]
+
+    def list_entries(self, chat_id: str) -> list[dict[str, Any]]:
+        response = (
+            self.client.table("user_watchlist")
+            .select("*")
+            .eq("telegram_chat_id", chat_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data or []
+
+    def list_tickers(self, chat_id: str, market_type: str | None = None) -> list[str]:
+        entries = self.list_entries(chat_id)
+        tickers = [str(row.get("ticker", "")).upper() for row in entries if row.get("ticker")]
+        if market_type == "tw":
+            return [ticker for ticker in tickers if ticker.endswith(".TW") or ticker.endswith(".TWO")]
+        if market_type == "us":
+            return [ticker for ticker in tickers if not ticker.endswith(".TW") and not ticker.endswith(".TWO")]
+        return tickers
+
+
+class GuruPortfolioRepository:
+    def __init__(self, client: Client | None = None) -> None:
+        self.client = client or get_supabase()
+
+    def upsert_portfolio(self, payload: dict[str, Any]) -> dict[str, Any]:
+        response = self.client.table("guru_portfolios").upsert(
+            payload,
+            on_conflict="guru_name,quarter",
+        ).execute()
+        return response.data[0]
+
+    def fetch_latest_by_guru(self, guru_name: str) -> dict[str, Any] | None:
+        response = (
+            self.client.table("guru_portfolios")
+            .select("*")
+            .eq("guru_name", guru_name)
+            .order("disclosed_at", desc=True)
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0] if rows else None
