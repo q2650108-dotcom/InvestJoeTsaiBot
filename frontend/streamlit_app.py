@@ -929,6 +929,14 @@ def get_ticker_score_trend_cached(ticker: str, limit: int = 12) -> list[float]:
     return frame["composite_signal_score"].fillna(0).astype(float).tolist()[-limit:]
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_latest_analysis_row_cached(ticker: str) -> dict[str, Any]:
+    history = repo.fetch_history(ticker, limit=1)
+    if not history:
+        return {}
+    return history[-1]
+
+
 def _display_name_for_row(row: pd.Series) -> tuple[str, str]:
     ticker = str(row.get("ticker", "")).upper()
     market_type = str(row.get("type", ""))
@@ -1982,6 +1990,71 @@ def _build_management_frame(candidate_frame: pd.DataFrame, market_key: str) -> p
     return frame
 
 
+def _build_management_frame_v2(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty:
+        latest = candidate_frame.copy()
+    if not latest.empty:
+        latest = (
+            enrich_with_company_metadata(latest)
+            .sort_values(by=["composite_signal_score", "institutional_buy_streak"], ascending=[False, False])
+            .drop_duplicates(subset=["ticker"], keep="first")
+        )
+
+    lists = _read_market_management_lists(market_key)
+    managed_tickers = list(dict.fromkeys(lists["favorite"] + lists["watch"] + lists["exclude"]))
+    if not managed_tickers:
+        return pd.DataFrame()
+
+    indexed = latest.set_index("ticker", drop=False) if not latest.empty and "ticker" in latest.columns else pd.DataFrame()
+    rows: list[dict[str, object]] = []
+    for ticker in managed_tickers:
+        if not indexed.empty and ticker in indexed.index:
+            source_row = indexed.loc[ticker]
+            record = source_row.iloc[0].to_dict() if isinstance(source_row, pd.DataFrame) else source_row.to_dict()
+        else:
+            latest_history_row = get_latest_analysis_row_cached(ticker)
+            if latest_history_row:
+                record = dict(latest_history_row)
+            else:
+                record = {
+                    "ticker": ticker,
+                    "type": market_key,
+                    "date": "",
+                    "signal_type": "",
+                    "recommendation_bucket": "Watchlist",
+                    "composite_signal_score": None,
+                    "institutional_buy_streak": None,
+                    "close_price": None,
+                    "relative_strength_score": None,
+                    "suggested_action": "Run analysis to refresh details." if LANG != "zh-TW" else "請先執行分析以刷新資料。",
+                    "event_risk_note": "",
+                }
+        record["favorite_flag"] = "Yes" if ticker in lists["favorite"] else ""
+        record["watch_flag"] = "Yes" if ticker in lists["watch"] else ""
+        record["exclude_flag"] = "Yes" if ticker in lists["exclude"] else ""
+        rows.append(record)
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    frame = enrich_with_company_metadata(frame)
+    frame["recommendation_bucket"] = frame["recommendation_bucket"].fillna("Watchlist").map(localize_value)
+    frame["suggested_action"] = frame["suggested_action"].fillna("").astype(str).map(maybe_translate_text)
+    frame["trend_mini"] = frame["ticker"].astype(str).map(lambda item: _normalize_trend(get_ticker_trend_cached(item)))
+    frame["score_trend"] = frame["ticker"].astype(str).map(lambda item: get_ticker_score_trend_cached(item))
+    frame["search_blob"] = (
+        frame["ticker"].fillna("").astype(str)
+        + " "
+        + frame["company"].fillna("").astype(str)
+        + " "
+        + frame["sector"].fillna("").astype(str)
+        + " "
+        + frame["suggested_action"].fillna("").astype(str)
+    ).str.lower()
+    return frame
+
+
 def render_run_controls() -> None:
     st.markdown(f'<div class="section-label">{t("run_analysis")}</div>', unsafe_allow_html=True)
     st.caption(t("cooldown_force_hint"))
@@ -2577,7 +2650,7 @@ def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> No
             ):
                 _mutate_market_management_list(market_key, quick_pick, action)
                 st.rerun()
-    management_frame = _build_management_frame(candidate_frame, market_key)
+    management_frame = _build_management_frame_v2(candidate_frame, market_key)
     if management_frame.empty:
         st.info(
             f"\u76ee\u524d\u9084\u6c92\u6709{market_label}\u7684\u7ba1\u7406\u6e05\u55ae\u3002"
