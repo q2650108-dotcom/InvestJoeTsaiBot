@@ -36,6 +36,22 @@ class FakeGuruPortfolioRepository:
         return payload
 
 
+class FakeMarketData:
+    def __init__(self) -> None:
+        self.latest_prices: dict[str, float] = {}
+        self.profiles: dict[str, dict[str, str]] = {}
+        self.growth: dict[str, dict[str, object]] = {}
+
+    def get_company_profile(self, ticker: str) -> dict[str, str]:
+        return self.profiles.get(ticker.upper(), {"name_zh": "", "name_en": ticker.upper(), "sector": ""})
+
+    def get_latest_price(self, ticker: str) -> float:
+        return self.latest_prices[ticker.upper()]
+
+    def get_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        return self.growth.get(ticker.upper(), {})
+
+
 class StubHoldingsLibraryService(HoldingsLibraryService):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -110,6 +126,28 @@ class HoldingsLibraryServiceTests(TestCase):
         self.assertEqual(snapshot["holdings"][0]["close_price"], 950.0)
         self.assertEqual(snapshot["holdings"][0]["composite_signal_score"], 83.5)
         self.assertEqual(snapshot["holdings"][0]["recommendation_bucket"], "Actionable")
+
+    def test_get_source_snapshot_falls_back_to_latest_price_when_analysis_missing(self) -> None:
+        market_data = FakeMarketData()
+        market_data.latest_prices["2330.TW"] = 971.0
+        market_data.profiles["2330.TW"] = {"name_zh": "台積電", "name_en": "TSMC", "sector": "半導體"}
+        market_data.growth["2330.TW"] = {"rev_yoy": 28.0, "eps_yoy": 19.0, "pe_ratio": 24.5, "pb_ratio": 6.3}
+        service = StubHoldingsLibraryService(
+            analysis_repository=FakeAnalysisRepository(),
+            watchlist_repository=FakeWatchlistRepository(),
+            guru_repository=FakeGuruPortfolioRepository(),
+            market_data=market_data,
+        )
+        service.etf_rows["tw-0050"] = [{"ticker": "2330.TW", "weight": 58.2}]
+
+        snapshot = service.get_source_snapshot("tw-0050")
+        row = snapshot["holdings"][0]
+
+        self.assertEqual(row["close_price"], 971.0)
+        self.assertEqual(row["recommendation_bucket"], "Watchlist")
+        self.assertEqual(row["rev_yoy"], 28.0)
+        self.assertEqual(row["eps_yoy"], 19.0)
+        self.assertEqual(row["sector"], "半導體")
 
     def test_add_to_watchlist_persists_source_tag(self) -> None:
         watchlist_repo = FakeWatchlistRepository()

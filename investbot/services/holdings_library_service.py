@@ -288,9 +288,17 @@ class HoldingsLibraryService:
     def _enrich_holding_row(self, definition: HoldingsSourceDefinition, row: dict[str, object]) -> dict[str, object]:
         ticker = str(row.get("ticker") or "").upper()
         profile = self.market_data.get_company_profile(ticker)
+        growth = self._safe_growth_snapshot(ticker)
         analysis_row = self._latest_analysis_row(ticker)
         company = str(row.get("name") or profile.get("name_zh") or profile.get("name_en") or ticker).strip()
         sector = str(row.get("sector") or profile.get("sector") or "").strip()
+        latest_price = analysis_row.get("close_price")
+        if latest_price in (None, ""):
+            latest_price = self._safe_latest_price(ticker)
+        recommendation_bucket = analysis_row.get("recommendation_bucket") or "Watchlist"
+        suggested_action = analysis_row.get("suggested_action") or "Run analysis to refresh details."
+        if not analysis_row and growth:
+            suggested_action = "Price is live, but this holding has not entered the latest analysis set yet."
         enriched = {
             "ticker": ticker,
             "company": company,
@@ -301,14 +309,18 @@ class HoldingsLibraryService:
             "source_label": definition.display_name,
             "source_type": definition.source_type,
             "market_type": definition.market_type,
-            "close_price": analysis_row.get("close_price"),
+            "close_price": latest_price,
             "composite_signal_score": analysis_row.get("composite_signal_score"),
             "confluence_score": analysis_row.get("confluence_score"),
-            "recommendation_bucket": analysis_row.get("recommendation_bucket"),
-            "institutional_buy_streak": analysis_row.get("institutional_buy_streak"),
+            "recommendation_bucket": recommendation_bucket,
+            "institutional_buy_streak": analysis_row.get("institutional_buy_streak", 0),
             "relative_strength_score": analysis_row.get("relative_strength_score"),
-            "suggested_action": analysis_row.get("suggested_action"),
+            "suggested_action": suggested_action,
             "date": analysis_row.get("date"),
+            "pe_ratio": growth.get("pe_ratio"),
+            "pb_ratio": growth.get("pb_ratio"),
+            "rev_yoy": growth.get("rev_yoy"),
+            "eps_yoy": growth.get("eps_yoy"),
         }
         return enriched
 
@@ -317,3 +329,15 @@ class HoldingsLibraryService:
         if not history:
             return {}
         return history[-1]
+
+    def _safe_latest_price(self, ticker: str) -> float | None:
+        try:
+            return float(self.market_data.get_latest_price(ticker))
+        except Exception:
+            return None
+
+    def _safe_growth_snapshot(self, ticker: str) -> dict[str, object]:
+        try:
+            return dict(self.market_data.get_growth_snapshot(ticker))
+        except Exception:
+            return {}

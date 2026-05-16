@@ -5425,6 +5425,9 @@ def _build_holdings_workbench_frame(snapshot: dict[str, object]) -> pd.DataFrame
     for column in ["company", "sector", "change", "recommendation_bucket", "suggested_action", "source_label"]:
         if column not in frame.columns:
             frame[column] = ""
+    for numeric_column in ["institutional_buy_streak", "close_price", "composite_signal_score", "relative_strength_score", "rev_yoy", "eps_yoy"]:
+        if numeric_column in frame.columns:
+            frame[numeric_column] = pd.to_numeric(frame[numeric_column], errors="coerce")
     frame["search_blob"] = (
         frame["ticker"].fillna("").astype(str)
         + " "
@@ -5578,7 +5581,10 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
         ].copy()
         display["favorite_flag"] = display["favorite_flag"].map(lambda flag: "Yes" if flag else "")
         display["watch_flag"] = display["watch_flag"].map(lambda flag: "Yes" if flag else "")
-        display["recommendation_bucket"] = display["recommendation_bucket"].map(localize_value)
+        display["change"] = display["change"].map(lambda value: value if str(value).strip() else "-")
+        display["recommendation_bucket"] = display["recommendation_bucket"].map(
+            lambda value: localize_value(value) if str(value).strip() else ("待分析" if LANG == "zh-TW" else "Pending")
+        )
         display = display.rename(
             columns={
                 "ticker": "代號",
@@ -5613,11 +5619,11 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
             row_market_key = _market_key_for_ticker(str(row["ticker"]))
             action_cols = st.columns((2.2, 1.1, 0.8, 0.8, 0.8))
             action_cols[0].markdown(f'**{_ticker_option_label(str(row["ticker"]), row_market_key)}**')
+            row_score = float(row["composite_signal_score"]) if pd.notna(row.get("composite_signal_score")) else None
             action_cols[1].caption(
-                f'持股比例 {float(row.get("weight") or 0):.2f}% | '
-                f'分數 {float(row.get("composite_signal_score") or 0):.2f}'
-                if pd.notna(row.get("composite_signal_score"))
-                else f'持股比例 {float(row.get("weight") or 0):.2f}%'
+                f'持股比例 {float(row.get("weight") or 0):.2f}% | 分數 {row_score:.2f}'
+                if row_score is not None
+                else f'持股比例 {float(row.get("weight") or 0):.2f}% | 待分析'
             )
             if action_cols[2].button("加最愛", key=f"holdings_row_fav_{selected_source_id}_{idx}", use_container_width=True):
                 _mutate_market_management_list(row_market_key, str(row["ticker"]), "favorite")
@@ -5650,8 +5656,14 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
             metrics[0].metric("最新股價", f'{float(row["close_price"]):.2f}' if pd.notna(row.get("close_price")) else "N/A")
             metrics[1].metric("綜合分數", f'{float(row["composite_signal_score"]):.2f}' if pd.notna(row.get("composite_signal_score")) else "N/A")
             metrics2 = st.columns(2)
-            metrics2[0].metric("推薦分級", localize_value(row.get("recommendation_bucket", "")) or "-")
+            metrics2[0].metric("推薦分級", localize_value(row.get("recommendation_bucket", "")) or "待分析")
             metrics2[1].metric("法人連買天數", str(int(row["institutional_buy_streak"])) if pd.notna(row.get("institutional_buy_streak")) else "N/A")
+            metrics3 = st.columns(3)
+            metrics3[0].metric("相對強度", f'{float(row["relative_strength_score"]):.2f}' if pd.notna(row.get("relative_strength_score")) else "N/A")
+            metrics3[1].metric("營收 YoY", f'{float(row["rev_yoy"]):.1f}%' if pd.notna(row.get("rev_yoy")) else "N/A")
+            metrics3[2].metric("EPS YoY", f'{float(row["eps_yoy"]):.1f}%' if pd.notna(row.get("eps_yoy")) else "N/A")
+            if row.get("suggested_action"):
+                st.caption(f'說明：{row.get("suggested_action")}')
             action_cols = st.columns(2)
             row_market_key = _market_key_for_ticker(str(row["ticker"]))
             if action_cols[0].button("加最愛", key=f"holdings_add_favorite_{selected_source_id}_{selected_ticker}", use_container_width=True):
