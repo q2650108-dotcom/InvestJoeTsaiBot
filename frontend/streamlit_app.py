@@ -5514,10 +5514,27 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
             st.caption(f'最後揭露時間: {source_meta.get("as_of", "-")}')
             st.caption(f'來源標註: {source_meta.get("added_from", "-")}')
 
-def render_dashboard(candidate_frame: pd.DataFrame) -> None:
+def render_dashboard(candidate_frame: pd.DataFrame | None = None) -> None:
     st.title(t("app_title"))
     st.caption(t("app_caption"))
     render_analysis_feedback()
+    candidate_notice = st.empty()
+    if candidate_frame is None:
+        candidate_notice.info("正在載入候選名單與管理資料..." if LANG == "zh-TW" else "Loading candidates and management data...")
+        try:
+            candidate_frame = load_candidate_frame()
+        except Exception as exc:
+            candidate_frame = pd.DataFrame()
+            _set_analysis_feedback(
+                "warning",
+                (
+                    f"候選資料暫時抓不到，先顯示其他可用區塊：{exc}"
+                    if LANG == "zh-TW"
+                    else f"Candidate data is temporarily unavailable; showing other sections first: {exc}"
+                ),
+            )
+        finally:
+            candidate_notice.empty()
     load_notice = st.empty()
     load_notice.info("正在載入市場快照與情緒資料..." if LANG == "zh-TW" else "Loading market snapshot and sentiment data...")
     snapshot_error = None
@@ -5808,14 +5825,14 @@ selected_label = st.sidebar.selectbox(
 TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
 render_runtime_settings_panel()
 
-candidate_frame = load_candidate_frame()
 nav = st.sidebar.radio(t("view"), [t("dashboard"), t("portfolio"), t("screener"), t("health")], index=0)
 
 if nav == t("dashboard"):
-    render_dashboard(candidate_frame)
+    render_dashboard()
 elif nav == t("portfolio"):
     render_portfolio()
 elif nav == t("health"):
     render_health_check()
 else:
+    candidate_frame = load_candidate_frame()
     render_screener(candidate_frame)
