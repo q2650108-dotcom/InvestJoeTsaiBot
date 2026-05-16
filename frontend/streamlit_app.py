@@ -31,7 +31,7 @@ hydrate_env_from_streamlit_secrets()
 
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
-from investbot.db.repositories import AppCacheRepository, DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
+from investbot.db.repositories import DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
 from investbot.services.dashboard_service import DashboardService, DashboardSnapshot
 from investbot.services.decision_support import DecisionSupportService
@@ -42,6 +42,10 @@ from investbot.services.portfolio_service import PortfolioService
 from investbot.services.summary_service import SummaryService
 from investbot.services.universe_builder import UniverseBuilder
 from investbot.services.user_settings_service import UserSettingsService
+try:
+    from investbot.db.repositories import AppCacheRepository
+except ImportError:
+    AppCacheRepository = None  # type: ignore[assignment]
 
 st.set_page_config(page_title="Smart Swing Agent", layout="wide", initial_sidebar_state="expanded")
 
@@ -58,7 +62,7 @@ summary_service = SummaryService(repository=repo, decision_support=decision_supp
 overview_service = MarketOverviewService(repository=repo, summary_service=summary_service, market_data=market_data)
 watchlist_repository = UserWatchlistRepository()
 guru_portfolio_repository = GuruPortfolioRepository()
-app_cache_repository = AppCacheRepository()
+app_cache_repository = AppCacheRepository() if AppCacheRepository is not None else None
 holdings_library_service = HoldingsLibraryService(
     analysis_repository=repo,
     watchlist_repository=watchlist_repository,
@@ -1790,6 +1794,8 @@ def _deserialize_market_overview(payload: dict[str, Any]) -> MarketOverview:
 
 
 def _load_persisted_app_cache(cache_key: str) -> dict[str, Any] | None:
+    if app_cache_repository is None:
+        return None
     try:
         record = app_cache_repository.get_payload(cache_key)
     except Exception:
@@ -1801,6 +1807,8 @@ def _load_persisted_app_cache(cache_key: str) -> dict[str, Any] | None:
 
 
 def _store_persisted_app_cache(cache_key: str, payload: dict[str, Any]) -> None:
+    if app_cache_repository is None:
+        return
     try:
         app_cache_repository.upsert_payload(cache_key, payload)
     except Exception:
