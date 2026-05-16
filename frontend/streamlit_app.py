@@ -5393,7 +5393,7 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
     only_watch = filter_cols[2].checkbox("只看觀察", key=f"holdings_only_watch_{market_key}_{selected_source_id}")
     min_score = filter_cols[3].slider("最低綜合分數", 0, 100, 0, key=f"holdings_min_score_{market_key}_{selected_source_id}")
 
-    management_state = _current_management_lists(market_key)
+    management_state = _read_market_management_lists(market_key)
     working = frame.copy()
     working["favorite_flag"] = working["ticker"].isin(management_state["favorite"])
     working["watch_flag"] = working["ticker"].isin(management_state["watch"])
@@ -5456,8 +5456,34 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
                 "分數節奏": st.column_config.LineChartColumn("分數節奏", width="medium", y_min=0, y_max=100),
             },
         )
+        st.markdown('<div class="section-label">列表快捷操作</div>', unsafe_allow_html=True)
+        st.caption("直接在清單裡把來源持股加入最愛或觀察，不用每次都切到右側細節。")
+        for idx, row in working.head(12).reset_index(drop=True).iterrows():
+            row_market_key = _market_key_for_ticker(str(row["ticker"]))
+            action_cols = st.columns((2.2, 1.1, 0.8, 0.8, 0.8))
+            action_cols[0].markdown(f'**{_ticker_option_label(str(row["ticker"]), row_market_key)}**')
+            action_cols[1].caption(
+                f'持股比例 {float(row.get("weight") or 0):.2f}% | '
+                f'分數 {float(row.get("composite_signal_score") or 0):.2f}'
+                if pd.notna(row.get("composite_signal_score"))
+                else f'持股比例 {float(row.get("weight") or 0):.2f}%'
+            )
+            if action_cols[2].button("加最愛", key=f"holdings_row_fav_{selected_source_id}_{idx}", use_container_width=True):
+                _mutate_market_management_list(row_market_key, str(row["ticker"]), "favorite")
+                holdings_library_service.add_to_watchlist(chat_id, str(row["ticker"]), str(source_meta.get("display_name") or source_meta.get("added_from") or "Manual"))
+                st.rerun()
+            if action_cols[3].button("加觀察", key=f"holdings_row_watch_{selected_source_id}_{idx}", use_container_width=True):
+                _mutate_market_management_list(row_market_key, str(row["ticker"]), "watch")
+                holdings_library_service.add_to_watchlist(chat_id, str(row["ticker"]), str(source_meta.get("display_name") or source_meta.get("added_from") or "Manual"))
+                st.rerun()
+            if action_cols[4].button("剔除", key=f"holdings_row_exclude_{selected_source_id}_{idx}", use_container_width=True):
+                _mutate_market_management_list(row_market_key, str(row["ticker"]), "exclude")
+                st.rerun()
     with right:
         selected_ticker_options = working["ticker"].dropna().astype(str).tolist()
+        if not selected_ticker_options:
+            st.info("目前沒有符合篩選條件的持股。")
+            return
         selected_ticker = st.selectbox(
             "個股速覽",
             options=selected_ticker_options,
