@@ -230,3 +230,29 @@ class GuruPortfolioRepository:
         )
         rows = response.data or []
         return rows[0] if rows else None
+
+
+class AppCacheRepository:
+    def __init__(self, client: Client | None = None) -> None:
+        self.client = client or get_supabase()
+
+    def get_payload(self, cache_key: str) -> dict[str, Any] | None:
+        response = (
+            self.client.table("app_cache")
+            .select("*")
+            .eq("cache_key", cache_key)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def upsert_payload(self, cache_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        response = self.client.table("app_cache").upsert(
+            {
+                "cache_key": cache_key,
+                "payload": payload,
+            },
+            on_conflict="cache_key",
+        ).execute()
+        return response.data[0]

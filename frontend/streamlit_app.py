@@ -31,7 +31,7 @@ hydrate_env_from_streamlit_secrets()
 
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
-from investbot.db.repositories import DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
+from investbot.db.repositories import AppCacheRepository, DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
 from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
 from investbot.services.dashboard_service import DashboardService, DashboardSnapshot
 from investbot.services.decision_support import DecisionSupportService
@@ -58,6 +58,7 @@ summary_service = SummaryService(repository=repo, decision_support=decision_supp
 overview_service = MarketOverviewService(repository=repo, summary_service=summary_service, market_data=market_data)
 watchlist_repository = UserWatchlistRepository()
 guru_portfolio_repository = GuruPortfolioRepository()
+app_cache_repository = AppCacheRepository()
 holdings_library_service = HoldingsLibraryService(
     analysis_repository=repo,
     watchlist_repository=watchlist_repository,
@@ -1682,6 +1683,148 @@ def load_candidate_frame(limit: int = 220) -> pd.DataFrame:
         else:
             frame[column] = frame[column].fillna(default)
     return frame
+
+
+def _serialize_dashboard_snapshot(snapshot: DashboardSnapshot) -> dict[str, Any]:
+    return {
+        "vix": snapshot.vix,
+        "market_sentiment": snapshot.market_sentiment,
+        "total_open_pnl": snapshot.total_open_pnl,
+        "win_rate": snapshot.win_rate,
+        "open_trade_count": snapshot.open_trade_count,
+        "equity_curve": snapshot.equity_curve.to_dict("records"),
+        "open_positions": snapshot.open_positions.to_dict("records"),
+        "recent_closed_trades": snapshot.recent_closed_trades.to_dict("records"),
+    }
+
+
+def _deserialize_dashboard_snapshot(payload: dict[str, Any]) -> DashboardSnapshot:
+    return DashboardSnapshot(
+        vix=payload.get("vix"),
+        market_sentiment=str(payload.get("market_sentiment", "Unknown")),
+        total_open_pnl=float(payload.get("total_open_pnl", 0.0) or 0.0),
+        win_rate=float(payload.get("win_rate", 0.0) or 0.0),
+        open_trade_count=int(payload.get("open_trade_count", 0) or 0),
+        equity_curve=pd.DataFrame(payload.get("equity_curve") or []),
+        open_positions=pd.DataFrame(payload.get("open_positions") or []),
+        recent_closed_trades=pd.DataFrame(payload.get("recent_closed_trades") or []),
+    )
+
+
+def _serialize_taifex_snapshot(snapshot: Any) -> dict[str, Any] | None:
+    if snapshot is None:
+        return None
+    return {
+        "latest_date": snapshot.latest_date.isoformat(),
+        "source": snapshot.source,
+        "fetched_at": snapshot.fetched_at.isoformat(),
+        "rows": [
+            {
+                "trade_date": row.trade_date.isoformat(),
+                "foreign_net_oi": row.foreign_net_oi,
+                "trust_net_oi": row.trust_net_oi,
+                "dealer_net_oi": row.dealer_net_oi,
+            }
+            for row in snapshot.rows
+        ],
+    }
+
+
+def _deserialize_taifex_snapshot(payload: dict[str, Any] | None) -> Any:
+    if not payload:
+        return None
+    from datetime import date as _date, datetime as _datetime
+    from investbot.data_sources.derivatives_data import TaifexInstitutionRow, TaifexInstitutionSnapshot
+
+    rows = [
+        TaifexInstitutionRow(
+            trade_date=_date.fromisoformat(str(row["trade_date"])),
+            foreign_net_oi=int(row.get("foreign_net_oi", 0) or 0),
+            trust_net_oi=int(row.get("trust_net_oi", 0) or 0),
+            dealer_net_oi=int(row.get("dealer_net_oi", 0) or 0),
+        )
+        for row in (payload.get("rows") or [])
+    ]
+    if not rows:
+        return None
+    return TaifexInstitutionSnapshot(
+        latest_date=_date.fromisoformat(str(payload["latest_date"])),
+        source=str(payload.get("source", "")),
+        fetched_at=_datetime.fromisoformat(str(payload["fetched_at"])),
+        rows=rows,
+    )
+
+
+def _serialize_market_overview(overview: MarketOverview) -> dict[str, Any]:
+    return {
+        "overall_trend": overview.overall_trend,
+        "sentiment_label": overview.sentiment_label,
+        "fear_greed_score": overview.fear_greed_score,
+        "fear_greed_rating": overview.fear_greed_rating,
+        "fear_greed_source": overview.fear_greed_source,
+        "fear_greed_updated_at": overview.fear_greed_updated_at,
+        "breadth_snapshot": overview.breadth_snapshot,
+        "momentum_zones": overview.momentum_zones,
+        "caution_items": overview.caution_items,
+        "upcoming_macro_events": overview.upcoming_macro_events,
+        "tw_futures_snapshot": _serialize_taifex_snapshot(overview.tw_futures_snapshot),
+        "us_derivatives_note": overview.us_derivatives_note,
+    }
+
+
+def _deserialize_market_overview(payload: dict[str, Any]) -> MarketOverview:
+    return MarketOverview(
+        overall_trend=str(payload.get("overall_trend", "Balanced / Selective")),
+        sentiment_label=str(payload.get("sentiment_label", "Unknown")),
+        fear_greed_score=int(payload.get("fear_greed_score", 50) or 50),
+        fear_greed_rating=str(payload.get("fear_greed_rating", "Neutral")),
+        fear_greed_source=str(payload.get("fear_greed_source", "Cache")),
+        fear_greed_updated_at=str(payload.get("fear_greed_updated_at", "")),
+        breadth_snapshot=float(payload.get("breadth_snapshot", 50.0) or 50.0),
+        momentum_zones=list(payload.get("momentum_zones") or []),
+        caution_items=list(payload.get("caution_items") or []),
+        upcoming_macro_events=list(payload.get("upcoming_macro_events") or []),
+        tw_futures_snapshot=_deserialize_taifex_snapshot(payload.get("tw_futures_snapshot")),
+        us_derivatives_note=str(payload.get("us_derivatives_note", "")),
+    )
+
+
+def _load_persisted_app_cache(cache_key: str) -> dict[str, Any] | None:
+    try:
+        record = app_cache_repository.get_payload(cache_key)
+    except Exception:
+        return None
+    if not record:
+        return None
+    payload = record.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+def _store_persisted_app_cache(cache_key: str, payload: dict[str, Any]) -> None:
+    try:
+        app_cache_repository.upsert_payload(cache_key, payload)
+    except Exception:
+        return
+
+
+def load_dashboard_snapshot_persisted() -> DashboardSnapshot | None:
+    payload = _load_persisted_app_cache("dashboard_snapshot")
+    if not payload:
+        return None
+    try:
+        return _deserialize_dashboard_snapshot(payload)
+    except Exception:
+        return None
+
+
+def load_market_overview_persisted() -> MarketOverview | None:
+    payload = _load_persisted_app_cache("market_overview")
+    if not payload:
+        return None
+    try:
+        return _deserialize_market_overview(payload)
+    except Exception:
+        return None
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -5536,19 +5679,28 @@ def render_dashboard(candidate_frame: pd.DataFrame | None = None) -> None:
         finally:
             candidate_notice.empty()
     load_notice = st.empty()
-    load_notice.info("正在載入市場快照與情緒資料..." if LANG == "zh-TW" else "Loading market snapshot and sentiment data...")
+    cached_snapshot = load_dashboard_snapshot_persisted()
+    cached_overview = load_market_overview_persisted()
+    if cached_snapshot is not None or cached_overview is not None:
+        load_notice.info("先顯示上次成功快照，再同步更新最新市場資料..." if LANG == "zh-TW" else "Showing the last successful snapshot first while refreshing live market data...")
+    else:
+        load_notice.info("正在載入市場快照與情緒資料..." if LANG == "zh-TW" else "Loading market snapshot and sentiment data...")
+    snapshot = cached_snapshot or build_dashboard_snapshot_fallback()
+    overview = cached_overview or build_market_overview_fallback()
     snapshot_error = None
     overview_error = None
     try:
-        snapshot = load_dashboard_snapshot_cached()
+        fresh_snapshot = load_dashboard_snapshot_cached()
+        snapshot = fresh_snapshot
+        _store_persisted_app_cache("dashboard_snapshot", _serialize_dashboard_snapshot(fresh_snapshot))
     except Exception as exc:
         snapshot_error = exc
-        snapshot = build_dashboard_snapshot_fallback()
     try:
-        overview = load_market_overview_cached()
+        fresh_overview = load_market_overview_cached()
+        overview = fresh_overview
+        _store_persisted_app_cache("market_overview", _serialize_market_overview(fresh_overview))
     except Exception as exc:
         overview_error = exc
-        overview = build_market_overview_fallback()
     load_notice.empty()
     if snapshot_error or overview_error:
         problems = []

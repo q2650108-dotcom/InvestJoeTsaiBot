@@ -243,3 +243,15 @@ create trigger trg_guru_portfolios_updated_at
 before update on guru_portfolios
 for each row
 execute procedure set_updated_at();
+
+create table if not exists app_cache (
+    cache_key text primary key,
+    payload jsonb not null default '{}'::jsonb,
+    updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_app_cache_updated_at on app_cache;
+create trigger trg_app_cache_updated_at
+before update on app_cache
+for each row
+execute procedure set_updated_at();
