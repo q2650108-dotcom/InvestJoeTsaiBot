@@ -1039,6 +1039,64 @@ def _format_holdings_pending_text(state: str) -> str:
     return "\u50c5\u6709\u5373\u6642\u50f9" if state == "live_only" else "\u5f85\u5206\u6790"
 
 
+def _clear_holdings_related_caches() -> None:
+    for func in (
+        load_holdings_snapshot_cached,
+        get_live_ticker_trend_cached,
+        load_holdings_sources_cached,
+        load_candidate_frame,
+        load_latest_focus_frame,
+        load_dashboard_snapshot_cached,
+        load_market_overview_cached,
+    ):
+        clear = getattr(func, "clear", None)
+        if callable(clear):
+            clear()
+
+
+def _run_holdings_source_analysis(snapshot: dict[str, object], market_key: str) -> AnalysisRunSummary | None:
+    source_meta = snapshot.get("source", {}) or {}
+    source_label = str(source_meta.get("display_name") or source_meta.get("symbol") or "\u6301\u80a1\u4f86\u6e90")
+    tickers = [
+        str(row.get("ticker") or "").upper()
+        for row in (snapshot.get("holdings") or [])
+        if str(row.get("ticker") or "").strip()
+    ]
+    tickers = [ticker for ticker in tickers if _market_key_for_ticker(ticker) == market_key]
+    deduped: list[str] = []
+    for ticker in tickers:
+        if ticker not in deduped:
+            deduped.append(ticker)
+    if not deduped:
+        _set_analysis_feedback("warning", "\u9019\u500b\u4f86\u6e90\u76ee\u524d\u6c92\u6709\u53ef\u4ee5\u5206\u6790\u7684\u6301\u80a1\u3002")
+        return None
+
+    engine = AnalysisEngine(market_data=market_data, repository=daily_analysis_repo)
+    progress_box = st.empty()
+
+    def _progress(stage: str, current: int, total: int, message: str) -> None:
+        total_safe = max(total, 1)
+        progress_box.info(f"{message} ({min(current, total_safe)}/{total_safe})")
+
+    with st.spinner(f"\u6b63\u5728\u5206\u6790 {source_label} \u7684\u6301\u80a1..."):
+        summary = engine.run_with_summary(
+            AnalysisUniverse(market_type=market_key, core_tickers=deduped, explore_tickers=[]),
+            progress_callback=_progress,
+        )
+    progress_box.empty()
+    st.session_state["analysis_summary"] = summary
+    st.session_state["analysis_summary_at"] = datetime.now().isoformat(timespec="seconds")
+    _clear_holdings_related_caches()
+    _set_analysis_feedback(
+        "success",
+        (
+            f"{source_label} \u5206\u6790\u5b8c\u6210 | \u6383\u63cf {summary.scanned_tickers} \u6a94 | "
+            f"\u6709\u8cc7\u6599 {summary.data_ready_tickers} \u6a94 | \u5beb\u5165 {summary.signal_count} \u7b46"
+        ),
+    )
+    return summary
+
+
 def _render_tradingview_widget(widget_name: str, config: dict[str, object], height: int, key: str) -> None:
     payload = json.dumps(config, ensure_ascii=False)
     html = f"""
@@ -1164,6 +1222,17 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
             """,
             unsafe_allow_html=True,
         )
+        action_bar = st.columns((1.1, 1.1, 1.4))
+        if action_bar[0].button("\u5206\u6790\u9019\u500b\u4f86\u6e90\u6301\u80a1", key=f"holdings_analyze_source_{selected_source_id}", use_container_width=True):
+            summary = _run_holdings_source_analysis(snapshot, market_key)
+            if summary is not None:
+                st.rerun()
+        if action_bar[1].button("\u91cd\u65b0\u6574\u7406\u9019\u500b\u4f86\u6e90", key=f"holdings_refresh_source_{selected_source_id}", use_container_width=True):
+            load_holdings_snapshot_cached.clear()
+            get_live_ticker_trend_cached.clear()
+            st.toast(f"{source_meta.get('display_name', '')} \u5df2\u91cd\u65b0\u8f09\u5165")
+            st.rerun()
+        action_bar[2].caption("\u5148\u986f\u793a\u76ee\u524d\u5feb\u7167\uff0c\u9700\u8981\u6642\u518d\u88dc\u8dd1\u9019\u500b\u4f86\u6e90\u7684\u5b8c\u6574\u5206\u6790\u3002")
         summary_cols = st.columns(4)
         summary_cols[0].metric("\u6301\u80a1\u6a94\u6578", len(frame))
         summary_cols[1].metric("Top 1 \u4f54\u6bd4", f'{float(frame["weight"].max()):.2f}%' if not frame.empty and "weight" in frame else "0.00%")
