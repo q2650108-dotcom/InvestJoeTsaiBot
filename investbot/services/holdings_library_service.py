@@ -23,26 +23,27 @@ class HoldingsSourceDefinition:
 
 
 TW_ETF_SOURCES: tuple[HoldingsSourceDefinition, ...] = (
-    HoldingsSourceDefinition("tw-0050", "tw_etf", "台股 ETF", "etf", "0050.TW", "元大台灣 50", "TW ETF 0050", "tw", "日更 / 成分股定期更新", 10),
-    HoldingsSourceDefinition("tw-0056", "tw_etf", "台股 ETF", "etf", "0056.TW", "元大高股息", "TW ETF 0056", "tw", "日更 / 成分股定期更新", 20),
-    HoldingsSourceDefinition("tw-006208", "tw_etf", "台股 ETF", "etf", "006208.TW", "富邦台 50", "TW ETF 006208", "tw", "日更 / 成分股定期更新", 30),
-    HoldingsSourceDefinition("tw-00878", "tw_etf", "台股 ETF", "etf", "00878.TW", "國泰永續高股息", "TW ETF 00878", "tw", "日更 / 成分股定期更新", 40),
+    HoldingsSourceDefinition("tw-0050", "tw_etf", "台股 ETF", "etf", "0050.TW", "元大台灣 50", "TW ETF 0050", "tw", "ETF 成分股參考，揭露時間依基金公告為準。", 10),
+    HoldingsSourceDefinition("tw-0056", "tw_etf", "台股 ETF", "etf", "0056.TW", "元大高股息", "TW ETF 0056", "tw", "ETF 成分股參考，揭露時間依基金公告為準。", 20),
+    HoldingsSourceDefinition("tw-006208", "tw_etf", "台股 ETF", "etf", "006208.TW", "富邦台 50", "TW ETF 006208", "tw", "ETF 成分股參考，揭露時間依基金公告為準。", 30),
+    HoldingsSourceDefinition("tw-00878", "tw_etf", "台股 ETF", "etf", "00878.TW", "國泰永續高股息", "TW ETF 00878", "tw", "ETF 成分股參考，揭露時間依基金公告為準。", 40),
 )
 
 US_ETF_SOURCES: tuple[HoldingsSourceDefinition, ...] = (
-    HoldingsSourceDefinition("us-spy", "us_etf", "美股 ETF", "etf", "SPY", "SPDR S&P 500 ETF", "US ETF SPY", "us", "日更 / 成分股定期更新", 10),
-    HoldingsSourceDefinition("us-qqq", "us_etf", "美股 ETF", "etf", "QQQ", "Invesco QQQ Trust", "US ETF QQQ", "us", "日更 / 成分股定期更新", 20),
-    HoldingsSourceDefinition("us-voo", "us_etf", "美股 ETF", "etf", "VOO", "Vanguard S&P 500 ETF", "US ETF VOO", "us", "日更 / 成分股定期更新", 30),
-    HoldingsSourceDefinition("us-ivv", "us_etf", "美股 ETF", "etf", "IVV", "iShares Core S&P 500 ETF", "US ETF IVV", "us", "日更 / 成分股定期更新", 40),
-    HoldingsSourceDefinition("us-smh", "us_etf", "美股 ETF", "etf", "SMH", "VanEck Semiconductor ETF", "US ETF SMH", "us", "日更 / 成分股定期更新", 50),
+    HoldingsSourceDefinition("us-spy", "us_etf", "美股 ETF", "etf", "SPY", "SPDR S&P 500 ETF", "US ETF SPY", "us", "ETF 成分股參考，揭露時間依基金公告為準。", 10),
+    HoldingsSourceDefinition("us-qqq", "us_etf", "美股 ETF", "etf", "QQQ", "Invesco QQQ Trust", "US ETF QQQ", "us", "ETF 成分股參考，揭露時間依基金公告為準。", 20),
+    HoldingsSourceDefinition("us-voo", "us_etf", "美股 ETF", "etf", "VOO", "Vanguard S&P 500 ETF", "US ETF VOO", "us", "ETF 成分股參考，揭露時間依基金公告為準。", 30),
+    HoldingsSourceDefinition("us-ivv", "us_etf", "美股 ETF", "etf", "IVV", "iShares Core S&P 500 ETF", "US ETF IVV", "us", "ETF 成分股參考，揭露時間依基金公告為準。", 40),
+    HoldingsSourceDefinition("us-smh", "us_etf", "美股 ETF", "etf", "SMH", "VanEck Semiconductor ETF", "US ETF SMH", "us", "ETF 成分股參考，揭露時間依基金公告為準。", 50),
 )
 
 GURU_SOURCES: tuple[HoldingsSourceDefinition, ...] = (
-    HoldingsSourceDefinition("guru-berkshire", "guru_13f", "機構 13F", "guru", "BRK", "Berkshire Hathaway", "Berkshire Top Holdings", "us", "13F 季更 / 延遲揭露", 10),
-    HoldingsSourceDefinition("guru-ark", "guru_13f", "機構 13F", "guru", "ARK", "ARK Invest", "ARK Top Holdings", "us", "13F 季更 / 延遲揭露", 20),
-    HoldingsSourceDefinition("guru-bridgewater", "guru_13f", "機構 13F", "guru", "BRIDGEWATER", "Bridgewater", "Bridgewater Top Holdings", "us", "13F 季更 / 延遲揭露", 30),
-    HoldingsSourceDefinition("guru-soros", "guru_13f", "機構 13F", "guru", "SOROS", "Soros Fund", "Soros Top Holdings", "us", "13F 季更 / 延遲揭露", 40),
+    HoldingsSourceDefinition("guru-berkshire", "guru_13f", "機構 13F", "guru", "BRK", "Berkshire Hathaway", "Berkshire Top Holdings", "us", "13F 揭露資料，具季報延遲。", 10),
+    HoldingsSourceDefinition("guru-ark", "guru_13f", "機構 13F", "guru", "ARK", "ARK Invest", "ARK Top Holdings", "us", "13F 揭露資料，具季報延遲。", 20),
+    HoldingsSourceDefinition("guru-bridgewater", "guru_13f", "機構 13F", "guru", "BRIDGEWATER", "Bridgewater", "Bridgewater Top Holdings", "us", "13F 揭露資料，具季報延遲。", 30),
+    HoldingsSourceDefinition("guru-soros", "guru_13f", "機構 13F", "guru", "SOROS", "Soros Fund", "Soros Top Holdings", "us", "13F 揭露資料，具季報延遲。", 40),
 )
+
 
 DEFAULT_ETF_HOLDINGS: dict[str, list[dict[str, object]]] = {
     "tw-0050": [
@@ -169,6 +170,65 @@ DEFAULT_GURU_HOLDINGS: dict[str, dict[str, object]] = {
     },
 }
 
+RECOMMENDATION_PLACEHOLDERS = {
+    "",
+    "Watchlist",
+    "觀察",
+    "待分析",
+    "Unknown",
+}
+
+SUGGESTED_ACTION_PLACEHOLDERS = {
+    "",
+    "Run analysis to refresh details.",
+    "Price is live, but this holding has not entered the latest analysis set yet.",
+    "請先執行分析以刷新資料",
+    "只有價格資料，尚未進入最新分析集合",
+}
+
+
+def merge_holdings_display_rows(
+    holdings_rows: list[dict[str, object]],
+    candidate_rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    candidate_by_ticker = {
+        str(row.get("ticker") or "").upper(): row
+        for row in candidate_rows
+        if str(row.get("ticker") or "").strip()
+    }
+    fill_columns = (
+        "close_price",
+        "composite_signal_score",
+        "confluence_score",
+        "recommendation_bucket",
+        "institutional_buy_streak",
+        "relative_strength_score",
+        "suggested_action",
+        "date",
+    )
+    merged_rows: list[dict[str, object]] = []
+    for row in holdings_rows:
+        ticker = str(row.get("ticker") or "").upper()
+        merged = dict(row)
+        candidate = candidate_by_ticker.get(ticker, {})
+        for column in fill_columns:
+            current = merged.get(column)
+            candidate_value = candidate.get(column)
+            if candidate_value in (None, ""):
+                continue
+            if column == "recommendation_bucket":
+                if str(current).strip() in RECOMMENDATION_PLACEHOLDERS:
+                    merged[column] = candidate_value
+                continue
+            if column == "suggested_action":
+                if str(current).strip() in SUGGESTED_ACTION_PLACEHOLDERS:
+                    merged[column] = candidate_value
+                continue
+            if current in (None, "", 0):
+                merged[column] = candidate_value
+        merged_rows.append(merged)
+    return merged_rows
+
 
 class HoldingsLibraryService:
     def __init__(
@@ -182,13 +242,18 @@ class HoldingsLibraryService:
         self.watchlist_repository = watchlist_repository or UserWatchlistRepository()
         self.guru_repository = guru_repository or GuruPortfolioRepository()
         self.market_data = market_data or YahooMarketDataClient()
-        self._definitions = {definition.source_id: definition for definition in (*TW_ETF_SOURCES, *US_ETF_SOURCES, *GURU_SOURCES)}
+        self._definitions = {
+            definition.source_id: definition
+            for definition in (*TW_ETF_SOURCES, *US_ETF_SOURCES, *GURU_SOURCES)
+        }
 
     def list_sources(self) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         group_order = {"tw_etf": 0, "us_etf": 1, "guru_13f": 2}
-        for definition in sorted(self._definitions.values(), key=lambda item: (group_order.get(item.group_key, 99), item.rank_order)):
-            last_disclosed_at = self._resolve_disclosed_at(definition)
+        for definition in sorted(
+            self._definitions.values(),
+            key=lambda item: (group_order.get(item.group_key, 99), item.rank_order),
+        ):
             rows.append(
                 {
                     "source_id": definition.source_id,
@@ -200,7 +265,7 @@ class HoldingsLibraryService:
                     "display_name": definition.display_name,
                     "added_from": definition.added_from,
                     "disclosure_hint": definition.disclosure_hint,
-                    "last_disclosed_at": last_disclosed_at,
+                    "last_disclosed_at": self._resolve_disclosed_at(definition),
                 }
             )
         return rows
@@ -209,19 +274,11 @@ class HoldingsLibraryService:
         definition = self._definitions[source_id]
         if definition.source_type == "etf":
             loaded = self._load_etf_holdings(definition)
-            raw_rows = list(loaded.get("rows", []))
-            as_of = str(loaded.get("as_of") or "")
-            fetched_at = str(loaded.get("fetched_at") or datetime.now().isoformat())
-            source_note = str(loaded.get("source_note") or definition.disclosure_hint)
             quarter = ""
         else:
             loaded = self._load_guru_holdings(definition)
-            raw_rows = list(loaded.get("rows", []))
-            as_of = str(loaded.get("as_of") or "")
-            fetched_at = str(loaded.get("fetched_at") or datetime.now().isoformat())
-            source_note = str(loaded.get("source_note") or definition.disclosure_hint)
             quarter = str(loaded.get("quarter") or "")
-
+        raw_rows = list(loaded.get("rows", []))
         holdings = [self._enrich_holding_row(definition, row) for row in raw_rows]
         return {
             "source": {
@@ -234,9 +291,9 @@ class HoldingsLibraryService:
                 "display_name": definition.display_name,
                 "added_from": definition.added_from,
                 "quarter": quarter,
-                "as_of": as_of,
-                "fetched_at": fetched_at,
-                "source_note": source_note,
+                "as_of": str(loaded.get("as_of") or ""),
+                "fetched_at": str(loaded.get("fetched_at") or datetime.now().isoformat()),
+                "source_note": str(loaded.get("source_note") or definition.disclosure_hint),
             },
             "holdings": holdings,
         }
@@ -297,9 +354,9 @@ class HoldingsLibraryService:
             latest_price = self._safe_latest_price(ticker)
         recommendation_bucket = analysis_row.get("recommendation_bucket") or "Watchlist"
         suggested_action = analysis_row.get("suggested_action") or "Run analysis to refresh details."
-        if not analysis_row and growth:
+        if not analysis_row and latest_price is not None:
             suggested_action = "Price is live, but this holding has not entered the latest analysis set yet."
-        enriched = {
+        return {
             "ticker": ticker,
             "company": company,
             "sector": sector,
@@ -322,19 +379,28 @@ class HoldingsLibraryService:
             "rev_yoy": growth.get("rev_yoy"),
             "eps_yoy": growth.get("eps_yoy"),
         }
-        return enriched
 
     def _latest_analysis_row(self, ticker: str) -> dict[str, object]:
         history = self.analysis_repository.fetch_history(ticker, limit=1)
-        if not history:
-            return {}
-        return history[-1]
+        return history[-1] if history else {}
 
     def _safe_latest_price(self, ticker: str) -> float | None:
         try:
             return float(self.market_data.get_latest_price(ticker))
         except Exception:
-            return None
+            pass
+        for period in ("1mo", "6mo"):
+            try:
+                history = self.market_data.get_price_history(ticker, period=period)
+                if history.empty:
+                    continue
+                close_series = history["Close"].dropna()
+                if close_series.empty:
+                    continue
+                return float(close_series.iloc[-1])
+            except Exception:
+                continue
+        return None
 
     def _safe_growth_snapshot(self, ticker: str) -> dict[str, object]:
         try:

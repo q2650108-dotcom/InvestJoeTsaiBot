@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from unittest import TestCase
 
-from investbot.services.holdings_library_service import HoldingsLibraryService
+import pandas as pd
+
+from investbot.services.holdings_library_service import HoldingsLibraryService, merge_holdings_display_rows
 
 
 class FakeAnalysisRepository:
@@ -41,6 +43,7 @@ class FakeMarketData:
         self.latest_prices: dict[str, float] = {}
         self.profiles: dict[str, dict[str, str]] = {}
         self.growth: dict[str, dict[str, object]] = {}
+        self.histories: dict[str, pd.DataFrame] = {}
 
     def get_company_profile(self, ticker: str) -> dict[str, str]:
         return self.profiles.get(ticker.upper(), {"name_zh": "", "name_en": ticker.upper(), "sector": ""})
@@ -50,6 +53,9 @@ class FakeMarketData:
 
     def get_growth_snapshot(self, ticker: str) -> dict[str, object]:
         return self.growth.get(ticker.upper(), {})
+
+    def get_price_history(self, ticker: str, period: str = "1mo") -> pd.DataFrame:
+        return self.histories.get(ticker.upper(), pd.DataFrame())
 
 
 class StubHoldingsLibraryService(HoldingsLibraryService):
@@ -79,6 +85,41 @@ class StubHoldingsLibraryService(HoldingsLibraryService):
 
 
 class HoldingsLibraryServiceTests(TestCase):
+    def test_merge_holdings_display_rows_backfills_missing_fields_from_candidates(self) -> None:
+        merged = merge_holdings_display_rows(
+            [
+                {
+                    "ticker": "2330.TW",
+                    "company": "台積電",
+                    "close_price": None,
+                    "composite_signal_score": None,
+                    "recommendation_bucket": "Watchlist",
+                    "institutional_buy_streak": 0,
+                    "relative_strength_score": None,
+                    "suggested_action": "Run analysis to refresh details.",
+                }
+            ],
+            [
+                {
+                    "ticker": "2330.TW",
+                    "close_price": 971.0,
+                    "composite_signal_score": 82.4,
+                    "recommendation_bucket": "Actionable",
+                    "institutional_buy_streak": 4,
+                    "relative_strength_score": 88.2,
+                    "suggested_action": "Starter size is acceptable.",
+                }
+            ],
+        )
+
+        row = merged[0]
+        self.assertEqual(row["close_price"], 971.0)
+        self.assertEqual(row["composite_signal_score"], 82.4)
+        self.assertEqual(row["recommendation_bucket"], "Actionable")
+        self.assertEqual(row["institutional_buy_streak"], 4)
+        self.assertEqual(row["relative_strength_score"], 88.2)
+        self.assertEqual(row["suggested_action"], "Starter size is acceptable.")
+
     def test_list_sources_groups_and_orders_sources(self) -> None:
         service = HoldingsLibraryService(
             analysis_repository=FakeAnalysisRepository(),
@@ -148,6 +189,23 @@ class HoldingsLibraryServiceTests(TestCase):
         self.assertEqual(row["rev_yoy"], 28.0)
         self.assertEqual(row["eps_yoy"], 19.0)
         self.assertEqual(row["sector"], "半導體")
+
+    def test_safe_latest_price_falls_back_to_history(self) -> None:
+        market_data = FakeMarketData()
+        market_data.profiles["2330.TW"] = {"name_zh": "台積電", "name_en": "TSMC", "sector": "半導體"}
+        market_data.histories["2330.TW"] = pd.DataFrame({"Close": [930.0, 945.0, 955.5]})
+        service = StubHoldingsLibraryService(
+            analysis_repository=FakeAnalysisRepository(),
+            watchlist_repository=FakeWatchlistRepository(),
+            guru_repository=FakeGuruPortfolioRepository(),
+            market_data=market_data,
+        )
+        service.etf_rows["tw-0050"] = [{"ticker": "2330.TW", "weight": 58.2}]
+
+        snapshot = service.get_source_snapshot("tw-0050")
+        row = snapshot["holdings"][0]
+
+        self.assertEqual(row["close_price"], 955.5)
 
     def test_add_to_watchlist_persists_source_tag(self) -> None:
         watchlist_repo = FakeWatchlistRepository()
