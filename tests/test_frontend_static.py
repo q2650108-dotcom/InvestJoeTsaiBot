@@ -54,12 +54,32 @@ class FrontendStaticTests(TestCase):
             for node in tree.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
+        imported_or_assigned_names: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_or_assigned_names.add(alias.asname or alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    imported_or_assigned_names.add(alias.asname or alias.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        imported_or_assigned_names.add(target.id)
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                imported_or_assigned_names.add(node.target.id)
 
         for node in tree.body:
             if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
                 continue
             call = node.value.func
-            if not isinstance(call, ast.Name) or call.id not in local_function_lines:
+            if not isinstance(call, ast.Name):
+                continue
+            self.assertTrue(
+                call.id in local_function_lines or call.id in imported_or_assigned_names,
+                f"{call.id} is called at top level but is not defined or imported",
+            )
+            if call.id not in local_function_lines:
                 continue
             self.assertLess(
                 local_function_lines[call.id],

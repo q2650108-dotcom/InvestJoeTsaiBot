@@ -38,7 +38,7 @@ os.environ.setdefault("INVESTBOT_SUPABASE_ROLE", "frontend")
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
 from investbot.db.repositories import DailyAnalysisRepository, GuruPortfolioRepository, UserWatchlistRepository
-from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, analysis_summary_from_record
+from investbot.services.analysis_engine import AnalysisEngine, AnalysisRunSummary, AnalysisUniverse, analysis_summary_from_record
 from investbot.services.dashboard_service import DashboardService, DashboardSnapshot
 from investbot.services.decision_support import DecisionSupportService
 from investbot.services.event_risk_service import EventRiskService
@@ -1348,6 +1348,491 @@ def render_holdings_library(candidate_frame: pd.DataFrame, market_key: str) -> N
                 st.rerun()
             st.caption(f'\u6700\u5f8c\u63ed\u9732\u6642\u9593\uff1a{source_meta.get("as_of", "-")}')
             st.caption(f'\u4f86\u6e90\u6a19\u8a3b\uff1a{source_meta.get("added_from", "-")}')
+
+
+daily_analysis_repo = repo
+
+
+def t(key: str) -> str:
+    return str(TEXT.get(key, key))
+
+
+def _set_analysis_feedback(level: str, message: str) -> None:
+    st.session_state["analysis_feedback"] = {"level": level, "message": message}
+
+
+def render_analysis_feedback() -> None:
+    feedback = st.session_state.get("analysis_feedback")
+    if not feedback:
+        return
+    level = str(feedback.get("level", "info"))
+    message = str(feedback.get("message", ""))
+    if not message:
+        return
+    if level == "success":
+        st.success(message)
+    elif level == "warning":
+        st.warning(message)
+    elif level == "error":
+        st.error(message)
+    else:
+        st.info(message)
+
+
+def _latest_candidates(candidate_frame: pd.DataFrame) -> pd.DataFrame:
+    if candidate_frame is None or candidate_frame.empty:
+        return pd.DataFrame()
+    frame = candidate_frame.copy()
+    if "date" in frame.columns:
+        frame = frame[frame["date"] == frame["date"].max()].copy()
+    return frame
+
+
+def _vix_comfort_score(vix: float | None) -> float:
+    if vix is None:
+        return 55.0
+    return max(0.0, min(100.0, 100.0 - (float(vix) - 12.0) * 4.0))
+
+
+@st.cache_data(ttl=1800)
+def get_company_profile_cached(ticker: str) -> dict[str, object]:
+    return market_data.get_company_profile(ticker)
+
+
+def enrich_with_company_metadata(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return pd.DataFrame()
+    enriched = frame.copy()
+    for column in ["company", "sector"]:
+        if column not in enriched.columns:
+            enriched[column] = ""
+    for idx, row in enriched.iterrows():
+        ticker = str(row.get("ticker") or "").upper()
+        if not ticker:
+            continue
+        if not str(enriched.at[idx, "company"] or "").strip() or not str(enriched.at[idx, "sector"] or "").strip():
+            profile = get_company_profile_cached(ticker)
+            if not str(enriched.at[idx, "company"] or "").strip():
+                enriched.at[idx, "company"] = profile.get("company") or ticker
+            if not str(enriched.at[idx, "sector"] or "").strip():
+                enriched.at[idx, "sector"] = profile.get("sector") or ("Taiwan" if ticker.endswith(".TW") else "US")
+    return enriched
+
+
+def build_setup_distribution_chart(candidate_frame: pd.DataFrame) -> go.Figure:
+    latest = _latest_candidates(candidate_frame)
+    if latest.empty or "recommendation_bucket" not in latest.columns:
+        return go.Figure().update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10))
+    counts = latest["recommendation_bucket"].fillna("Unknown").value_counts().reset_index()
+    counts.columns = ["bucket", "count"]
+    fig = px.bar(counts, x="bucket", y="count", color="bucket")
+    fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+    return fig
+
+
+@st.cache_data(ttl=180)
+def load_candidate_frame() -> pd.DataFrame:
+    rows = repo.fetch_recent_candidates(limit=300)
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(decision_support.enrich_rows(rows))
+
+
+@st.cache_data(ttl=180)
+def load_latest_focus_frame(market_key: str | None = None) -> pd.DataFrame:
+    rows: list[dict[str, object]]
+    if market_key:
+        rows = repo.fetch_latest_market_rows(market_key)
+    else:
+        rows = repo.fetch_recent_candidates(limit=120)
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(decision_support.enrich_rows(rows))
+
+
+def _normalize_trend(values: object) -> list[float]:
+    if not isinstance(values, list):
+        return []
+    normalized: list[float] = []
+    for value in values:
+        try:
+            normalized.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    return normalized[-12:]
+
+
+@st.cache_data(ttl=600)
+def get_ticker_trend_cached(ticker: str, limit: int = 12) -> list[float]:
+    history = market_data.get_price_history(ticker, period="3mo")
+    if history.empty or "Close" not in history.columns:
+        return []
+    closes = history["Close"].dropna().tail(limit)
+    if closes.empty:
+        return []
+    first = float(closes.iloc[0])
+    if first == 0:
+        return []
+    return [round(((float(value) / first) - 1.0) * 100.0, 2) for value in closes]
+
+
+@st.cache_data(ttl=600)
+def get_ticker_score_trend_cached(ticker: str) -> list[float]:
+    rows = repo.fetch_history(ticker, limit=12)
+    values: list[float] = []
+    for row in rows:
+        try:
+            values.append(float(row.get("composite_signal_score") or 0))
+        except (TypeError, ValueError):
+            values.append(0.0)
+    return values
+
+
+def _settings_value(name: str, fallback: str = "") -> str:
+    return str(getattr(runtime_settings, name, getattr(settings, name, fallback)) or "")
+
+
+def _split_tickers(raw_value: object) -> list[str]:
+    return [item.strip().upper() for item in str(raw_value or "").split(",") if item.strip()]
+
+
+def _join_tickers(tickers: list[str]) -> str:
+    return ",".join(dict.fromkeys(ticker.strip().upper() for ticker in tickers if ticker.strip()))
+
+
+def _read_market_management_lists(market_key: str) -> dict[str, set[str]]:
+    return {
+        "favorite": set(_split_tickers(_settings_value(f"{market_key}_manual_hot_tickers"))),
+        "watch": set(_split_tickers(_settings_value(f"{market_key}_manual_watch_tickers"))),
+        "exclude": set(_split_tickers(_settings_value(f"{market_key}_excluded_tickers"))),
+    }
+
+
+def _mutate_market_management_list(market_key: str, ticker: str, action: str) -> None:
+    ticker = ticker.strip().upper()
+    if not ticker:
+        return
+    state = _read_market_management_lists(market_key)
+    for values in state.values():
+        values.discard(ticker)
+    if action in state:
+        state[action].add(ticker)
+    updates = {
+        f"{market_key}_manual_hot_tickers": _join_tickers(sorted(state["favorite"])),
+        f"{market_key}_manual_watch_tickers": _join_tickers(sorted(state["watch"])),
+        f"{market_key}_excluded_tickers": _join_tickers(sorted(state["exclude"])),
+    }
+    user_settings_service.update_runtime_preferences(chat_id, updates)
+    st.session_state["runtime_settings_dirty"] = True
+
+
+@st.cache_data(ttl=180)
+def load_dashboard_snapshot_cached() -> DashboardSnapshot:
+    return dashboard_service.build_snapshot()
+
+
+@st.cache_data(ttl=180)
+def load_market_overview_cached() -> MarketOverview:
+    return overview_service.build()
+
+
+def _serialize_dashboard_snapshot(snapshot: DashboardSnapshot) -> dict[str, object]:
+    return {
+        "vix": snapshot.vix,
+        "market_sentiment": snapshot.market_sentiment,
+        "total_open_pnl": snapshot.total_open_pnl,
+        "win_rate": snapshot.win_rate,
+        "open_trade_count": snapshot.open_trade_count,
+        "equity_curve": snapshot.equity_curve.to_dict("records"),
+        "open_positions": snapshot.open_positions.to_dict("records"),
+        "recent_closed_trades": snapshot.recent_closed_trades.to_dict("records"),
+    }
+
+
+def _deserialize_dashboard_snapshot(payload: dict[str, object]) -> DashboardSnapshot:
+    return DashboardSnapshot(
+        vix=payload.get("vix"),  # type: ignore[arg-type]
+        market_sentiment=str(payload.get("market_sentiment") or "Unknown"),
+        total_open_pnl=float(payload.get("total_open_pnl") or 0),
+        win_rate=float(payload.get("win_rate") or 0),
+        open_trade_count=int(payload.get("open_trade_count") or 0),
+        equity_curve=pd.DataFrame(payload.get("equity_curve") or []),
+        open_positions=pd.DataFrame(payload.get("open_positions") or []),
+        recent_closed_trades=pd.DataFrame(payload.get("recent_closed_trades") or []),
+    )
+
+
+def _serialize_market_overview(overview: MarketOverview) -> dict[str, object]:
+    return {
+        "overall_trend": overview.overall_trend,
+        "sentiment_label": overview.sentiment_label,
+        "fear_greed_score": overview.fear_greed_score,
+        "fear_greed_rating": overview.fear_greed_rating,
+        "fear_greed_source": overview.fear_greed_source,
+        "fear_greed_updated_at": overview.fear_greed_updated_at,
+        "breadth_snapshot": overview.breadth_snapshot,
+        "momentum_zones": overview.momentum_zones,
+        "caution_items": overview.caution_items,
+        "upcoming_macro_events": overview.upcoming_macro_events,
+        "tw_futures_snapshot": None,
+        "us_derivatives_note": overview.us_derivatives_note,
+    }
+
+
+def _deserialize_market_overview(payload: dict[str, object]) -> MarketOverview:
+    return MarketOverview(
+        overall_trend=str(payload.get("overall_trend") or "Unknown"),
+        sentiment_label=str(payload.get("sentiment_label") or "Unknown"),
+        fear_greed_score=int(payload.get("fear_greed_score") or 50),
+        fear_greed_rating=str(payload.get("fear_greed_rating") or "Neutral"),
+        fear_greed_source=str(payload.get("fear_greed_source") or "cache"),
+        fear_greed_updated_at=str(payload.get("fear_greed_updated_at") or ""),
+        breadth_snapshot=float(payload.get("breadth_snapshot") or 50),
+        momentum_zones=list(payload.get("momentum_zones") or []),
+        caution_items=list(payload.get("caution_items") or []),
+        upcoming_macro_events=list(payload.get("upcoming_macro_events") or []),
+        tw_futures_snapshot=None,
+        us_derivatives_note=str(payload.get("us_derivatives_note") or ""),
+    )
+
+
+def _store_persisted_app_cache(cache_key: str, payload: dict[str, object]) -> None:
+    if app_cache_repository is None:
+        return
+    try:
+        app_cache_repository.upsert_payload(cache_key, payload)
+    except Exception:
+        return
+
+
+def _load_persisted_app_cache(cache_key: str) -> dict[str, object] | None:
+    if app_cache_repository is None:
+        return None
+    try:
+        row = app_cache_repository.get_payload(cache_key)
+    except Exception:
+        return None
+    payload = row.get("payload") if row else None
+    return payload if isinstance(payload, dict) else None
+
+
+def load_dashboard_snapshot_persisted() -> DashboardSnapshot | None:
+    payload = _load_persisted_app_cache("dashboard_snapshot")
+    return _deserialize_dashboard_snapshot(payload) if payload else None
+
+
+def load_market_overview_persisted() -> MarketOverview | None:
+    payload = _load_persisted_app_cache("market_overview")
+    return _deserialize_market_overview(payload) if payload else None
+
+
+def build_dashboard_snapshot_fallback() -> DashboardSnapshot:
+    return DashboardSnapshot(
+        vix=None,
+        market_sentiment="Unknown",
+        total_open_pnl=0.0,
+        win_rate=0.0,
+        open_trade_count=0,
+        equity_curve=pd.DataFrame(columns=["sequence", "equity_pnl"]),
+        open_positions=pd.DataFrame(),
+        recent_closed_trades=pd.DataFrame(),
+    )
+
+
+def build_market_overview_fallback() -> MarketOverview:
+    return MarketOverview(
+        overall_trend="Unknown",
+        sentiment_label="Neutral",
+        fear_greed_score=50,
+        fear_greed_rating="Neutral",
+        fear_greed_source="Fallback",
+        fear_greed_updated_at="",
+        breadth_snapshot=50.0,
+        momentum_zones=[],
+        caution_items=[],
+        upcoming_macro_events=[],
+        tw_futures_snapshot=None,
+        us_derivatives_note="",
+    )
+
+
+def _render_data_caption(text: str) -> None:
+    st.caption(text)
+
+
+def _format_snapshot_date(value: object) -> str:
+    if value is None:
+        return "-"
+    try:
+        return pd.to_datetime(value).strftime("%Y-%m-%d")
+    except Exception:
+        return str(value)
+
+
+def describe_vix(vix: float | None) -> tuple[str, str]:
+    if vix is None:
+        return ("N/A", "Unknown")
+    if vix < 18:
+        return ("Calm", "Risk appetite supportive")
+    if vix < 25:
+        return ("Neutral", "Two-way market")
+    return ("Risk-Off", "Volatility elevated")
+
+
+def describe_fear_greed(score: float | int | None) -> tuple[str, str]:
+    value = float(score or 50)
+    if value >= 75:
+        return ("Greed", "Extended risk appetite")
+    if value >= 60:
+        return ("Constructive", "Supportive")
+    if value >= 40:
+        return ("Neutral", "Balanced")
+    return ("Cautious", "Defensive")
+
+
+def render_market_terminal_header(snapshot: DashboardSnapshot, overview: MarketOverview) -> str:
+    st.markdown(f'<div class="section-label">{t("market_terminal")}</div>', unsafe_allow_html=True)
+    selected = st.segmented_control(
+        t("dashboard_market_view"),
+        options=["tw", "us"],
+        format_func=lambda value: t("taiwan") if value == "tw" else t("us"),
+        default="tw",
+        key="dashboard_market_selector",
+    )
+    return str(selected or "tw")
+
+
+def load_persisted_analysis_summary(market_key: str) -> Any | None:
+    try:
+        row = repo.fetch_latest_analysis_run(market_key)
+    except Exception:
+        return None
+    return analysis_summary_from_record(row) if row else None
+
+
+def render_analysis_summary(summary: Any) -> None:
+    cols = st.columns(4)
+    cols[0].metric(t("market"), getattr(summary, "market_type", "-"))
+    cols[1].metric(t("records"), getattr(summary, "signal_count", 0))
+    cols[2].metric(t("candidates"), getattr(summary, "scanned_tickers", 0))
+    cols[3].metric(t("analysis_done"), getattr(summary, "data_ready_tickers", 0))
+
+
+def load_market_display_frame(candidate_frame: pd.DataFrame, market_key: str) -> pd.DataFrame:
+    if candidate_frame is None or candidate_frame.empty or "ticker" not in candidate_frame.columns:
+        return pd.DataFrame()
+    return candidate_frame[candidate_frame["ticker"].astype(str).map(_market_key_for_ticker) == market_key].copy()
+
+
+def render_run_controls() -> None:
+    st.markdown(f'<div class="section-label">{t("analysis_options")}</div>', unsafe_allow_html=True)
+    cols = st.columns(2)
+    for market_key, label in [("tw", t("run_tw")), ("us", t("run_us"))]:
+        if cols[0 if market_key == "tw" else 1].button(label, use_container_width=True):
+            runtime = user_settings_service.get_runtime_namespace(chat_id)
+            universe = UniverseBuilder(runtime, watchlist_repository=watchlist_repository).build(market_key)
+            engine = AnalysisEngine(market_data=market_data, repository=repo)
+            with st.spinner(t("analysis_progress")):
+                summary = engine.run_with_summary(universe.to_analysis_universe())
+            st.session_state["analysis_summary"] = summary
+            _set_analysis_feedback("success", f'{t("analysis_done")}: {summary.signal_count}')
+            load_candidate_frame.clear()
+            load_latest_focus_frame.clear()
+            st.rerun()
+
+
+def render_market_state(market_key: str) -> None:
+    summary = summary_service.build_market_summary(market_key)
+    if summary is None:
+        st.info(t("no_data"))
+        return
+    cols = st.columns(4)
+    cols[0].metric(t("market_state"), localize_value(summary.regime))
+    cols[1].metric(t("breadth"), f"{summary.average_breadth:.1f}")
+    cols[2].metric(t("candidates"), summary.candidate_count)
+    cols[3].metric(t("safer"), summary.safer_count)
+
+
+def render_session_briefs() -> None:
+    rows = []
+    for market_key in ["tw", "us"]:
+        summary = summary_service.build_market_summary(market_key)
+        if summary:
+            rows.append({"market": market_key.upper(), "brief": _market_bias_copy(summary)})
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_market_overview() -> None:
+    overview = load_market_overview_cached()
+    st.write(maybe_translate_text(overview.overall_trend))
+    for item in overview.caution_items:
+        st.caption(maybe_translate_text(item))
+
+
+def render_manual_tracking(candidate_frame: pd.DataFrame, market_key: str) -> None:
+    state = _read_market_management_lists(market_key)
+    st.write(
+        {
+            "favorite": sorted(state["favorite"]),
+            "watch": sorted(state["watch"]),
+            "exclude": sorted(state["exclude"]),
+        }
+    )
+
+
+def render_focus_lists(candidate_frame: pd.DataFrame, market_key: str) -> None:
+    frame = load_market_display_frame(candidate_frame, market_key)
+    if frame.empty:
+        st.info(t("no_data"))
+        return
+    render_terminal_table(frame.head(30), ["ticker", "company", "sector", "recommendation_bucket", "composite_signal_score", "suggested_action"])
+
+
+def _ticker_option_label(row: pd.Series) -> str:
+    return f"{row.get('ticker', '')} | {row.get('company', '')}"
+
+
+def _confluence_label(value: object) -> str:
+    return localize_value(value)
+
+
+def _format_strategy_scores(value: object) -> str:
+    if isinstance(value, dict):
+        return " | ".join(f"{key}: {score}" for key, score in value.items())
+    if isinstance(value, list):
+        return " | ".join(str(item) for item in value)
+    return str(value or "")
+
+
+def render_runtime_settings_panel() -> None:
+    with st.sidebar.expander(t("settings_panel"), expanded=False):
+        current = user_settings_service.get_runtime_preferences(chat_id)
+        large_cap_only = st.checkbox("Large cap only", value=bool(current.get("large_cap_only", True)))
+        risk_tolerance = st.number_input(
+            "Risk tolerance %",
+            min_value=0.1,
+            max_value=50.0,
+            value=float(current.get("risk_tolerance_percent") or 5.0),
+            step=0.5,
+        )
+        min_streak = st.slider(
+            "Institutional buy streak",
+            min_value=1,
+            max_value=5,
+            value=int(current.get("min_institutional_buy_streak") or 3),
+        )
+        if st.button(t("save_settings"), use_container_width=True):
+            user_settings_service.update_runtime_preferences(
+                chat_id,
+                {
+                    "app_language": LANG,
+                    "large_cap_only": large_cap_only,
+                    "risk_tolerance_percent": risk_tolerance,
+                    "min_institutional_buy_streak": min_streak,
+                },
+            )
+            st.success(t("settings_saved"))
 
 
 def render_dashboard(candidate_frame: pd.DataFrame | None = None) -> None:
