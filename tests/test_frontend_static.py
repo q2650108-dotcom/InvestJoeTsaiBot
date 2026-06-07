@@ -90,3 +90,28 @@ class FrontendStaticTests(TestCase):
     def test_streamlit_139_compatible_widgets_are_used(self) -> None:
         source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
         self.assertNotIn("st.segmented_control", source)
+
+    def test_streamlit_widgets_have_explicit_keys(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        tree = ast.parse(source)
+        keyed_widgets = {
+            "button",
+            "checkbox",
+            "number_input",
+            "radio",
+            "selectbox",
+            "slider",
+            "text_input",
+        }
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr not in keyed_widgets:
+                continue
+            keyword_names = {keyword.arg for keyword in node.keywords}
+            self.assertIn(
+                "key",
+                keyword_names,
+                f"{node.func.attr} at line {node.lineno} is missing an explicit key",
+            )

@@ -1730,7 +1730,11 @@ def render_run_controls() -> None:
     st.markdown(f'<div class="section-label">{t("analysis_options")}</div>', unsafe_allow_html=True)
     cols = st.columns(2)
     for market_key, label in [("tw", t("run_tw")), ("us", t("run_us"))]:
-        if cols[0 if market_key == "tw" else 1].button(label, use_container_width=True):
+        if cols[0 if market_key == "tw" else 1].button(
+            label,
+            key=f"run_analysis_{market_key}",
+            use_container_width=True,
+        ):
             runtime = user_settings_service.get_runtime_namespace(chat_id)
             universe = UniverseBuilder(runtime, watchlist_repository=watchlist_repository).build(market_key)
             engine = AnalysisEngine(market_data=market_data, repository=repo)
@@ -1810,21 +1814,27 @@ def _format_strategy_scores(value: object) -> str:
 def render_runtime_settings_panel() -> None:
     with st.sidebar.expander(t("settings_panel"), expanded=False):
         current = user_settings_service.get_runtime_preferences(chat_id)
-        large_cap_only = st.checkbox("Large cap only", value=bool(current.get("large_cap_only", True)))
+        large_cap_only = st.checkbox(
+            "Large cap only",
+            value=bool(current.get("large_cap_only", True)),
+            key="settings_large_cap_only",
+        )
         risk_tolerance = st.number_input(
             "Risk tolerance %",
             min_value=0.1,
             max_value=50.0,
             value=float(current.get("risk_tolerance_percent") or 5.0),
             step=0.5,
+            key="settings_risk_tolerance_percent",
         )
         min_streak = st.slider(
             "Institutional buy streak",
             min_value=1,
             max_value=5,
             value=int(current.get("min_institutional_buy_streak") or 3),
+            key="settings_min_institutional_buy_streak",
         )
-        if st.button(t("save_settings"), use_container_width=True):
+        if st.button(t("save_settings"), key="settings_save", use_container_width=True):
             user_settings_service.update_runtime_preferences(
                 chat_id,
                 {
@@ -2005,9 +2015,13 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
     latest = candidate_frame[candidate_frame["date"] == latest_date].copy()
     latest = enrich_with_company_metadata(latest)
     c1, c2, c3 = st.columns(3)
-    selected_market = c1.selectbox(t("market"), [t("all"), "tw", "us"])
-    selected_bucket = c2.selectbox(t("bucket"), [t("all"), "Safer Follow-Through", "Actionable", "Watchlist"])
-    min_score = c3.slider(t("min_score"), min_value=0, max_value=100, value=60)
+    selected_market = c1.selectbox(t("market"), [t("all"), "tw", "us"], key="screener_market")
+    selected_bucket = c2.selectbox(
+        t("bucket"),
+        [t("all"), "Safer Follow-Through", "Actionable", "Watchlist"],
+        key="screener_bucket",
+    )
+    min_score = c3.slider(t("min_score"), min_value=0, max_value=100, value=60, key="screener_min_score")
     filtered = latest.copy()
     if selected_market != t("all"):
         filtered = filtered[filtered["type"] == selected_market]
@@ -2067,7 +2081,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
             hide_index=True,
         )
     with right:
-        ticker = st.text_input(t("ticker"), value="2330.TW")
+        ticker = st.text_input(t("ticker"), value="2330.TW", key="screener_ticker_history")
         history = pd.DataFrame(repo.fetch_history(ticker))
         if history.empty:
             st.info(t("no_data"))
@@ -2136,7 +2150,7 @@ def render_screener(candidate_frame: pd.DataFrame) -> None:
 
 def render_health_check() -> None:
     st.markdown(f'<div class="page-title">{t("health")}</div>', unsafe_allow_html=True)
-    if st.button("Run Source Diagnostics", use_container_width=True):
+    if st.button("Run Source Diagnostics", key="health_run_source_diagnostics", use_container_width=True):
         with st.spinner("Checking market-data sources..."):
             rows = market_data.diagnose_providers()
         frame = pd.DataFrame(rows)
@@ -2217,13 +2231,19 @@ selected_label = st.sidebar.selectbox(
     f'Language / {COPY["zh-TW"]["language"]}',
     options=list(language_options.keys()),
     index=0 if LANG == "zh-TW" else 1,
+    key="language_selector",
 )
 LANG = language_options[selected_label]
 TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
 render_runtime_settings_panel()
 
 panorama_label = "市場全景" if LANG == "zh-TW" else "Market Panorama"
-nav = st.sidebar.radio(t("view"), [t("dashboard"), panorama_label, t("portfolio"), t("screener"), t("health")], index=0)
+nav = st.sidebar.radio(
+    t("view"),
+    [t("dashboard"), panorama_label, t("portfolio"), t("screener"), t("health")],
+    index=0,
+    key="main_nav",
+)
 
 if nav == t("dashboard"):
     render_dashboard()
