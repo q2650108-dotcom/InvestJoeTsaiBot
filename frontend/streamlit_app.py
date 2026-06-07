@@ -1659,6 +1659,70 @@ def render_health_check() -> None:
         st.dataframe(frame, use_container_width=True, hide_index=True)
 
 
+def inject_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            padding-top: 1.5rem;
+            padding-bottom: 2rem;
+        }
+        .page-title {
+            font-size: 1.8rem;
+            line-height: 1.2;
+            font-weight: 700;
+            color: #172033;
+            margin: 0 0 0.35rem;
+        }
+        .section-label {
+            font-size: 0.94rem;
+            line-height: 1.3;
+            font-weight: 700;
+            color: #26344d;
+            margin: 1.1rem 0 0.45rem;
+        }
+        .light-card {
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            padding: 0.85rem 0.9rem;
+            background: #ffffff;
+            min-height: 112px;
+        }
+        .light-card-label,
+        .summary-band-copy {
+            color: #64748b;
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+        .light-card-value {
+            color: #172033;
+            font-size: 1.18rem;
+            font-weight: 700;
+            margin-top: 0.25rem;
+        }
+        .light-card-copy {
+            font-size: 0.78rem;
+            line-height: 1.35;
+            margin-top: 0.35rem;
+        }
+        .summary-band {
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            background: #f8fafc;
+        }
+        .summary-band-title {
+            color: #172033;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-bottom: 0.2rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 inject_styles()
 
 language_options = {"繁體中文": "zh-TW", "English": "en"}

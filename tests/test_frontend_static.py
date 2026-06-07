@@ -45,3 +45,24 @@ class FrontendStaticTests(TestCase):
         assert zh_decision_assignment is not None
         self.assertLess(lang_assignment, first_lang_load)
         self.assertLess(zh_decision_assignment, first_zh_decision_load)
+
+    def test_top_level_local_function_calls_are_defined_first(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        tree = ast.parse(source)
+        local_function_lines = {
+            node.name: node.lineno
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+
+        for node in tree.body:
+            if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+                continue
+            call = node.value.func
+            if not isinstance(call, ast.Name) or call.id not in local_function_lines:
+                continue
+            self.assertLess(
+                local_function_lines[call.id],
+                node.lineno,
+                f"{call.id} is called before it is defined",
+            )
