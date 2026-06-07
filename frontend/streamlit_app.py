@@ -1123,11 +1123,12 @@ def render_market_panorama() -> None:
     st.markdown('<div class="page-title">\u5e02\u5834\u5168\u666f</div>', unsafe_allow_html=True)
     st.caption("\u7528\u7368\u7acb\u5206\u9801\u770b\u5168\u7403\u6307\u6578\u3001\u677f\u584a\u71b1\u5340\u8207\u4e3b\u984c\u6a19\u7684\uff0c\u907f\u514d\u62d6\u6162\u539f\u672c\u7b56\u7565\u9801\u9762\u3002")
 
-    market_key = st.segmented_control(
+    market_key = st.radio(
         "\u5e02\u5834",
         options=["tw", "us"],
         format_func=lambda value: "\u53f0\u80a1" if value == "tw" else "\u7f8e\u80a1",
-        default="tw",
+        index=0,
+        horizontal=True,
         key="panorama_market_selector",
     ) or "tw"
     config = market_panorama_service.get_config(str(market_key))
@@ -1692,11 +1693,12 @@ def describe_fear_greed(score: float | int | None) -> tuple[str, str]:
 
 def render_market_terminal_header(snapshot: DashboardSnapshot, overview: MarketOverview) -> str:
     st.markdown(f'<div class="section-label">{t("market_terminal")}</div>', unsafe_allow_html=True)
-    selected = st.segmented_control(
+    selected = st.radio(
         t("dashboard_market_view"),
         options=["tw", "us"],
         format_func=lambda value: t("taiwan") if value == "tw" else t("us"),
-        default="tw",
+        index=0,
+        horizontal=True,
         key="dashboard_market_selector",
     )
     return str(selected or "tw")

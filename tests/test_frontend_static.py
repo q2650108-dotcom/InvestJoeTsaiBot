@@ -86,3 +86,7 @@ class FrontendStaticTests(TestCase):
                 node.lineno,
                 f"{call.id} is called before it is defined",
             )
+
+    def test_streamlit_139_compatible_widgets_are_used(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        self.assertNotIn("st.segmented_control", source)
