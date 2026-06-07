@@ -722,9 +722,9 @@ def _market_bias_copy(summary: Any) -> str:
     return f"{regime}, {summary.candidate_count} candidates, {summary.actionable_count} actionable, {summary.safer_count} safer follow-through names."
 
 
-def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any) -> None:
+def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: Any, market_key: str = "tw") -> None:
     st.markdown('<div class="section-label">????</div>', unsafe_allow_html=True)
-    summary = summary_service.latest_market_summary("tw" if str(snapshot.benchmark_ticker).upper().endswith(("TW", "TWII")) else "us")
+    summary = summary_service.build_market_summary(market_key)
     st.caption(_market_bias_copy(summary))
 
     scan_tabs = st.tabs(["????", "????", "????", "??"])
@@ -733,7 +733,7 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
             build_market_pulse_chart(snapshot, overview, candidate_frame),
             use_container_width=True,
             config={"displayModeBar": False},
-            key=f"market_pulse_{getattr(snapshot, 'benchmark_ticker', 'benchmark')}"
+            key=f"market_pulse_{market_key}"
         )
         light_cols = st.columns(4)
         lights = [
@@ -758,17 +758,17 @@ def render_visual_scan(candidate_frame: pd.DataFrame, snapshot: Any, overview: A
             build_sector_heatmap(candidate_frame),
             use_container_width=True,
             config={"displayModeBar": False},
-            key=f"sector_heatmap_{getattr(snapshot, 'benchmark_ticker', 'benchmark')}"
+            key=f"sector_heatmap_{market_key}"
         )
     with scan_tabs[2]:
         st.plotly_chart(
             build_setup_distribution_chart(candidate_frame),
             use_container_width=True,
             config={"displayModeBar": False},
-            key=f"setup_distribution_{getattr(snapshot, 'benchmark_ticker', 'benchmark')}"
+            key=f"setup_distribution_{market_key}"
         )
     with scan_tabs[3]:
-        render_rank_boards(_market_key_for_ticker(getattr(snapshot, 'benchmark_ticker', '^GSPC')))
+        render_rank_boards(market_key)
 
 
 def render_rank_boards(market_key: str | None = None) -> None:
@@ -1945,7 +1945,7 @@ def render_dashboard(candidate_frame: pd.DataFrame | None = None) -> None:
             ]
         )
         with scan_pulse_tab:
-            render_visual_scan(market_candidate_frame, snapshot, overview)
+            render_visual_scan(market_candidate_frame, snapshot, overview, selected_market_key)
         with scan_heat_tab:
             st.markdown(f'<div class="section-label">{t("sector_heatmap")}</div>', unsafe_allow_html=True)
             st.plotly_chart(build_sector_heatmap(market_candidate_frame), use_container_width=True, config={"displayModeBar": False}, key="scan_tab_sector_heatmap")

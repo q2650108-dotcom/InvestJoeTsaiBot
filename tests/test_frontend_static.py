@@ -115,3 +115,8 @@ class FrontendStaticTests(TestCase):
                 keyword_names,
                 f"{node.func.attr} at line {node.lineno} is missing an explicit key",
             )
+
+    def test_frontend_uses_existing_service_contracts(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        self.assertNotIn("latest_market_summary", source)
+        self.assertNotIn("snapshot.benchmark_ticker", source)
