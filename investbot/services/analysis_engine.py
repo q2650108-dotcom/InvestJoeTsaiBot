@@ -343,6 +343,10 @@ class AnalysisEngine:
         )
 
         event_risk = self.event_risk_service.assess(ticker.upper(), trade_date)
+        avg_dollar_volume_20d = close_price * float(latest["20D_VOL_AVG"])
+        liquidity_score = self._score_liquidity(avg_dollar_volume_20d=avg_dollar_volume_20d, is_large_cap=is_large_cap)
+        valuation_risk = self._classify_valuation_risk(growth_snapshot)
+        exposure_evidence = self._classify_exposure_evidence(ticker=ticker, growth_snapshot=growth_snapshot)
         relative_strength_score = self._score_relative_strength(float(latest["20D_RETURN"]), market_context.benchmark_return_20d)
         institutional_conviction_score = self._score_institutional_conviction(buy_streak, institutional_net_buy)
         entry_quality_score = self._score_entry_quality(
@@ -360,6 +364,7 @@ class AnalysisEngine:
             market_regime_score=market_regime_score,
             relative_strength_score=relative_strength_score,
             institutional_conviction_score=institutional_conviction_score,
+            event_risk_score=event_risk_score,
             atr_risk_score=self._score_atr_risk(close_price=close_price, ma_20=ma_20, atr_20=atr_20),
             volume_quality_score=self._score_volume_quality(enriched),
         )
@@ -389,6 +394,16 @@ class AnalysisEngine:
                     institutional_buy_streak=buy_streak,
                     growth_snapshot=growth_snapshot,
                     confluence_result=confluence_result,
+                    liquidity_score=liquidity_score,
+                    avg_dollar_volume_20d=avg_dollar_volume_20d,
+                    valuation_risk=valuation_risk,
+                    exposure_evidence=exposure_evidence,
+                    research_priority=self._classify_research_priority(
+                        recommendation_bucket="Watchlist",
+                        liquidity_score=liquidity_score,
+                        valuation_risk=valuation_risk,
+                        exposure_evidence=exposure_evidence,
+                    ),
                 ),
                 baseline_reason,
             )
@@ -425,6 +440,16 @@ class AnalysisEngine:
                     institutional_buy_streak=buy_streak,
                     growth_snapshot=growth_snapshot,
                     confluence_result=confluence_result,
+                    liquidity_score=liquidity_score,
+                    avg_dollar_volume_20d=avg_dollar_volume_20d,
+                    valuation_risk=valuation_risk,
+                    exposure_evidence=exposure_evidence,
+                    research_priority=self._classify_research_priority(
+                        recommendation_bucket="Watchlist",
+                        liquidity_score=liquidity_score,
+                        valuation_risk=valuation_risk,
+                        exposure_evidence=exposure_evidence,
+                    ),
                 ),
                 no_signal_reason,
             )
@@ -436,6 +461,14 @@ class AnalysisEngine:
             trigger_labels=trigger_labels,
             institutional_buy_ratio=buy_ratio,
             is_large_cap=is_large_cap,
+            liquidity_score=liquidity_score,
+            valuation_risk=valuation_risk,
+        )
+        research_priority = self._classify_research_priority(
+            recommendation_bucket=recommendation_bucket,
+            liquidity_score=liquidity_score,
+            valuation_risk=valuation_risk,
+            exposure_evidence=exposure_evidence,
         )
         stage_row = self._build_stage_row(
             ticker=ticker,
@@ -449,6 +482,11 @@ class AnalysisEngine:
             growth_snapshot=growth_snapshot,
             trigger_labels=trigger_labels,
             confluence_result=confluence_result,
+            liquidity_score=liquidity_score,
+            avg_dollar_volume_20d=avg_dollar_volume_20d,
+            valuation_risk=valuation_risk,
+            exposure_evidence=exposure_evidence,
+            research_priority=research_priority,
         )
         if recommendation_bucket == "Watchlist":
             return results, stage_row, stage_reason
@@ -486,6 +524,11 @@ class AnalysisEngine:
                     strategy_scores=dict(confluence_result["scores"]),
                     confluence_reasons=list(confluence_result["reasons"]),
                     stop_loss_price=float(confluence_result["stop_loss_price"]) if confluence_result["stop_loss_price"] is not None else None,
+                    liquidity_score=liquidity_score,
+                    avg_dollar_volume_20d=round(avg_dollar_volume_20d, 2),
+                    valuation_risk=valuation_risk,
+                    exposure_evidence=exposure_evidence,
+                    research_priority=research_priority,
                 )
             )
         else:
@@ -518,6 +561,11 @@ class AnalysisEngine:
                     strategy_scores=dict(confluence_result["scores"]),
                     confluence_reasons=list(confluence_result["reasons"]),
                     stop_loss_price=float(confluence_result["stop_loss_price"]) if confluence_result["stop_loss_price"] is not None else None,
+                    liquidity_score=liquidity_score,
+                    avg_dollar_volume_20d=round(avg_dollar_volume_20d, 2),
+                    valuation_risk=valuation_risk,
+                    exposure_evidence=exposure_evidence,
+                    research_priority=research_priority,
                 )
             )
         return results, stage_row, None
@@ -622,15 +670,17 @@ class AnalysisEngine:
         market_regime_score: float,
         relative_strength_score: float,
         institutional_conviction_score: float,
+        event_risk_score: float,
         atr_risk_score: float,
         volume_quality_score: float,
     ) -> float:
         score = (
-            (market_regime_score * 0.2)
-            + (relative_strength_score * 0.2)
-            + (institutional_conviction_score * 0.3)
-            + (atr_risk_score * 0.15)
-            + (volume_quality_score * 0.15)
+            (market_regime_score * 0.18)
+            + (relative_strength_score * 0.18)
+            + (institutional_conviction_score * 0.27)
+            + (event_risk_score * 0.10)
+            + (atr_risk_score * 0.14)
+            + (volume_quality_score * 0.13)
         )
         return round(score, 2)
 
@@ -642,9 +692,19 @@ class AnalysisEngine:
         trigger_labels: list[str],
         institutional_buy_ratio: float,
         is_large_cap: bool,
+        liquidity_score: float,
+        valuation_risk: str,
     ) -> tuple[str, str, str]:
         if market_regime == "Risk-Off":
             return "Watchlist", "watch", "market_risk_off"
+        if composite_signal_score < 65:
+            return "Watchlist", "watch", "triggered_but_low_score"
+        if liquidity_score < 50:
+            return "Candidate", "candidate", "liquidity_gated"
+        if valuation_risk == "valuation_gated" and composite_signal_score >= 75:
+            return "Candidate", "candidate", "valuation_expectations_gated"
+        if composite_signal_score >= 82 and not overextended and is_large_cap and institutional_buy_ratio > 0:
+            return "Safer Follow-Through", "safer_follow_through", "high_quality_core_confirmation"
         if composite_signal_score >= 75 and not overextended and (is_large_cap or institutional_buy_ratio > 3):
             return "Actionable", "actionable", "ready_now"
         if composite_signal_score >= 75 and overextended:
@@ -654,6 +714,57 @@ class AnalysisEngine:
         if 65 <= composite_signal_score < 75:
             return "Candidate", "candidate", "score_borderline_65_74"
         return "Watchlist", "watch", "triggered_but_low_score"
+
+    def _score_liquidity(self, avg_dollar_volume_20d: float, is_large_cap: bool) -> float:
+        if avg_dollar_volume_20d >= 50_000_000:
+            return 90.0
+        if avg_dollar_volume_20d >= 10_000_000:
+            return 75.0
+        if avg_dollar_volume_20d >= 3_000_000:
+            return 55.0 if is_large_cap else 45.0
+        return 35.0
+
+    def _classify_valuation_risk(self, growth_snapshot: dict[str, object]) -> str:
+        pe_ratio = self._to_optional_float(growth_snapshot.get("pe_ratio"))
+        pb_ratio = self._to_optional_float(growth_snapshot.get("pb_ratio"))
+        eps_ttm = self._to_optional_float(growth_snapshot.get("eps_ttm"))
+        if eps_ttm is not None and eps_ttm <= 0:
+            return "loss_making_or_no_eps"
+        if pe_ratio is None and pb_ratio is None:
+            return "valuation_unverified"
+        if (pe_ratio is not None and pe_ratio >= 45) or (pb_ratio is not None and pb_ratio >= 10):
+            return "valuation_gated"
+        return "valuation_supported"
+
+    def _classify_exposure_evidence(self, ticker: str, growth_snapshot: dict[str, object]) -> str:
+        theme_tickers = {"2454.TW", "2330.TW", "NVDA", "AVGO", "MSFT", "AMZN"}
+        normalized = ticker.upper()
+        if normalized not in theme_tickers:
+            return "not_theme_mapped"
+        revenue_yoy = self._to_optional_float(growth_snapshot.get("revenue_yoy"))
+        eps_yoy = self._to_optional_float(growth_snapshot.get("eps_yoy"))
+        if (revenue_yoy is not None and revenue_yoy > 0) or (eps_yoy is not None and eps_yoy > 0):
+            return "theme_supported_by_growth"
+        return "needs_exposure_attribution"
+
+    def _classify_research_priority(
+        self,
+        recommendation_bucket: str,
+        liquidity_score: float,
+        valuation_risk: str,
+        exposure_evidence: str,
+    ) -> str:
+        if liquidity_score < 50:
+            return "liquidity_gated"
+        if valuation_risk == "valuation_gated":
+            return "valuation_expectations_gated"
+        if exposure_evidence == "needs_exposure_attribution":
+            return "exposure_not_yet_proven"
+        if recommendation_bucket in {"Safer Follow-Through", "Actionable"}:
+            return "advance_to_deeper_work"
+        if recommendation_bucket == "Candidate":
+            return "watchlist_needs_trigger"
+        return "screen_flag_only"
 
     def _is_high_quality_explore_candidate(
         self,
@@ -790,6 +901,17 @@ class AnalysisEngine:
             return False
         return close_price > ma_20 and ((close_price - ma_20) / atr_20) > 3.0
 
+    def _to_optional_float(self, value: object) -> float | None:
+        if value in (None, "", "nan"):
+            return None
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+        if pd.isna(result):
+            return None
+        return result
+
     def _build_stage_row(
         self,
         ticker: str,
@@ -803,6 +925,11 @@ class AnalysisEngine:
         growth_snapshot: dict[str, object],
         confluence_result: dict[str, object],
         trigger_labels: list[str] | None = None,
+        liquidity_score: float | None = None,
+        avg_dollar_volume_20d: float | None = None,
+        valuation_risk: str | None = None,
+        exposure_evidence: str | None = None,
+        research_priority: str | None = None,
     ) -> dict[str, object]:
         return {
             "ticker": ticker.upper(),
@@ -826,4 +953,9 @@ class AnalysisEngine:
             "confluence_reasons": confluence_result.get("reasons"),
             "stop_loss_price": confluence_result.get("stop_loss_price"),
             "triggers": trigger_labels or [],
+            "liquidity_score": liquidity_score,
+            "avg_dollar_volume_20d": round(avg_dollar_volume_20d, 2) if avg_dollar_volume_20d is not None else None,
+            "valuation_risk": valuation_risk,
+            "exposure_evidence": exposure_evidence,
+            "research_priority": research_priority,
         }

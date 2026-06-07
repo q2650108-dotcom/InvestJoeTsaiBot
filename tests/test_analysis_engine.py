@@ -244,6 +244,17 @@ class AnalysisEngineTests(TestCase):
 
     def test_run_penalizes_composite_score_when_event_risk_is_high(self) -> None:
         history = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)
+        low_risk_engine = build_engine(
+            stock_history=history,
+            buy_map={"2330.TW": 1500},
+            buy_history_map={"2330.TW": [50, 100, 200]},
+            vix_value=14.0,
+            event_risk_assessment=EventRiskAssessment(
+                score=80.0,
+                next_event_date=None,
+                note="clear",
+            ),
+        )
         engine = build_engine(
             stock_history=history,
             buy_map={"2330.TW": 1500},
@@ -256,12 +267,117 @@ class AnalysisEngineTests(TestCase):
             ),
         )
 
+        low_risk_signal = low_risk_engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))[0]
         signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
         signal = signals[0]
 
         self.assertEqual(signal.event_risk_note, "earnings_imminent")
         self.assertEqual(signal.next_event_date, "2026-05-03")
-        self.assertLess(signal.composite_signal_score or 100, 85)
+        self.assertLess(signal.composite_signal_score or 100, low_risk_signal.composite_signal_score or 0)
+
+    def test_run_classifies_high_quality_core_signal_as_safer_follow_through(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(260)], volume_values=[1_000_000] * 260)
+        benchmark_history = build_price_history(close_values=[200 + (i * 0.4) for i in range(260)], volume_values=[5_000_000] * 260)
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(
+                {"2330.TW": history, "^TWII": benchmark_history},
+                vix_value=14.0,
+                growth_map={
+                    "2330.TW": {
+                        "revenue_yoy": 35.0,
+                        "eps_ttm": 12.5,
+                        "eps_yoy": 30.0,
+                        "pe_ratio": 18.0,
+                        "pb_ratio": 4.0,
+                        "as_of": "2026-04",
+                        "source": "test",
+                    }
+                },
+            ),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": 2500},
+                buy_history_map={"2330.TW": [200, 300, 400, 500]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+            event_risk_service=FakeEventRiskService(EventRiskAssessment(score=85.0, next_event_date=None, note="clear")),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0].recommendation_bucket, "Safer Follow-Through")
+        self.assertEqual(signals[0].valuation_risk, "valuation_supported")
+        self.assertEqual(signals[0].exposure_evidence, "theme_supported_by_growth")
+        self.assertEqual(signals[0].research_priority, "advance_to_deeper_work")
+
+    def test_run_gates_high_score_signal_when_liquidity_is_thin(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(260)], volume_values=[5_000] * 260)
+        benchmark_history = build_price_history(close_values=[200 + (i * 0.4) for i in range(260)], volume_values=[5_000_000] * 260)
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(
+                {"2330.TW": history, "^TWII": benchmark_history},
+                vix_value=14.0,
+                growth_map={
+                    "2330.TW": {
+                        "revenue_yoy": 35.0,
+                        "eps_ttm": 12.5,
+                        "eps_yoy": 30.0,
+                        "pe_ratio": 18.0,
+                        "pb_ratio": 4.0,
+                        "as_of": "2026-04",
+                        "source": "test",
+                    }
+                },
+            ),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": 2500},
+                buy_history_map={"2330.TW": [200, 300, 400, 500]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+            event_risk_service=FakeEventRiskService(EventRiskAssessment(score=85.0, next_event_date=None, note="clear")),
+        )
+
+        summary = engine.run_with_summary(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(summary.signal_count, 1)
+        self.assertEqual(summary.signals[0].recommendation_bucket, "Candidate")
+        self.assertLess(summary.signals[0].liquidity_score or 100, 50)
+        self.assertEqual(summary.signals[0].research_priority, "liquidity_gated")
+
+    def test_run_marks_expensive_signal_as_valuation_gated(self) -> None:
+        history = build_price_history(close_values=[100 + i for i in range(260)], volume_values=[1_000_000] * 260)
+        benchmark_history = build_price_history(close_values=[200 + (i * 0.4) for i in range(260)], volume_values=[5_000_000] * 260)
+        engine = AnalysisEngine(
+            market_data=FakeMarketDataClient(
+                {"2330.TW": history, "^TWII": benchmark_history},
+                vix_value=14.0,
+                growth_map={
+                    "2330.TW": {
+                        "revenue_yoy": 20.0,
+                        "eps_ttm": 8.0,
+                        "eps_yoy": 15.0,
+                        "pe_ratio": 65.0,
+                        "pb_ratio": 12.0,
+                        "as_of": "2026-04",
+                        "source": "test",
+                    }
+                },
+            ),
+            twse_client=FakeTwseClient(
+                large_caps={"2330.TW"},
+                buy_map={"2330.TW": 2500},
+                buy_history_map={"2330.TW": [200, 300, 400, 500]},
+            ),
+            repository=FakeDailyAnalysisRepository(),
+            event_risk_service=FakeEventRiskService(EventRiskAssessment(score=85.0, next_event_date=None, note="clear")),
+        )
+
+        signals = engine.run(AnalysisUniverse(market_type="tw", core_tickers=["2330.TW"]))
+
+        self.assertEqual(signals[0].valuation_risk, "valuation_gated")
+        self.assertEqual(signals[0].research_priority, "valuation_expectations_gated")
 
     def test_run_downgrades_bucket_when_breadth_is_weak(self) -> None:
         strong_stock = build_price_history(close_values=[100 + (i * 2) for i in range(65)], volume_values=[1000] * 65)

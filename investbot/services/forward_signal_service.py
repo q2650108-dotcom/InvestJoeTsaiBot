@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import requests
+try:
+    import requests
+except ModuleNotFoundError:  # pragma: no cover - lightweight test/runtime fallback
+    requests = None  # type: ignore[assignment]
 
 
 @dataclass(slots=True)
@@ -30,7 +33,7 @@ class ForwardSignalService:
         return snapshot
 
     def _fetch_snapshot(self, ticker: str) -> ForwardSignalSnapshot:
-        if not self.keys:
+        if not self.keys or requests is None:
             return ForwardSignalSnapshot(score=50.0, notes=[])
 
         # Start neutral and blend incremental live signals.

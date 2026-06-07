@@ -15,6 +15,9 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+LANG = "zh-TW"
+ZH_DECISION_TEXT: dict[str, str] = {}
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -30,6 +33,7 @@ def hydrate_env_from_streamlit_secrets() -> None:
 
 
 hydrate_env_from_streamlit_secrets()
+os.environ.setdefault("INVESTBOT_SUPABASE_ROLE", "frontend")
 
 from investbot.config import get_settings
 from investbot.data_sources.market_data import YahooMarketDataClient
@@ -57,6 +61,7 @@ settings = get_settings()
 chat_id = settings.telegram_allowed_chat_id
 user_settings_service = UserSettingsService()
 runtime_settings = user_settings_service.get_runtime_namespace(chat_id)
+LANG = str(getattr(runtime_settings, "app_language", getattr(settings, "app_language", "zh-TW")) or "zh-TW")
 repo = DailyAnalysisRepository()
 portfolio_service = PortfolioService()
 market_data = YahooMarketDataClient()
@@ -419,6 +424,10 @@ COPY["zh-TW"].update(
     }
 )
 
+LANG = str(globals().get("LANG") or "zh-TW")
+ZH_DECISION_TEXT = globals().get("ZH_DECISION_TEXT", {})
+if not isinstance(ZH_DECISION_TEXT, dict):
+    ZH_DECISION_TEXT = {}
 TEXT = COPY["zh-TW"] | COPY.get(LANG, {})
 
 ZH_DECISION_TEXT.update(
@@ -1652,12 +1661,13 @@ def render_health_check() -> None:
 
 inject_styles()
 
-language_options = {"蝜?銝剜?": "zh-TW", "English": "en"}
+language_options = {"繁體中文": "zh-TW", "English": "en"}
 selected_label = st.sidebar.selectbox(
     f'Language / {COPY["zh-TW"]["language"]}',
     options=list(language_options.keys()),
     index=0 if LANG == "zh-TW" else 1,
 )
+LANG = language_options[selected_label]
 TEXT = COPY["zh-TW"] | COPY[language_options[selected_label]]
 render_runtime_settings_panel()
 

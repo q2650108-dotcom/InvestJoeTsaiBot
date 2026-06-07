@@ -123,6 +123,27 @@ class DecisionSupportAndOverviewTests(TestCase):
         self.assertTrue(explanation.rationale)
         self.assertTrue(explanation.risks)
 
+    def test_decision_support_does_not_promote_theme_without_exposure_evidence(self) -> None:
+        service = DecisionSupportService()
+        explanation = service.explain(
+            {
+                "ticker": "NVDA",
+                "recommendation_bucket": "Watchlist",
+                "universe_bucket": "core",
+                "institutional_buy_streak": 1,
+                "composite_signal_score": 64.0,
+                "relative_strength_score": 60.0,
+                "event_risk_score": 70.0,
+                "entry_quality_score": 60.0,
+                "market_regime": "Risk-On",
+                "event_risk_note": "clear",
+                "exposure_evidence": "needs_exposure_attribution",
+            }
+        )
+
+        self.assertEqual(explanation.recommendation_level, "Watch and Wait")
+        self.assertTrue(any("exposure attribution" in item for item in explanation.risks))
+
     def test_market_overview_builds_trend_and_momentum_zones(self) -> None:
         repository = FakeOverviewRepository()
         overview = MarketOverviewService(

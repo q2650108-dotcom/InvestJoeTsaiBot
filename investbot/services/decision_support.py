@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from investbot.config import get_settings
 from investbot.services.forward_signal_service import ForwardSignalService
 
 @dataclass(slots=True)
@@ -55,6 +54,10 @@ class DecisionSupportService:
         entry_quality_score = float(row.get("entry_quality_score") or 0.0)
         market_regime = str(row.get("market_regime", "Unknown"))
         event_risk_note = str(row.get("event_risk_note", "clear"))
+        valuation_risk = str(row.get("valuation_risk", ""))
+        exposure_evidence = str(row.get("exposure_evidence", ""))
+        research_priority = str(row.get("research_priority", ""))
+        liquidity_score = float(row.get("liquidity_score") or 0.0)
         ticker = str(row.get("ticker", "")).upper()
 
         rationale: list[str] = []
@@ -94,12 +97,26 @@ class DecisionSupportService:
         elif event_risk_score < 65:
             risks.append("Event risk is manageable but still worth monitoring.")
 
+        if liquidity_score and liquidity_score < 50:
+            risks.append("Liquidity is thin, so this should stay research-only until executable capacity is checked.")
+        if valuation_risk == "valuation_gated":
+            risks.append("Valuation and expectations are already demanding; confirm upside before advancing.")
+        elif valuation_risk == "valuation_unverified":
+            risks.append("Valuation data is incomplete, so the setup is not investment-ready.")
+        elif valuation_risk == "loss_making_or_no_eps":
+            risks.append("Earnings quality is weak or unavailable, so valuation support is limited.")
+        if exposure_evidence == "needs_exposure_attribution":
+            risks.append("Theme exposure attribution is not yet proven by growth or source-backed revenue linkage.")
+        if research_priority:
+            rationale.append(f"Research priority: {research_priority}.")
+
         forward_score, forward_notes = self._build_forward_view(
             ticker=ticker,
             market_regime=market_regime,
             buy_streak=buy_streak,
             relative_strength_score=relative_strength_score,
             event_risk_score=event_risk_score,
+            exposure_evidence=exposure_evidence,
         )
         live_forward = self.forward_signal_service.get_snapshot(ticker)
         if live_forward.notes:
@@ -184,14 +201,17 @@ class DecisionSupportService:
         buy_streak: int,
         relative_strength_score: float,
         event_risk_score: float,
+        exposure_evidence: str = "",
     ) -> tuple[float, list[str]]:
         score = 50.0
         notes: list[str] = []
 
         themes = self.THEME_LEADERS.get(ticker, [])
-        if themes:
+        if themes and exposure_evidence != "needs_exposure_attribution":
             score += 14
             notes.append(f"Theme support: {', '.join(themes)}.")
+        elif themes:
+            notes.append("Theme is visible, but exposure attribution still needs proof.")
         if buy_streak >= 2:
             score += 8
             notes.append("Institutional flow persistence supports the forward setup.")
@@ -218,6 +238,8 @@ class DecisionSupportService:
 
     def _build_forward_signal_service(self) -> ForwardSignalService:
         try:
+            from investbot.config import get_settings
+
             settings = get_settings()
             if not settings.enable_live_forward_signals:
                 return ForwardSignalService(fmp_api_keys="")

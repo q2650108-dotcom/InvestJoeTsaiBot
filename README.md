@@ -13,7 +13,7 @@ This repository includes:
 
 ## Product Scope
 
-The current implementation follows the specification in [gemini-code-1777685860630.md](C:/Users/MAN/Desktop/Codex/InvestBot/gemini-code-1777685860630.md) and focuses on:
+The current implementation follows the specification in [gemini-code-1777685860630.md](gemini-code-1777685860630.md) and focuses on:
 
 - post-market screening
 - defensive risk monitoring
@@ -34,7 +34,7 @@ tests/                 Unit tests
 1. Create a virtual environment.
 2. Install dependencies from `requirements.txt`.
 3. Copy `.env.example` to `.env`.
-4. Fill in Supabase and Telegram credentials.
+4. Fill in Supabase and Telegram credentials. Use `SUPABASE_SERVICE_KEY` for the backend and `SUPABASE_ANON_KEY` for the Streamlit frontend.
 5. Run `db/schema.sql` in Supabase SQL editor.
 
 ## Run the Backend
@@ -70,7 +70,7 @@ bash scripts/deploy_oracle.sh
 
 1. Push this repo to GitHub
 2. Deploy `frontend/streamlit_app.py`
-3. Copy `.streamlit/secrets.example.toml` into Streamlit secrets and fill values
+3. Copy `.streamlit/secrets.example.toml` into Streamlit secrets and fill values. Prefer the anon Supabase key for frontend secrets.
 
 ## Test
 

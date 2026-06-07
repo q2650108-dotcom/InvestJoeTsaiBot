@@ -31,6 +31,11 @@ create table if not exists daily_analysis (
     strategy_scores jsonb,
     confluence_reasons jsonb,
     stop_loss_price double precision,
+    liquidity_score double precision,
+    avg_dollar_volume_20d double precision,
+    valuation_risk text,
+    exposure_evidence text,
+    research_priority text,
     created_at timestamptz not null default now(),
     unique (date, ticker, signal_type)
 );
@@ -92,6 +97,21 @@ alter table daily_analysis
 alter table daily_analysis
     add column if not exists stop_loss_price double precision;
 
+alter table daily_analysis
+    add column if not exists liquidity_score double precision;
+
+alter table daily_analysis
+    add column if not exists avg_dollar_volume_20d double precision;
+
+alter table daily_analysis
+    add column if not exists valuation_risk text;
+
+alter table daily_analysis
+    add column if not exists exposure_evidence text;
+
+alter table daily_analysis
+    add column if not exists research_priority text;
+
 create index if not exists idx_daily_analysis_ticker_date
     on daily_analysis (ticker, date desc);
 
@@ -123,12 +143,32 @@ create table if not exists paper_trades (
     buy_date date not null,
     buy_price double precision not null,
     stop_loss_price double precision not null,
+    quantity integer,
+    account_value double precision,
+    risk_tolerance_percent double precision,
+    risk_amount double precision,
+    position_value double precision,
     status text not null check (status in ('OPEN', 'CLOSED')),
     sell_date date,
     sell_price double precision,
     pnl_percent double precision,
     created_at timestamptz not null default now()
 );
+
+alter table paper_trades
+    add column if not exists quantity integer;
+
+alter table paper_trades
+    add column if not exists account_value double precision;
+
+alter table paper_trades
+    add column if not exists risk_tolerance_percent double precision;
+
+alter table paper_trades
+    add column if not exists risk_amount double precision;
+
+alter table paper_trades
+    add column if not exists position_value double precision;
 
 create index if not exists idx_paper_trades_status_ticker
     on paper_trades (status, ticker);

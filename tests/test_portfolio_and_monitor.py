@@ -93,6 +93,54 @@ class PortfolioAndMonitorTests(TestCase):
         self.assertEqual(positions[0]["live_pnl_percent"], 10.0)
         self.assertEqual(positions[0]["stop_buffer_percent"], 18.18)
 
+    def test_create_paper_trade_calculates_quantity_from_risk_budget(self) -> None:
+        repository = FakePaperTradeRepository(trades=[])
+        service = PortfolioService(
+            repository=repository,
+            market_data=FakeMarketDataClient({"2330.TW": 100.0}),
+        )
+
+        trade = service.create_paper_trade(
+            "2330.TW",
+            stop_loss_price=95.0,
+            account_value=100_000.0,
+            risk_tolerance_percent=1.0,
+        )
+
+        self.assertEqual(trade["quantity"], 200)
+        self.assertEqual(trade["position_value"], 20_000.0)
+        self.assertEqual(trade["risk_amount"], 1_000.0)
+
+    def test_get_open_positions_summary_uses_weighted_pnl_when_position_values_exist(self) -> None:
+        repository = FakePaperTradeRepository(
+            trades=[
+                {
+                    "id": "1",
+                    "ticker": "AAPL",
+                    "buy_price": 100.0,
+                    "stop_loss_price": 90.0,
+                    "position_value": 10_000.0,
+                    "status": "OPEN",
+                },
+                {
+                    "id": "2",
+                    "ticker": "MSFT",
+                    "buy_price": 100.0,
+                    "stop_loss_price": 80.0,
+                    "position_value": 30_000.0,
+                    "status": "OPEN",
+                },
+            ]
+        )
+        service = PortfolioService(
+            repository=repository,
+            market_data=FakeMarketDataClient({"AAPL": 110.0, "MSFT": 90.0}),
+        )
+
+        _, total_pnl = service.get_open_positions_summary()
+
+        self.assertEqual(total_pnl, -5.0)
+
     def test_monitor_service_returns_alert_when_price_breaks_stop_loss(self) -> None:
         repository = FakePaperTradeRepository(
             trades=[

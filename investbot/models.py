@@ -35,6 +35,11 @@ class MarketSignal:
     strategy_scores: dict[str, int] | None = None
     confluence_reasons: list[str] | None = None
     stop_loss_price: float | None = None
+    liquidity_score: float | None = None
+    avg_dollar_volume_20d: float | None = None
+    valuation_risk: str | None = None
+    exposure_evidence: str | None = None
+    research_priority: str | None = None
 
     def to_record(self) -> dict[str, object]:
         return {
@@ -67,4 +72,9 @@ class MarketSignal:
             "strategy_scores": self.strategy_scores,
             "confluence_reasons": self.confluence_reasons,
             "stop_loss_price": self.stop_loss_price,
+            "liquidity_score": self.liquidity_score,
+            "avg_dollar_volume_20d": self.avg_dollar_volume_20d,
+            "valuation_risk": self.valuation_risk,
+            "exposure_evidence": self.exposure_evidence,
+            "research_priority": self.research_priority,
         }
