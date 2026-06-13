@@ -130,3 +130,19 @@ class FrontendStaticTests(TestCase):
         self.assertIn("if refresh_live_market:", dashboard_source)
         self.assertLess(dashboard_source.index("if refresh_live_market:"), dashboard_source.index("load_dashboard_snapshot_cached()"))
         self.assertLess(dashboard_source.index("if refresh_live_market:"), dashboard_source.index("load_market_overview_cached()"))
+
+    def test_primary_zh_tw_copy_is_not_mojibake(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        required_terms = [
+            '"language": "語言"',
+            '"dashboard": "儀表板"',
+            '"visual_scan": "視覺掃描"',
+            '"market_pulse": "市場脈動"',
+            '"decision_cards": "決策卡"',
+            '"suggested_action": "建議動作"',
+            '"verdict_buy": "可買"',
+            '"settings_panel": "偏好設定"',
+            '"Institutional buying has just turned positive.": "法人買盤剛轉正。"',
+        ]
+        for term in required_terms:
+            self.assertIn(term, source)
