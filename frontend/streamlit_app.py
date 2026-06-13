@@ -1868,29 +1868,35 @@ def render_dashboard(candidate_frame: pd.DataFrame | None = None) -> None:
             )
         finally:
             candidate_notice.empty()
+    refresh_live_market = st.button(
+        "刷新市場資料" if LANG == "zh-TW" else "Refresh Market Data",
+        key="dashboard_refresh_market_data",
+        use_container_width=False,
+    )
     load_notice = st.empty()
     cached_snapshot = load_dashboard_snapshot_persisted()
     cached_overview = load_market_overview_persisted()
     if cached_snapshot is not None or cached_overview is not None:
-        load_notice.info("?＊蝷箔?甈⊥??翰?改???甇交?唳??啣??渲???.." if LANG == "zh-TW" else "Showing the last successful snapshot first while refreshing live market data...")
+        load_notice.info("已先顯示最後一次成功快照；需要時可手動刷新市場資料。" if LANG == "zh-TW" else "Showing the last successful snapshot. Use Refresh Market Data when needed.")
     else:
-        load_notice.info("甇?頛撣敹怎??蝺???.." if LANG == "zh-TW" else "Loading market snapshot and sentiment data...")
+        load_notice.info("目前沒有快取快照，先顯示降級資料；可手動刷新市場資料。" if LANG == "zh-TW" else "No cached snapshot yet. Showing fallback data; refresh manually when needed.")
     snapshot = cached_snapshot or build_dashboard_snapshot_fallback()
     overview = cached_overview or build_market_overview_fallback()
     snapshot_error = None
     overview_error = None
-    try:
-        fresh_snapshot = load_dashboard_snapshot_cached()
-        snapshot = fresh_snapshot
-        _store_persisted_app_cache("dashboard_snapshot", _serialize_dashboard_snapshot(fresh_snapshot))
-    except Exception as exc:
-        snapshot_error = exc
-    try:
-        fresh_overview = load_market_overview_cached()
-        overview = fresh_overview
-        _store_persisted_app_cache("market_overview", _serialize_market_overview(fresh_overview))
-    except Exception as exc:
-        overview_error = exc
+    if refresh_live_market:
+        try:
+            fresh_snapshot = load_dashboard_snapshot_cached()
+            snapshot = fresh_snapshot
+            _store_persisted_app_cache("dashboard_snapshot", _serialize_dashboard_snapshot(fresh_snapshot))
+        except Exception as exc:
+            snapshot_error = exc
+        try:
+            fresh_overview = load_market_overview_cached()
+            overview = fresh_overview
+            _store_persisted_app_cache("market_overview", _serialize_market_overview(fresh_overview))
+        except Exception as exc:
+            overview_error = exc
     load_notice.empty()
     if snapshot_error or overview_error:
         problems = []

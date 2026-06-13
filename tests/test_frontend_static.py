@@ -120,3 +120,13 @@ class FrontendStaticTests(TestCase):
         source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
         self.assertNotIn("latest_market_summary", source)
         self.assertNotIn("snapshot.benchmark_ticker", source)
+
+    def test_dashboard_live_refresh_is_manual(self) -> None:
+        source = Path("frontend/streamlit_app.py").read_text(encoding="utf-8-sig")
+        dashboard_start = source.index("def render_dashboard")
+        dashboard_end = source.index("def render_portfolio")
+        dashboard_source = source[dashboard_start:dashboard_end]
+        self.assertIn("refresh_live_market = st.button", dashboard_source)
+        self.assertIn("if refresh_live_market:", dashboard_source)
+        self.assertLess(dashboard_source.index("if refresh_live_market:"), dashboard_source.index("load_dashboard_snapshot_cached()"))
+        self.assertLess(dashboard_source.index("if refresh_live_market:"), dashboard_source.index("load_market_overview_cached()"))
